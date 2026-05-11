@@ -1,0 +1,355 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+}
+
+enum ProductUnit {
+  KG
+  PIECE
+  PACK
+  METER
+  SQUARE_METER
+  LITER
+  SET
+}
+
+enum StockMovementType {
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
+enum SaleType {
+  RETAIL
+  WHOLESALE
+}
+
+enum PaymentMethod {
+  CASH_UZS
+  CASH_USD
+  CARD
+  TRANSFER
+  MIXED
+  CREDIT
+}
+
+enum TransferStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+// ─── Branch ───────────────────────────────────────────────────────────────────
+
+model Branch {
+  id             String          @id @default(uuid())
+  name           String
+  address        String?
+  phone          String?
+  users          User[]
+  customers      Customer[]
+  inventories    Inventory[]
+  stockBatches   StockBatch[]
+  stockMovements StockMovement[]
+  sales          Sale[]
+  expenses       Expense[]
+  transfersFrom  Transfer[]      @relation("TransfersFrom")
+  transfersTo    Transfer[]      @relation("TransfersTo")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+// ─── User ─────────────────────────────────────────────────────────────────────
+
+model User {
+  id                 String          @id @default(uuid())
+  fullName           String
+  username           String          @unique
+  password           String
+  role               UserRole
+  isActive           Boolean         @default(true)
+  branchId           String?
+  branch             Branch?         @relation(fields: [branchId], references: [id])
+  stockBatches       StockBatch[]
+  stockMovements     StockMovement[]
+  sales              Sale[]
+  salePayments       SalePayment[]
+  expenses           Expense[]
+  initiatedTransfers Transfer[]      @relation("TransfersInitiated")
+  completedTransfers Transfer[]      @relation("TransfersCompleted")
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([branchId])
+  @@index([role])
+}
+
+// ─── Product Category ─────────────────────────────────────────────────────────
+
+model ProductCategory {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  isActive    Boolean   @default(true)
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ─── Product ──────────────────────────────────────────────────────────────────
+
+model Product {
+  id                String          @id @default(uuid())
+  name              String
+  description       String?
+  sku               String?         @unique
+  unit              ProductUnit
+  categoryId        String
+  category          ProductCategory @relation(fields: [categoryId], references: [id])
+  retailPriceUzs    Decimal         @db.Decimal(18, 2)
+  wholesalePriceUzs Decimal         @db.Decimal(18, 2)
+  retailPriceUsd    Decimal?        @db.Decimal(10, 4)
+  wholesalePriceUsd Decimal?        @db.Decimal(10, 4)
+  lowStockThreshold Decimal?        @db.Decimal(18, 4)
+  isActive          Boolean         @default(true)
+  inventories       Inventory[]
+  stockBatches      StockBatch[]
+  stockMovements    StockMovement[]
+  saleItems         SaleItem[]
+  transferItems     TransferItem[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([sku])
+}
+
+// ─── Inventory ────────────────────────────────────────────────────────────────
+
+model Inventory {
+  id        String   @id @default(uuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Decimal  @default(0) @db.Decimal(18, 4)
+  updatedAt DateTime @updatedAt
+
+  @@unique([branchId, productId])
+  @@index([branchId])
+  @@index([productId])
+}
+
+// ─── StockBatch ───────────────────────────────────────────────────────────────
+
+model StockBatch {
+  id           String   @id @default(uuid())
+  branchId     String
+  branch       Branch   @relation(fields: [branchId], references: [id])
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id])
+  initialQty   Decimal  @db.Decimal(18, 4)
+  remainingQty Decimal  @db.Decimal(18, 4)
+  costPriceUzs Decimal  @db.Decimal(18, 2)
+  costPriceUsd Decimal? @db.Decimal(10, 4)
+  supplierNote String?
+  receivedAt   DateTime @default(now())
+  createdById  String
+  createdBy    User     @relation(fields: [createdById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([branchId, productId])
+  @@index([remainingQty])
+  @@index([receivedAt])
+}
+
+// ─── StockMovement ────────────────────────────────────────────────────────────
+
+model StockMovement {
+  id           String            @id @default(uuid())
+  branchId     String
+  branch       Branch            @relation(fields: [branchId], references: [id])
+  productId    String
+  product      Product           @relation(fields: [productId], references: [id])
+  type         StockMovementType
+  quantity     Decimal           @db.Decimal(18, 4)
+  balanceAfter Decimal           @db.Decimal(18, 4)
+  note         String?
+  createdById  String
+  createdBy    User              @relation(fields: [createdById], references: [id])
+  createdAt    DateTime          @default(now())
+
+  @@index([branchId, productId])
+  @@index([branchId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ─── Customer ─────────────────────────────────────────────────────────────────
+
+model Customer {
+  id        String   @id @default(uuid())
+  fullName  String
+  phone     String?
+  address   String?
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  balance   Decimal  @default(0) @db.Decimal(18, 2)
+  isActive  Boolean  @default(true)
+  sales     Sale[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId])
+  @@index([phone])
+}
+
+// ─── Sale ─────────────────────────────────────────────────────────────────────
+
+model Sale {
+  id             String        @id @default(uuid())
+  branchId       String
+  branch         Branch        @relation(fields: [branchId], references: [id])
+  customerId     String?
+  customer       Customer?     @relation(fields: [customerId], references: [id])
+  soldById       String
+  soldBy         User          @relation(fields: [soldById], references: [id])
+  saleType       SaleType
+  items          SaleItem[]
+  payments       SalePayment[]
+  totalAmountUzs Decimal       @db.Decimal(18, 2)
+  paidAmountUzs  Decimal       @default(0) @db.Decimal(18, 2)
+  debtAmountUzs  Decimal       @default(0) @db.Decimal(18, 2)
+  debtDueDate    DateTime?
+  note           String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([branchId])
+  @@index([customerId])
+  @@index([soldById])
+  @@index([createdAt])
+  @@index([debtDueDate])
+}
+
+// ─── SaleItem ─────────────────────────────────────────────────────────────────
+
+model SaleItem {
+  id         String  @id @default(uuid())
+  saleId     String
+  sale       Sale    @relation(fields: [saleId], references: [id])
+  productId  String
+  product    Product @relation(fields: [productId], references: [id])
+  quantity   Decimal @db.Decimal(18, 4)
+  unitPrice  Decimal @db.Decimal(18, 2)
+  totalPrice Decimal @db.Decimal(18, 2)
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+// ─── SalePayment ──────────────────────────────────────────────────────────────
+
+model SalePayment {
+  id            String        @id @default(uuid())
+  saleId        String
+  sale          Sale          @relation(fields: [saleId], references: [id])
+  amountUzs     Decimal       @default(0) @db.Decimal(18, 2)
+  amountUsd     Decimal       @default(0) @db.Decimal(10, 4)
+  usdToUzsRate  Decimal?      @db.Decimal(18, 2)
+  paymentMethod PaymentMethod
+  note          String?
+  receivedById  String
+  receivedBy    User          @relation(fields: [receivedById], references: [id])
+  createdAt     DateTime      @default(now())
+
+  @@index([saleId])
+}
+
+// ─── Expense ──────────────────────────────────────────────────────────────────
+
+model ExpenseCategory {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  isActive    Boolean   @default(true)
+  expenses    Expense[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Expense {
+  id          String          @id @default(uuid())
+  branchId    String
+  branch      Branch          @relation(fields: [branchId], references: [id])
+  categoryId  String
+  category    ExpenseCategory @relation(fields: [categoryId], references: [id])
+  amount      Decimal         @db.Decimal(18, 2)
+  description String?
+  expenseDate DateTime
+  createdById String
+  createdBy   User            @relation(fields: [createdById], references: [id])
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([branchId])
+  @@index([expenseDate])
+  @@index([categoryId])
+  @@index([branchId, expenseDate])
+}
+
+// ─── Transfer ─────────────────────────────────────────────────────────────────
+
+model Transfer {
+  id            String         @id @default(uuid())
+  fromBranchId  String
+  fromBranch    Branch         @relation("TransfersFrom", fields: [fromBranchId], references: [id])
+  toBranchId    String
+  toBranch      Branch         @relation("TransfersTo", fields: [toBranchId], references: [id])
+  status        TransferStatus @default(PENDING)
+  note          String?
+  items         TransferItem[]
+  initiatedById String
+  initiatedBy   User           @relation("TransfersInitiated", fields: [initiatedById], references: [id])
+  completedById String?
+  completedBy   User?          @relation("TransfersCompleted", fields: [completedById], references: [id])
+  completedAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([fromBranchId])
+  @@index([toBranchId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ─── TransferItem ─────────────────────────────────────────────────────────────
+
+model TransferItem {
+  id           String   @id @default(uuid())
+  transferId   String
+  transfer     Transfer @relation(fields: [transferId], references: [id])
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id])
+  quantity     Decimal  @db.Decimal(18, 4)
+  unitCostUzs  Decimal  @db.Decimal(18, 2)
+  totalCostUzs Decimal  @db.Decimal(18, 2)
+
+  @@index([transferId])
+  @@index([productId])
+}

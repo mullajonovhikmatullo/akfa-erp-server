@@ -8,7 +8,9 @@
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "seed:admin": "ts-node-dev --transpile-only src/scripts/create-super-admin.ts",
     "seed": "ts-node-dev --transpile-only src/scripts/seed.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
+    "postinstall": "prisma generate",
+    "deploy": "prisma migrate deploy",
     "start": "node dist/server.js"
   },
   "keywords": [],

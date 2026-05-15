@@ -25,16 +25,27 @@ dotenv.config();
 const app = express();
 
 app.use(express.json());
-app.use(cors({
-    origin: (origin, callback) => {
-        // Allow requests with no origin (curl, Postman, server-to-server)
-        if (!origin) return callback(null, true);
-        // Allow any localhost port during development
-        if (/^http:\/\/localhost:\d+$/.test(origin)) return callback(null, true);
-        callback(new Error(`CORS: origin ${origin} not allowed`));
-    },
-    credentials: true,
-}));
+app.use(
+    cors({
+        origin: (origin, callback) => {
+            if (!origin) return callback(null, true);
+
+            // localhost
+            if (/^http:\/\/localhost:\d+$/.test(origin)) {
+                return callback(null, true);
+            }
+
+            // any vercel subdomain
+            if (/\.vercel\.app$/.test(origin)) {
+                return callback(null, true);
+            }
+
+            return callback(new Error(`CORS: origin ${origin} not allowed`));
+        },
+
+        credentials: true,
+    })
+);
 app.use((req, res, next) => {
     if (req.path.startsWith("/docs")) return next();
     return helmet()(req, res, next);

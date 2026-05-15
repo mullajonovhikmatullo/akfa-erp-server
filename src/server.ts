@@ -7,6 +7,7 @@ import swaggerUi from "swagger-ui-express";
 
 import { swaggerSpec } from "./core/config/swagger";
 import { errorHandler } from "./core/errors/errorHandler";
+import { seedSuperAdmin } from "./bootstrap/seed-super-admin";
 
 import authRoutes from "./modules/auth/auth.routes";
 import usersRoutes from "./modules/users/users.routes";
@@ -74,4 +75,9 @@ app.get("/", (_, res) => {
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`SERVER RUNNING ON ${PORT}`));
+app.listen(PORT, () => {
+    console.log(`SERVER RUNNING ON ${PORT}`);
+    seedSuperAdmin().catch((err) =>
+        console.error("Failed to seed super admin:", err)
+    );
+});

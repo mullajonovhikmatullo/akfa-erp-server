@@ -26,24 +26,22 @@ dotenv.config();
 const app = express();
 
 app.use(express.json());
+const extraOrigins = (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
 app.use(
     cors({
         origin: (origin, callback) => {
             if (!origin) return callback(null, true);
 
-            // localhost
-            if (/^http:\/\/localhost:\d+$/.test(origin)) {
-                return callback(null, true);
-            }
-
-            // any vercel subdomain
-            if (/\.vercel\.app$/.test(origin)) {
-                return callback(null, true);
-            }
+            if (/^http:\/\/localhost:\d+$/.test(origin)) return callback(null, true);
+            if (/\.vercel\.app$/.test(origin)) return callback(null, true);
+            if (extraOrigins.includes(origin)) return callback(null, true);
 
             return callback(new Error(`CORS: origin ${origin} not allowed`));
         },
-
         credentials: true,
     })
 );

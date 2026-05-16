@@ -16,6 +16,12 @@ export const AdminsController = {
     async findAll(req: Request, res: Response, next: NextFunction) {
         try {
             const filters = listAdminsSchema.parse(req.query);
+            if (req.query.page !== undefined) {
+                const page = Math.max(1, Number(req.query.page) || 1);
+                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const result = await AdminsService.findPaginated({ ...filters, page, pageSize });
+                return ApiResponse.success(res, result);
+            }
             const admins = await AdminsService.findAll(filters);
             return ApiResponse.success(res, admins);
         } catch (error) {

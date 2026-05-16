@@ -27,6 +27,21 @@ const productSelect = {
     },
 } as const;
 
+function buildWhere(filters: ProductFilters) {
+    return {
+        ...(filters.categoryId && { categoryId: filters.categoryId }),
+        ...(filters.unit && { unit: filters.unit as any }),
+        ...(filters.isActive !== undefined && { isActive: filters.isActive }),
+        ...(filters.search && {
+            OR: [
+                { name: { contains: filters.search, mode: "insensitive" as const } },
+                { sku: { contains: filters.search, mode: "insensitive" as const } },
+                { description: { contains: filters.search, mode: "insensitive" as const } },
+            ],
+        }),
+    };
+}
+
 export const ProductsRepository = {
     create(data: CreateProductDto) {
         return prisma.product.create({
@@ -37,21 +52,24 @@ export const ProductsRepository = {
 
     findAll(filters: ProductFilters) {
         return prisma.product.findMany({
-            where: {
-                ...(filters.categoryId && { categoryId: filters.categoryId }),
-                ...(filters.unit && { unit: filters.unit as any }),
-                ...(filters.isActive !== undefined && { isActive: filters.isActive }),
-                ...(filters.search && {
-                    OR: [
-                        { name: { contains: filters.search, mode: "insensitive" } },
-                        { sku: { contains: filters.search, mode: "insensitive" } },
-                        { description: { contains: filters.search, mode: "insensitive" } },
-                    ],
-                }),
-            },
+            where: buildWhere(filters),
             select: productSelect,
             orderBy: { createdAt: "desc" },
         });
+    },
+
+    findPaginated(filters: ProductFilters, page: number, pageSize: number) {
+        return prisma.product.findMany({
+            where: buildWhere(filters),
+            select: productSelect,
+            orderBy: { createdAt: "desc" },
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+        });
+    },
+
+    count(filters: ProductFilters) {
+        return prisma.product.count({ where: buildWhere(filters) });
     },
 
     findById(id: string) {

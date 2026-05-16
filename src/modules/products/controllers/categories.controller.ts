@@ -16,6 +16,14 @@ export const CategoriesController = {
         try {
             const isActive =
                 req.query.isActive === undefined ? undefined : req.query.isActive === "true";
+
+            if (req.query.page !== undefined) {
+                const page = Math.max(1, Number(req.query.page) || 1);
+                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const result = await CategoriesService.findPaginated({ page, pageSize, isActive });
+                return ApiResponse.success(res, result);
+            }
+
             const categories = await CategoriesService.findAll(isActive);
             return ApiResponse.success(res, categories);
         } catch (error) {

@@ -35,6 +35,15 @@ export const ProductsService = {
         return ProductsRepository.findAll(filters);
     },
 
+    async findPaginated(params: ProductFilters & { page: number; pageSize: number }) {
+        const { page, pageSize, ...filters } = params;
+        const [items, total] = await Promise.all([
+            ProductsRepository.findPaginated(filters, page, pageSize),
+            ProductsRepository.count(filters),
+        ]);
+        return { items, total };
+    },
+
     async findById(id: string) {
         const product = await ProductsRepository.findById(id);
         if (!product) {

@@ -16,6 +16,16 @@ export const CategoriesService = {
         return CategoriesRepository.findAll(isActive);
     },
 
+    async findPaginated({ page, pageSize, isActive }: { page: number; pageSize: number; isActive?: boolean }) {
+        const [items, total, totalActive, totalInactive] = await Promise.all([
+            CategoriesRepository.findPaginated({ page, pageSize, isActive }),
+            CategoriesRepository.count(isActive),
+            CategoriesRepository.count(true),
+            CategoriesRepository.count(false),
+        ]);
+        return { items, total, totalActive, totalInactive };
+    },
+
     async findById(id: string) {
         const category = await CategoriesRepository.findById(id);
         if (!category) {

@@ -34,6 +34,38 @@ export const AdminsRepository = {
         });
     },
 
+    findPaginated(filters: { branchId?: string; isActive?: boolean }, page: number, pageSize: number) {
+        return prisma.user.findMany({
+            where: {
+                role: "ADMIN",
+                ...(filters.branchId && { branchId: filters.branchId }),
+                ...(filters.isActive !== undefined && { isActive: filters.isActive }),
+            },
+            select: adminSelect,
+            orderBy: { createdAt: "desc" },
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+        });
+    },
+
+    count(filters: { branchId?: string; isActive?: boolean }) {
+        return prisma.user.count({
+            where: {
+                role: "ADMIN",
+                ...(filters.branchId && { branchId: filters.branchId }),
+                ...(filters.isActive !== undefined && { isActive: filters.isActive }),
+            },
+        });
+    },
+
+    countAssigned() {
+        return prisma.user.count({ where: { role: "ADMIN", branchId: { not: null } } });
+    },
+
+    countUnassigned() {
+        return prisma.user.count({ where: { role: "ADMIN", branchId: null } });
+    },
+
     findById(id: string) {
         return prisma.user.findFirst({
             where: { id, role: "ADMIN" },

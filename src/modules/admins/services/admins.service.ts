@@ -31,6 +31,17 @@ export const AdminsService = {
         return AdminsRepository.findAll(filters);
     },
 
+    async findPaginated(params: { branchId?: string; isActive?: boolean; page: number; pageSize: number }) {
+        const { page, pageSize, ...filters } = params;
+        const [items, total, totalAssigned, totalUnassigned] = await Promise.all([
+            AdminsRepository.findPaginated(filters, page, pageSize),
+            AdminsRepository.count(filters),
+            AdminsRepository.countAssigned(),
+            AdminsRepository.countUnassigned(),
+        ]);
+        return { items, total, totalAssigned, totalUnassigned };
+    },
+
     async findById(id: string) {
         const admin = await AdminsRepository.findById(id);
         if (!admin) {

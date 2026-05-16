@@ -11,10 +11,20 @@ export class BranchesService {
 
     static async findAll() {
         return prisma.branch.findMany({
-            orderBy: {
-                createdAt: "desc",
-            },
+            orderBy: { createdAt: "desc" },
         });
+    }
+
+    static async findPaginated({ page, pageSize }: { page: number; pageSize: number }) {
+        const [items, total] = await Promise.all([
+            prisma.branch.findMany({
+                orderBy: { createdAt: "desc" },
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+            }),
+            prisma.branch.count(),
+        ]);
+        return { items, total };
     }
 
     static async update(id: string, data: Partial<CreateBranchDto>) {

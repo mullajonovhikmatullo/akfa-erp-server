@@ -49,6 +49,12 @@ export const InventoryController = {
     async findBatches(req: Request, res: Response, next: NextFunction) {
         try {
             const query = batchQuerySchema.parse(req.query);
+            if (req.query.page !== undefined) {
+                const page = Math.max(1, Number(req.query.page) || 1);
+                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const result = await InventoryService.findBatchesPaginated(query, page, pageSize, req.user!);
+                return ApiResponse.success(res, result);
+            }
             const batches = await InventoryService.findBatches(query, req.user!);
             return ApiResponse.success(res, batches);
         } catch (error) {

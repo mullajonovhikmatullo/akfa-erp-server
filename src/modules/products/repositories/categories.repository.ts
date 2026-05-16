@@ -10,7 +10,22 @@ export const CategoriesRepository = {
     findAll(isActive?: boolean) {
         return prisma.productCategory.findMany({
             where: isActive !== undefined ? { isActive } : undefined,
-            orderBy: { name: "asc" },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+        });
+    },
+
+    findPaginated({ page, pageSize, isActive }: { page: number; pageSize: number; isActive?: boolean }) {
+        return prisma.productCategory.findMany({
+            where: isActive !== undefined ? { isActive } : undefined,
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+        });
+    },
+
+    count(isActive?: boolean) {
+        return prisma.productCategory.count({
+            where: isActive !== undefined ? { isActive } : undefined,
         });
     },
 

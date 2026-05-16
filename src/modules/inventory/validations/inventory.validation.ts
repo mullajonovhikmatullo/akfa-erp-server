@@ -60,5 +60,5 @@ export const batchQuerySchema = z.object({
     depleted: z
         .string()
         .optional()
-        .transform((v) => v === "true"),
+        .transform((v) => (v === undefined ? undefined : v === "true")),
 });

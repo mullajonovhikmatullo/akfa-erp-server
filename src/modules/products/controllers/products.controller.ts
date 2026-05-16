@@ -16,6 +16,12 @@ export const ProductsController = {
     async findAll(req: Request, res: Response, next: NextFunction) {
         try {
             const filters = listProductsSchema.parse(req.query);
+            if (req.query.page !== undefined) {
+                const page = Math.max(1, Number(req.query.page) || 1);
+                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const result = await ProductsService.findPaginated({ ...filters, page, pageSize });
+                return ApiResponse.success(res, result);
+            }
             const products = await ProductsService.findAll(filters);
             return ApiResponse.success(res, products);
         } catch (error) {

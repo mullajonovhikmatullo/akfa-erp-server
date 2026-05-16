@@ -220,6 +220,30 @@ export const SalesService = {
         });
     },
 
+    async findPaginated(
+        query: z.infer<typeof saleQuerySchema>,
+        page: number,
+        pageSize: number,
+        user: JwtPayload
+    ) {
+        const scope = branchScope(user, query.branchId);
+        const filters = {
+            ...scope,
+            customerId: query.customerId,
+            saleType: query.saleType,
+            hasDebt: query.hasDebt,
+            overdue: query.overdue,
+            from: query.from,
+            to: query.to,
+        };
+        const [items, total, totalWithDebt] = await Promise.all([
+            SalesRepository.findPaginated(filters, page, pageSize),
+            SalesRepository.count(filters),
+            SalesRepository.countWithDebt(scope.branchId),
+        ]);
+        return { items, total, totalWithDebt };
+    },
+
     async setDebtDeadline(saleId: string, debtDueDate: Date | null, user: JwtPayload) {
         const sale = await SalesRepository.findById(saleId);
         if (!sale) throw new AppError(404, "Sale not found");

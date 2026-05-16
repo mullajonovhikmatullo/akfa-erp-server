@@ -83,6 +83,27 @@ type CreateSaleData = {
     };
 };
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function buildWhere(filters: Omit<SaleFilters, 'limit'>) {
+    return {
+        ...(filters.branchId && { branchId: filters.branchId }),
+        ...(filters.customerId && { customerId: filters.customerId }),
+        ...(filters.saleType && { saleType: filters.saleType }),
+        ...(filters.hasDebt && { debtAmountUzs: { gt: 0 } }),
+        ...(filters.overdue && {
+            debtAmountUzs: { gt: 0 },
+            debtDueDate: { lt: new Date(), not: null },
+        }),
+        ...((filters.from || filters.to) && {
+            createdAt: {
+                ...(filters.from && { gte: new Date(filters.from) }),
+                ...(filters.to && { lte: new Date(filters.to) }),
+            },
+        }),
+    };
+}
+
 // ─── Repository ───────────────────────────────────────────────────────────────
 
 export const SalesRepository = {
@@ -120,25 +141,33 @@ export const SalesRepository = {
 
     findAll(filters: SaleFilters) {
         return prisma.sale.findMany({
-            where: {
-                ...(filters.branchId && { branchId: filters.branchId }),
-                ...(filters.customerId && { customerId: filters.customerId }),
-                ...(filters.saleType && { saleType: filters.saleType }),
-                ...(filters.hasDebt && { debtAmountUzs: { gt: 0 } }),
-                ...(filters.overdue && {
-                    debtAmountUzs: { gt: 0 },
-                    debtDueDate: { lt: new Date(), not: null },
-                }),
-                ...((filters.from || filters.to) && {
-                    createdAt: {
-                        ...(filters.from && { gte: new Date(filters.from) }),
-                        ...(filters.to && { lte: new Date(filters.to) }),
-                    },
-                }),
-            },
+            where: buildWhere(filters),
             select: saleListSelect,
             orderBy: { createdAt: "desc" },
             take: filters.limit,
+        });
+    },
+
+    findPaginated(filters: Omit<SaleFilters, 'limit'>, page: number, pageSize: number) {
+        return prisma.sale.findMany({
+            where: buildWhere(filters),
+            select: saleListSelect,
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+        });
+    },
+
+    count(filters: Omit<SaleFilters, 'limit'>) {
+        return prisma.sale.count({ where: buildWhere(filters) });
+    },
+
+    countWithDebt(branchId?: string) {
+        return prisma.sale.count({
+            where: {
+                ...(branchId && { branchId }),
+                debtAmountUzs: { gt: 0 },
+            },
         });
     },
 

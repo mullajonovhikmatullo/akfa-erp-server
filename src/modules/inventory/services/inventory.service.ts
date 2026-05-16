@@ -152,8 +152,30 @@ export const InventoryService = {
         return InventoryRepository.findBatches({
             ...scope,
             productId: query.productId,
-            depleted: query.depleted ? true : query.depleted === false ? false : undefined,
+            depleted: query.depleted,
         });
+    },
+
+    async findBatchesPaginated(
+        query: z.infer<typeof batchQuerySchema>,
+        page: number,
+        pageSize: number,
+        user: JwtPayload
+    ) {
+        const scope = branchScope(user, query.branchId);
+        const filters = {
+            ...scope,
+            productId: query.productId,
+            depleted: query.depleted,
+        };
+        const [items, total, totalBatches, totalActive, totalCostUzs] = await Promise.all([
+            InventoryRepository.findBatchesPaginated(filters, page, pageSize),
+            InventoryRepository.countBatches(filters),
+            InventoryRepository.countBatches({ branchId: scope.branchId }),
+            InventoryRepository.countBatches({ branchId: scope.branchId, depleted: false }),
+            InventoryRepository.sumBatchCostUzs(scope.branchId),
+        ]);
+        return { items, total, totalBatches, totalActive, totalCostUzs };
     },
 
     // ─── Internal: FIFO deduction ─────────────────────────────────────────────

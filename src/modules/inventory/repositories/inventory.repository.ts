@@ -48,6 +48,17 @@ const batchSelect = {
     createdBy: { select: { id: true, fullName: true } },
 } as const;
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function buildBatchWhere(filters: { branchId?: string; productId?: string; depleted?: boolean }) {
+    return {
+        ...(filters.branchId && { branchId: filters.branchId }),
+        ...(filters.productId && { productId: filters.productId }),
+        ...(filters.depleted === false && { remainingQty: { gt: 0 } }),
+        ...(filters.depleted === true && { remainingQty: { equals: 0 } }),
+    };
+}
+
 // ─── Inventory ────────────────────────────────────────────────────────────────
 
 type InventoryFilters = {
@@ -142,15 +153,37 @@ export const InventoryRepository = {
     ) {
         const client = tx ?? prisma;
         return client.stockBatch.findMany({
-            where: {
-                ...(filters.branchId && { branchId: filters.branchId }),
-                ...(filters.productId && { productId: filters.productId }),
-                ...(filters.depleted === false && { remainingQty: { gt: 0 } }),
-                ...(filters.depleted === true && { remainingQty: { equals: 0 } }),
-            },
+            where: buildBatchWhere(filters),
             select: batchSelect,
             orderBy: { receivedAt: "desc" },
         });
+    },
+
+    findBatchesPaginated(
+        filters: { branchId?: string; productId?: string; depleted?: boolean },
+        page: number,
+        pageSize: number
+    ) {
+        return prisma.stockBatch.findMany({
+            where: buildBatchWhere(filters),
+            select: batchSelect,
+            orderBy: [{ receivedAt: "desc" }, { id: "asc" }],
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+        });
+    },
+
+    countBatches(filters: { branchId?: string; productId?: string; depleted?: boolean }) {
+        return prisma.stockBatch.count({ where: buildBatchWhere(filters) });
+    },
+
+    async sumBatchCostUzs(branchId?: string): Promise<number> {
+        const rows = await prisma.$queryRaw<[{ total: unknown }]>(
+            branchId
+                ? Prisma.sql`SELECT COALESCE(SUM("initialQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "branchId" = ${branchId}`
+                : Prisma.sql`SELECT COALESCE(SUM("initialQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch"`
+        );
+        return Number(rows[0].total);
     },
 
     // ─── StockMovement ───────────────────────────────────────────────────────

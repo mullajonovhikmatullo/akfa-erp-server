@@ -15,7 +15,7 @@ export const createProductSchema = z.object({
         .regex(/^[A-Za-z0-9_-]+$/, "SKU may only contain letters, numbers, hyphens, and underscores")
         .optional(),
     unit: z.nativeEnum(ProductUnit),
-    categoryId: z.string().uuid("categoryId must be a valid UUID"),
+    categoryId: z.string().uuid("categoryId must be a valid UUID").optional(),
     retailPriceUzs: priceField,
     wholesalePriceUzs: priceField,
     retailPriceUsd: priceField.optional(),

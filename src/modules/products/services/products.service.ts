@@ -14,15 +14,17 @@ type ProductFilters = {
 export const ProductsService = {
     async create(dto: CreateProductDto) {
         const [category, skuConflict] = await Promise.all([
-            CategoriesRepository.findById(dto.categoryId),
+            dto.categoryId ? CategoriesRepository.findById(dto.categoryId) : Promise.resolve(null),
             dto.sku ? ProductsRepository.findBySku(dto.sku) : Promise.resolve(null),
         ]);
 
-        if (!category) {
-            throw new AppError(404, "Category not found");
-        }
-        if (!category.isActive) {
-            throw new AppError(409, "Cannot assign product to an inactive category");
+        if (dto.categoryId) {
+            if (!category) {
+                throw new AppError(404, "Category not found");
+            }
+            if (!category.isActive) {
+                throw new AppError(409, "Cannot assign product to an inactive category");
+            }
         }
         if (skuConflict) {
             throw new AppError(409, `SKU "${dto.sku}" is already in use`);

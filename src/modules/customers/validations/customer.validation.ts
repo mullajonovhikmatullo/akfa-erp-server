@@ -8,6 +8,7 @@ export const createCustomerSchema = z.object({
         .regex(/^\+?[0-9\s\-()]{7,20}$/, "Invalid phone number format")
         .optional(),
     address: z.string().max(300).optional(),
+    balance: z.number().optional(),
 });
 
 export const updateCustomerSchema = z.object({

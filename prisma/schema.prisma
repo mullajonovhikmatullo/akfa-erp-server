@@ -117,8 +117,8 @@ model Product {
   description       String?
   sku               String?         @unique
   unit              ProductUnit
-  categoryId        String
-  category          ProductCategory @relation(fields: [categoryId], references: [id])
+  categoryId        String?
+  category          ProductCategory? @relation(fields: [categoryId], references: [id])
   retailPriceUzs    Decimal         @db.Decimal(18, 2)
   wholesalePriceUzs Decimal         @db.Decimal(18, 2)
   retailPriceUsd    Decimal?        @db.Decimal(10, 4)

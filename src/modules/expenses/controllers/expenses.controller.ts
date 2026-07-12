@@ -1,6 +1,9 @@
 import { NextFunction, Request, Response } from "express";
 import { ApiResponse } from "../../../core/response/ApiResponse";
-import { expenseQuerySchema } from "../validations/expense.validation";
+import {
+    expenseCategorySummaryQuerySchema,
+    expenseQuerySchema,
+} from "../validations/expense.validation";
 import { ExpensesService } from "../services/expenses.service";
 
 export const ExpensesController = {
@@ -18,6 +21,16 @@ export const ExpensesController = {
             const query = expenseQuerySchema.parse(req.query);
             const expenses = await ExpensesService.findAll(query, req.user!);
             return ApiResponse.success(res, expenses);
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    async categorySummary(req: Request, res: Response, next: NextFunction) {
+        try {
+            const query = expenseCategorySummaryQuerySchema.parse(req.query);
+            const summary = await ExpensesService.categorySummary(query, req.user!);
+            return ApiResponse.success(res, summary);
         } catch (error) {
             next(error);
         }

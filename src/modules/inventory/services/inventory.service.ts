@@ -2,9 +2,9 @@ import { Prisma, StockMovementType } from "@prisma/client";
 import { AppError } from "../../../core/errors/AppError";
 import { JwtPayload } from "../../../core/types/jwt.types";
 import { branchScope, resolveBranchId } from "../../../core/utils/branch-access";
-import { prisma } from "../../../infrastructure/prisma/prisma";
+import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { AdjustmentDto } from "../dto/adjustment.dto";
-import { StockInDto } from "../dto/stock-in.dto";
+import { StockInBatchDto, StockInDto } from "../dto/stock-in.dto";
 import { InventoryRepository } from "../repositories/inventory.repository";
 import {
     batchQuerySchema,
@@ -13,61 +13,137 @@ import {
 } from "../validations/inventory.validation";
 import { z } from "zod";
 
+type ResolvedStockIn = {
+    dto: StockInDto;
+    branchId: string;
+};
+
+async function assertActiveActor(userId: string) {
+    const actor = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, isActive: true },
+    });
+
+    if (!actor || !actor.isActive) {
+        throw new AppError(401, "Unauthorized");
+    }
+}
+
+async function assertStockInTargets(items: ResolvedStockIn[]) {
+    const branchIds = [...new Set(items.map((item) => item.branchId))];
+    const productIds = [...new Set(items.map((item) => item.dto.productId))];
+
+    const [branches, products] = await Promise.all([
+        prisma.branch.findMany({
+            where: { id: { in: branchIds } },
+            select: { id: true },
+        }),
+        prisma.product.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true, isActive: true },
+        }),
+    ]);
+
+    const foundBranchIds = new Set(branches.map((branch) => branch.id));
+    const productById = new Map(products.map((product) => [product.id, product]));
+
+    for (const item of items) {
+        if (!foundBranchIds.has(item.branchId)) {
+            throw new AppError(404, "Branch not found");
+        }
+
+        const product = productById.get(item.dto.productId);
+        if (!product) {
+            throw new AppError(404, "Product not found");
+        }
+        if (!product.isActive) {
+            throw new AppError(409, "Cannot stock an inactive product");
+        }
+    }
+}
+
+async function createStockInEntry(
+    item: ResolvedStockIn,
+    createdById: string,
+    tx: Prisma.TransactionClient
+) {
+    const batch = await InventoryRepository.createBatch(
+        {
+            branchId: item.branchId,
+            productId: item.dto.productId,
+            initialQty: item.dto.quantity,
+            remainingQty: item.dto.quantity,
+            costPriceUzs: item.dto.costPriceUzs,
+            costPriceUsd: item.dto.costPriceUsd,
+            supplierNote: item.dto.supplierNote,
+            createdById,
+        },
+        tx
+    );
+
+    const availableQty = await InventoryRepository.sumRemainingQty(
+        item.branchId,
+        item.dto.productId,
+        tx
+    );
+    const updatedInventory = await InventoryRepository.setBalance(
+        item.branchId,
+        item.dto.productId,
+        availableQty,
+        tx
+    );
+
+    await InventoryRepository.createMovement(
+        {
+            branchId: item.branchId,
+            productId: item.dto.productId,
+            type: StockMovementType.STOCK_IN,
+            quantity: item.dto.quantity,
+            balanceAfter: Number(updatedInventory.quantity),
+            note: item.dto.supplierNote,
+            createdById,
+        },
+        tx
+    );
+
+    return batch;
+}
+
 export const InventoryService = {
     // ─── Stock In ─────────────────────────────────────────────────────────────
 
     async stockIn(dto: StockInDto, user: JwtPayload) {
         const branchId = resolveBranchId(dto.branchId, user);
+        const item = { dto, branchId };
 
-        const [branch, product] = await Promise.all([
-            prisma.branch.findUnique({ where: { id: branchId }, select: { id: true } }),
-            prisma.product.findUnique({
-                where: { id: dto.productId },
-                select: { id: true, isActive: true },
-            }),
+        await Promise.all([
+            assertActiveActor(user.id),
+            assertStockInTargets([item]),
         ]);
 
-        if (!branch) throw new AppError(404, "Branch not found");
-        if (!product) throw new AppError(404, "Product not found");
-        if (!product.isActive) throw new AppError(409, "Cannot stock an inactive product");
+        return prisma.$transaction(async (tx) => {
+            return createStockInEntry(item, user.id, tx);
+        }, transactionOptions);
+    },
+
+    async stockInBatch(dtos: StockInBatchDto, user: JwtPayload) {
+        const items = dtos.map((dto) => ({
+            dto,
+            branchId: resolveBranchId(dto.branchId, user),
+        }));
+
+        await Promise.all([
+            assertActiveActor(user.id),
+            assertStockInTargets(items),
+        ]);
 
         return prisma.$transaction(async (tx) => {
-            const batch = await InventoryRepository.createBatch(
-                {
-                    branchId,
-                    productId: dto.productId,
-                    initialQty: dto.quantity,
-                    remainingQty: dto.quantity,
-                    costPriceUzs: dto.costPriceUzs,
-                    costPriceUsd: dto.costPriceUsd,
-                    supplierNote: dto.supplierNote,
-                    createdById: user.id,
-                },
-                tx
-            );
-
-            const updatedInventory = await InventoryRepository.upsertBalance(
-                branchId,
-                dto.productId,
-                dto.quantity,
-                tx
-            );
-
-            await InventoryRepository.createMovement(
-                {
-                    branchId,
-                    productId: dto.productId,
-                    type: StockMovementType.STOCK_IN,
-                    quantity: dto.quantity,
-                    balanceAfter: Number(updatedInventory.quantity),
-                    note: dto.supplierNote,
-                    createdById: user.id,
-                },
-                tx
-            );
-
-            return batch;
-        });
+            const batches = [];
+            for (const item of items) {
+                batches.push(await createStockInEntry(item, user.id, tx));
+            }
+            return batches;
+        }, transactionOptions);
     },
 
     // ─── Manual Adjustment ───────────────────────────────────────────────────
@@ -110,7 +186,7 @@ export const InventoryService = {
                 delta,
                 movement,
             };
-        });
+        }, transactionOptions);
     },
 
     // ─── Read Operations ─────────────────────────────────────────────────────
@@ -191,8 +267,8 @@ export const InventoryService = {
         tx: Prisma.TransactionClient,
         movementType: StockMovementType = StockMovementType.STOCK_OUT
     ) {
-        const inventory = await InventoryRepository.findOne(branchId, productId, tx);
-        const currentQty = inventory ? Number(inventory.quantity) : 0;
+        const batches = await InventoryRepository.findActiveBatches(branchId, productId, tx);
+        const currentQty = batches.reduce((sum, batch) => sum + Number(batch.remainingQty), 0);
 
         if (currentQty < quantity) {
             const productRecord = await tx.product.findUnique({
@@ -206,7 +282,6 @@ export const InventoryService = {
         }
 
         // FIFO: consume from oldest batches first
-        const batches = await InventoryRepository.findActiveBatches(branchId, productId, tx);
         let remaining = quantity;
 
         for (const batch of batches) {
@@ -216,7 +291,8 @@ export const InventoryService = {
             remaining -= consume;
         }
 
-        const updated = await InventoryRepository.upsertBalance(branchId, productId, -quantity, tx);
+        const nextQty = Number(Math.max(0, currentQty - quantity).toFixed(4));
+        const updated = await InventoryRepository.setBalance(branchId, productId, nextQty, tx);
 
         await InventoryRepository.createMovement(
             {
@@ -260,7 +336,8 @@ export const InventoryService = {
             tx
         );
 
-        const updated = await InventoryRepository.upsertBalance(branchId, productId, quantity, tx);
+        const availableQty = await InventoryRepository.sumRemainingQty(branchId, productId, tx);
+        const updated = await InventoryRepository.setBalance(branchId, productId, availableQty, tx);
 
         await InventoryRepository.createMovement(
             {

@@ -1,9 +1,14 @@
 import { z } from "zod";
 
+const dateParamSchema = z
+    .string()
+    .refine((value) => !Number.isNaN(new Date(value).getTime()), "Invalid date")
+    .optional();
+
 export const analyticsQuerySchema = z.object({
     branchId: z.string().uuid().optional(),
-    from: z.string().datetime().optional(),
-    to: z.string().datetime().optional(),
+    from: dateParamSchema,
+    to: dateParamSchema,
     period: z.enum(["day", "week", "month"]).default("day"),
     limit: z
         .string()

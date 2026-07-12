@@ -1,15 +1,21 @@
 import { z } from "zod";
 import { AppError } from "../../../core/errors/AppError";
 import { JwtPayload } from "../../../core/types/jwt.types";
-import { branchScope, resolveBranchId } from "../../../core/utils/branch-access";
+import { branchScope } from "../../../core/utils/branch-access";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 import { CreateExpenseDto } from "../dto/create-expense.dto";
 import { ExpensesRepository } from "../repositories/expenses.repository";
-import { expenseQuerySchema } from "../validations/expense.validation";
+import {
+    expenseCategorySummaryQuerySchema,
+    expenseQuerySchema,
+} from "../validations/expense.validation";
 
 export const ExpensesService = {
     async create(dto: CreateExpenseDto, user: JwtPayload) {
-        const branchId = resolveBranchId(dto.branchId, user);
+        if (!user.branchId) {
+            throw new AppError(403, "Your account is not assigned to any branch");
+        }
+        const branchId = user.branchId;
 
         const category = await prisma.expenseCategory.findUnique({
             where: { id: dto.categoryId },
@@ -29,6 +35,54 @@ export const ExpensesService = {
             to: query.to,
             limit: query.limit,
         });
+    },
+
+    async categorySummary(
+        query: z.infer<typeof expenseCategorySummaryQuerySchema>,
+        user: JwtPayload
+    ) {
+        const scope = branchScope(user, query.branchId);
+        const rows = await ExpensesRepository.categorySummary({
+            ...scope,
+            categoryId: query.categoryId,
+            from: query.from,
+            to: query.to,
+        });
+
+        const categories = rows.map((r) => ({
+            categoryId: r.category_id,
+            categoryName: r.category_name,
+            amount: Number(r.total),
+            count: Number(r.count),
+        }));
+
+        const total = categories.reduce((sum, c) => sum + c.amount, 0);
+        const hasOverflow = categories.length > query.limit;
+        const visibleCount = hasOverflow ? Math.max(query.limit - 1, 1) : query.limit;
+        const kpiCategories: Array<{
+            categoryId: string;
+            categoryName: string;
+            amount: number;
+            count: number;
+            isOther?: boolean;
+        }> = categories.slice(0, visibleCount);
+
+        if (hasOverflow && query.limit > 1) {
+            const otherCategories = categories.slice(visibleCount);
+            kpiCategories.push({
+                categoryId: "other-expense-categories",
+                categoryName: "Other",
+                amount: otherCategories.reduce((sum, c) => sum + c.amount, 0),
+                count: otherCategories.reduce((sum, c) => sum + c.count, 0),
+                isOther: true,
+            });
+        }
+
+        return {
+            total,
+            categories,
+            kpiCategories,
+        };
     },
 
     async findById(id: string, user: JwtPayload) {

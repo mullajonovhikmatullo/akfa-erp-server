@@ -24,3 +24,14 @@ export const expenseQuerySchema = z.object({
         .optional()
         .transform((v) => (v ? Math.min(parseInt(v, 10), 500) : 100)),
 });
+
+export const expenseCategorySummaryQuerySchema = expenseQuerySchema.extend({
+    limit: z
+        .string()
+        .optional()
+        .transform((v) => {
+            const parsed = v ? parseInt(v, 10) : 5;
+            if (!Number.isFinite(parsed)) return 5;
+            return Math.min(Math.max(parsed, 1), 20);
+        }),
+});

@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 import { CreateExpenseDto } from "../dto/create-expense.dto";
 
@@ -19,6 +20,8 @@ type ExpenseFilters = {
     to?: string;
     limit: number;
 };
+
+type ExpenseCategorySummaryFilters = Omit<ExpenseFilters, "limit">;
 
 export const ExpensesRepository = {
     create(data: Omit<CreateExpenseDto, "branchId"> & { branchId: string; createdById: string }) {
@@ -51,6 +54,43 @@ export const ExpensesRepository = {
             orderBy: { expenseDate: "desc" },
             take: filters.limit,
         });
+    },
+
+    categorySummary(filters: ExpenseCategorySummaryFilters) {
+        const branchCond = filters.branchId
+            ? Prisma.sql`AND e."branchId" = ${filters.branchId}`
+            : Prisma.empty;
+        const categoryCond = filters.categoryId
+            ? Prisma.sql`AND e."categoryId" = ${filters.categoryId}`
+            : Prisma.empty;
+        const fromCond = filters.from
+            ? Prisma.sql`AND e."expenseDate" >= ${new Date(filters.from)}`
+            : Prisma.empty;
+        const toCond = filters.to
+            ? Prisma.sql`AND e."expenseDate" <= ${new Date(filters.to)}`
+            : Prisma.empty;
+
+        return prisma.$queryRaw<{
+            category_id: string;
+            category_name: string;
+            total: string;
+            count: bigint;
+        }[]>`
+            SELECT
+                ec.id AS category_id,
+                ec.name AS category_name,
+                SUM(e.amount)::text AS total,
+                COUNT(e.id)::bigint AS count
+            FROM "Expense" e
+            JOIN "ExpenseCategory" ec ON ec.id = e."categoryId"
+            WHERE 1 = 1
+              ${branchCond}
+              ${categoryCond}
+              ${fromCond}
+              ${toCond}
+            GROUP BY ec.id, ec.name
+            ORDER BY SUM(e.amount) DESC
+        `;
     },
 
     findById(id: string) {

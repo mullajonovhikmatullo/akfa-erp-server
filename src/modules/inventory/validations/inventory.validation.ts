@@ -22,6 +22,11 @@ export const stockInSchema = z.object({
     supplierNote: z.string().max(500).optional(),
 });
 
+export const stockInBatchSchema = z
+    .array(stockInSchema)
+    .min(1, "At least one stock-in item is required")
+    .max(100, "A maximum of 100 stock-in items can be registered at once");
+
 export const adjustmentSchema = z.object({
     branchId: z.string().uuid().optional(),
     productId: z.string().uuid(),

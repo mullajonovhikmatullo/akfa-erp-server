@@ -1,6 +1,7 @@
 import { AppError } from "../../../core/errors/AppError";
 import { CreateProductDto } from "../dto/create-product.dto";
 import { UpdateProductDto } from "../dto/update-product.dto";
+import { prisma } from "../../../infrastructure/prisma/prisma";
 import { CategoriesRepository } from "../repositories/categories.repository";
 import { ProductsRepository } from "../repositories/products.repository";
 
@@ -13,6 +14,8 @@ type ProductFilters = {
 
 export const ProductsService = {
     async create(dto: CreateProductDto) {
+        const { branchId: requestedBranchId, ...productData } = dto;
+
         const [category, skuConflict] = await Promise.all([
             dto.categoryId ? CategoriesRepository.findById(dto.categoryId) : Promise.resolve(null),
             dto.sku ? ProductsRepository.findBySku(dto.sku) : Promise.resolve(null),
@@ -30,7 +33,37 @@ export const ProductsService = {
             throw new AppError(409, `SKU "${dto.sku}" is already in use`);
         }
 
-        return ProductsRepository.create(dto);
+        const branchId = requestedBranchId ?? await ProductsService.findDefaultBranchId();
+        const branch = branchId
+            ? await prisma.branch.findUnique({ where: { id: branchId }, select: { id: true } })
+            : null;
+
+        if (!branch) {
+            throw new AppError(404, "Branch not found");
+        }
+
+        return ProductsRepository.create(productData, branchId);
+    },
+
+    async findDefaultBranchId() {
+        const namedMainBranch = await prisma.branch.findFirst({
+            where: {
+                OR: [
+                    { name: { contains: "main", mode: "insensitive" } },
+                    { name: { contains: "asosiy", mode: "insensitive" } },
+                    { name: { contains: "глав", mode: "insensitive" } },
+                ],
+            },
+            select: { id: true },
+            orderBy: { createdAt: "asc" },
+        });
+        if (namedMainBranch) return namedMainBranch.id;
+
+        const firstBranch = await prisma.branch.findFirst({
+            select: { id: true },
+            orderBy: { createdAt: "asc" },
+        });
+        return firstBranch?.id;
     },
 
     async findAll(filters: ProductFilters) {

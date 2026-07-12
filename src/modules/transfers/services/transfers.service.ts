@@ -3,7 +3,7 @@ import { StockMovementType } from "@prisma/client";
 import { AppError } from "../../../core/errors/AppError";
 import { JwtPayload } from "../../../core/types/jwt.types";
 import { branchScope, resolveBranchId } from "../../../core/utils/branch-access";
-import { prisma } from "../../../infrastructure/prisma/prisma";
+import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { InventoryService } from "../../inventory/services/inventory.service";
 import { CreateTransferDto } from "../dto/create-transfer.dto";
 import { TransfersRepository } from "../repositories/transfers.repository";
@@ -109,7 +109,7 @@ export const TransfersService = {
 
                 return TransfersRepository.updateStatus(id, "COMPLETED", user.id, tx);
             },
-            { timeout: 15000 }
+            transactionOptions
         );
     },
 
@@ -131,7 +131,8 @@ export const TransfersService = {
         }
 
         return prisma.$transaction((tx) =>
-            TransfersRepository.updateStatus(id, "CANCELLED", null, tx)
+            TransfersRepository.updateStatus(id, "CANCELLED", null, tx),
+            transactionOptions
         );
     },
 

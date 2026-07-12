@@ -17,6 +17,15 @@ export const InventoryController = {
         }
     },
 
+    async stockInBatch(req: Request, res: Response, next: NextFunction) {
+        try {
+            const batches = await InventoryService.stockInBatch(req.body, req.user!);
+            return ApiResponse.created(res, batches, "Stock received successfully");
+        } catch (error) {
+            next(error);
+        }
+    },
+
     async adjust(req: Request, res: Response, next: NextFunction) {
         try {
             const result = await InventoryService.adjust(req.body, req.user!);

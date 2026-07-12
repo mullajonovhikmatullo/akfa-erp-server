@@ -35,7 +35,7 @@ router.use(authMiddleware);
  *         branchId:
  *           type: string
  *           format: uuid
- *           description: Required for SUPER_ADMIN; ignored for ADMIN
+ *           description: Optional. Defaults to the authenticated user's branch; ADMIN cannot override it.
  *         customerId:
  *           type: string
  *           format: uuid

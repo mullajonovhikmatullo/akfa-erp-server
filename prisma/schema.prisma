@@ -17,11 +17,6 @@ enum UserRole {
 enum ProductUnit {
   KG
   PIECE
-  PACK
-  METER
-  SQUARE_METER
-  LITER
-  SET
 }
 
 enum StockMovementType {
@@ -119,8 +114,10 @@ model Product {
   unit              ProductUnit
   categoryId        String?
   category          ProductCategory? @relation(fields: [categoryId], references: [id])
+  costPriceUzs      Decimal         @default(0) @db.Decimal(18, 2)
   retailPriceUzs    Decimal         @db.Decimal(18, 2)
   wholesalePriceUzs Decimal         @db.Decimal(18, 2)
+  costPriceUsd      Decimal?        @db.Decimal(10, 4)
   retailPriceUsd    Decimal?        @db.Decimal(10, 4)
   wholesalePriceUsd Decimal?        @db.Decimal(10, 4)
   lowStockThreshold Decimal?        @db.Decimal(18, 4)

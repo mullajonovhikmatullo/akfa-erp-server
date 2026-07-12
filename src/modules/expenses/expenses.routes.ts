@@ -208,7 +208,7 @@ router.delete(
  *         branchId:
  *           type: string
  *           format: uuid
- *           description: Required for SUPER_ADMIN; ignored for ADMIN
+ *           description: Ignored on create; expense is recorded for authenticated user's branch
  *         categoryId:
  *           type: string
  *           format: uuid
@@ -291,6 +291,48 @@ router.post("/", validate(createExpenseSchema), ExpensesController.create);
  *         description: Expense list
  */
 router.get("/", ExpensesController.findAll);
+
+/**
+ * @swagger
+ * /expenses/summary/categories:
+ *   get:
+ *     summary: Expense category totals for KPI and breakdown
+ *     tags: [Expenses]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: branchId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: categoryId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 5
+ *           maximum: 20
+ *         description: Maximum KPI cards. Overflow is grouped into the final item.
+ *     responses:
+ *       200:
+ *         description: Category totals
+ */
+router.get("/summary/categories", ExpensesController.categorySummary);
 
 /**
  * @swagger

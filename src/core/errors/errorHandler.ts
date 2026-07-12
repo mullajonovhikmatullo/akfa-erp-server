@@ -53,6 +53,20 @@ export function errorHandler(
             });
             return;
         }
+        if (prismaErr.code === "P2028") {
+            res.status(503).json({
+                success: false,
+                message: "Database transaction timed out. Please try again.",
+            });
+            return;
+        }
+        if (prismaErr.code === "P2003") {
+            res.status(400).json({
+                success: false,
+                message: "Invalid related record",
+            });
+            return;
+        }
     }
 
     // Unknown / programming errors — never expose internals

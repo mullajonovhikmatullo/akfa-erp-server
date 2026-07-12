@@ -202,7 +202,7 @@ router.delete(
  *   schemas:
  *     ProductUnit:
  *       type: string
- *       enum: [KG, PIECE, PACK, METER, SQUARE_METER, LITER, SET]
+ *       enum: [KG, PIECE]
  *     ProductResponse:
  *       type: object
  *       properties:
@@ -219,6 +219,10 @@ router.delete(
  *           nullable: true
  *         unit:
  *           $ref: '#/components/schemas/ProductUnit'
+ *         costPriceUzs:
+ *           type: string
+ *           description: Decimal value as string
+ *           example: "180000.00"
  *         retailPriceUzs:
  *           type: string
  *           description: Decimal value as string
@@ -226,6 +230,10 @@ router.delete(
  *         wholesalePriceUzs:
  *           type: string
  *           example: "200000.00"
+ *         costPriceUsd:
+ *           type: string
+ *           nullable: true
+ *           example: "14.0000"
  *         retailPriceUsd:
  *           type: string
  *           nullable: true
@@ -251,7 +259,7 @@ router.delete(
  *           format: date-time
  *     CreateProductRequest:
  *       type: object
- *       required: [name, unit, categoryId, retailPriceUzs, wholesalePriceUzs]
+ *       required: [name, unit, costPriceUzs, retailPriceUzs, wholesalePriceUzs]
  *       properties:
  *         name:
  *           type: string
@@ -267,12 +275,22 @@ router.delete(
  *         categoryId:
  *           type: string
  *           format: uuid
+ *         branchId:
+ *           type: string
+ *           format: uuid
+ *           description: Branch where an initial zero-balance inventory row is created
+ *         costPriceUzs:
+ *           type: number
+ *           example: 180000
  *         retailPriceUzs:
  *           type: number
  *           example: 250000
  *         wholesalePriceUzs:
  *           type: number
  *           example: 200000
+ *         costPriceUsd:
+ *           type: number
+ *           example: 14.00
  *         retailPriceUsd:
  *           type: number
  *           example: 19.99
@@ -293,9 +311,13 @@ router.delete(
  *         categoryId:
  *           type: string
  *           format: uuid
+ *         costPriceUzs:
+ *           type: number
  *         retailPriceUzs:
  *           type: number
  *         wholesalePriceUzs:
+ *           type: number
+ *         costPriceUsd:
  *           type: number
  *         retailPriceUsd:
  *           type: number

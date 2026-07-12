@@ -1,4 +1,5 @@
 import { z } from "zod";
-import { stockInSchema } from "../validations/inventory.validation";
+import { stockInBatchSchema, stockInSchema } from "../validations/inventory.validation";
 
 export type StockInDto = z.infer<typeof stockInSchema>;
+export type StockInBatchDto = z.infer<typeof stockInBatchSchema>;

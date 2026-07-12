@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { ProductUnit } from "@prisma/client";
+
+const ACTIVE_PRODUCT_UNITS = ["KG", "PIECE"] as const;
+const activeProductUnitSchema = z.enum(ACTIVE_PRODUCT_UNITS);
 
 const priceField = z
     .number()
@@ -14,15 +16,33 @@ export const createProductSchema = z.object({
         .max(100)
         .regex(/^[A-Za-z0-9_-]+$/, "SKU may only contain letters, numbers, hyphens, and underscores")
         .optional(),
-    unit: z.nativeEnum(ProductUnit),
+    unit: activeProductUnitSchema,
     categoryId: z.string().uuid("categoryId must be a valid UUID").optional(),
+    branchId: z.string().uuid("branchId must be a valid UUID").optional(),
+    costPriceUzs: priceField,
     retailPriceUzs: priceField,
     wholesalePriceUzs: priceField,
+    costPriceUsd: priceField.optional(),
     retailPriceUsd: priceField.optional(),
     wholesalePriceUsd: priceField.optional(),
 }).refine(
     (d) => d.wholesalePriceUzs <= d.retailPriceUzs,
     { message: "Wholesale price cannot exceed retail price", path: ["wholesalePriceUzs"] }
+).refine(
+    (d) => d.costPriceUzs <= d.wholesalePriceUzs,
+    { message: "Cost price cannot exceed wholesale price", path: ["costPriceUzs"] }
+).refine(
+    (d) =>
+        d.wholesalePriceUsd === undefined ||
+        d.retailPriceUsd === undefined ||
+        d.wholesalePriceUsd <= d.retailPriceUsd,
+    { message: "Wholesale price cannot exceed retail price", path: ["wholesalePriceUsd"] }
+).refine(
+    (d) =>
+        d.costPriceUsd === undefined ||
+        d.wholesalePriceUsd === undefined ||
+        d.costPriceUsd <= d.wholesalePriceUsd,
+    { message: "Cost price cannot exceed wholesale price", path: ["costPriceUsd"] }
 );
 
 export const updateProductSchema = z.object({
@@ -33,10 +53,12 @@ export const updateProductSchema = z.object({
         .max(100)
         .regex(/^[A-Za-z0-9_-]+$/, "SKU may only contain letters, numbers, hyphens, and underscores")
         .optional(),
-    unit: z.nativeEnum(ProductUnit).optional(),
+    unit: activeProductUnitSchema.optional(),
     categoryId: z.string().uuid("categoryId must be a valid UUID").optional(),
+    costPriceUzs: priceField.optional(),
     retailPriceUzs: priceField.optional(),
     wholesalePriceUzs: priceField.optional(),
+    costPriceUsd: priceField.optional(),
     retailPriceUsd: priceField.optional(),
     wholesalePriceUsd: priceField.optional(),
     isActive: z.boolean().optional(),
@@ -44,7 +66,7 @@ export const updateProductSchema = z.object({
 
 export const listProductsSchema = z.object({
     categoryId: z.string().uuid().optional(),
-    unit: z.nativeEnum(ProductUnit).optional(),
+    unit: activeProductUnitSchema.optional(),
     isActive: z
         .string()
         .optional()

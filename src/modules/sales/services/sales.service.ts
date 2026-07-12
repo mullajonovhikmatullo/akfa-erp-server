@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { AppError } from "../../../core/errors/AppError";
 import { JwtPayload } from "../../../core/types/jwt.types";
-import { branchScope, resolveBranchId } from "../../../core/utils/branch-access";
-import { prisma } from "../../../infrastructure/prisma/prisma";
+import { branchScope } from "../../../core/utils/branch-access";
+import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { InventoryService } from "../../inventory/services/inventory.service";
 import { CustomersRepository } from "../../customers/repositories/customers.repository";
 import { CreateSaleDto } from "../dto/create-sale.dto";
@@ -10,11 +10,23 @@ import { AddPaymentDto } from "../dto/add-payment.dto";
 import { SalesRepository } from "../repositories/sales.repository";
 import { saleQuerySchema } from "../validations/sale.validation";
 
+function resolveSaleBranchId(requestedBranchId: string | undefined, user: JwtPayload): string {
+    if (user.role === "SUPER_ADMIN" && requestedBranchId) {
+        return requestedBranchId;
+    }
+
+    if (user.branchId) {
+        return user.branchId;
+    }
+
+    throw new AppError(403, "Your account is not assigned to any branch");
+}
+
 export const SalesService = {
     // ─── Create Sale ──────────────────────────────────────────────────────────
 
     async create(dto: CreateSaleDto, user: JwtPayload) {
-        const branchId = resolveBranchId(dto.branchId, user);
+        const branchId = resolveSaleBranchId(dto.branchId, user);
 
         // ── Validate branch ──────────────────────────────────────────────────
         const branch = await prisma.branch.findUnique({
@@ -149,7 +161,7 @@ export const SalesService = {
             }
 
             return sale;
-        });
+        }, transactionOptions);
     },
 
     // ─── Add Payment to Existing Sale ─────────────────────────────────────────
@@ -201,7 +213,7 @@ export const SalesService = {
             }
 
             return updated;
-        });
+        }, transactionOptions);
     },
 
     // ─── Queries ──────────────────────────────────────────────────────────────

@@ -4,10 +4,23 @@ import { JwtPayload } from "../../../core/types/jwt.types";
 import { branchScope } from "../../../core/utils/branch-access";
 import { AnalyticsQuery } from "../validations/analytics.validation";
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function parseDateParam(value: string, boundary: "start" | "end"): Date {
+    if (!DATE_ONLY_RE.test(value)) return new Date(value);
+
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return new Date(value);
+
+    return boundary === "start"
+        ? new Date(year, month - 1, day, 0, 0, 0, 0)
+        : new Date(year, month - 1, day, 23, 59, 59, 999);
+}
+
 function resolveRange(from?: string, to?: string): { start: Date; end: Date } {
     const now = new Date();
-    const start = from ? new Date(from) : new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = to ? new Date(to) : now;
+    const start = from ? parseDateParam(from, "start") : new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = to ? parseDateParam(to, "end") : now;
     return { start, end };
 }
 
@@ -35,10 +48,6 @@ export const AnalyticsService = {
             }),
         };
 
-        const branchCond = branchId
-            ? Prisma.sql`AND "branchId" = ${branchId}`
-            : Prisma.empty;
-
         const [salesAgg, expenseAgg, customerDebtAgg, pendingTransfers, lowStockRaw, stockValueRaw] =
             await Promise.all([
                 prisma.sale.aggregate({
@@ -58,12 +67,19 @@ export const AnalyticsService = {
                 prisma.transfer.count({ where: transferWhere }),
                 prisma.$queryRaw<{ count: bigint }[]>`
                     SELECT COUNT(*)::bigint AS count
-                    FROM "Inventory" i
-                    JOIN "Product" p ON p.id = i."productId"
+                    FROM (
+                        SELECT
+                            sb."branchId",
+                            sb."productId",
+                            SUM(sb."remainingQty") AS qty
+                        FROM "StockBatch" sb
+                        GROUP BY sb."branchId", sb."productId"
+                    ) stock
+                    JOIN "Product" p ON p.id = stock."productId"
                     WHERE p."lowStockThreshold" IS NOT NULL
                       AND p."isActive" = true
-                      AND i.quantity <= p."lowStockThreshold"
-                      ${branchCond}
+                      AND stock.qty <= p."lowStockThreshold"
+                      ${branchId ? Prisma.sql`AND stock."branchId" = ${branchId}` : Prisma.empty}
                 `,
                 prisma.$queryRaw<{ value: string }[]>`
                     SELECT COALESCE(SUM(sb."remainingQty" * sb."costPriceUzs"), 0)::text AS value
@@ -127,7 +143,7 @@ export const AnalyticsService = {
         const periodTrunc = Prisma.raw(`DATE_TRUNC('${query.period}', "createdAt")`);
         const expensePeriodTrunc = Prisma.raw(`DATE_TRUNC('${query.period}', "expenseDate")`);
 
-        const [summary, byPeriod, byType, byPaymentMethod, topProducts] = await Promise.all([
+        const [summary, byPeriod, byType, byPaymentMethod, debtPaymentMethod, topProducts] = await Promise.all([
             prisma.sale.aggregate({
                 where: saleWhere,
                 _sum: { totalAmountUzs: true, paidAmountUzs: true, debtAmountUzs: true },
@@ -159,10 +175,26 @@ export const AnalyticsService = {
                 _count: { id: true },
             }),
 
-            prisma.salePayment.groupBy({
-                by: ["paymentMethod"],
-                where: { sale: saleWhere },
-                _sum: { amountUzs: true },
+            prisma.$queryRaw<{
+                payment_method: string;
+                amount: string;
+                count: bigint;
+            }[]>`
+                SELECT
+                    sp."paymentMethod"::text AS payment_method,
+                    COALESCE(SUM(sp."amountUzs" + sp."amountUsd" * COALESCE(sp."usdToUzsRate", 0)), 0)::text AS amount,
+                    COUNT(sp.id)::bigint AS count
+                FROM "SalePayment" sp
+                JOIN "Sale" s ON s.id = sp."saleId"
+                WHERE s."createdAt" >= ${start} AND s."createdAt" <= ${end}
+                  AND sp."paymentMethod"::text <> 'CREDIT'
+                  ${branchCond}
+                GROUP BY sp."paymentMethod"
+            `,
+
+            prisma.sale.aggregate({
+                where: { ...saleWhere, debtAmountUzs: { gt: 0 } },
+                _sum: { debtAmountUzs: true },
                 _count: { id: true },
             }),
 
@@ -215,11 +247,18 @@ export const AnalyticsService = {
                 revenue: Number(r._sum.totalAmountUzs ?? 0),
                 count: r._count.id,
             })),
-            byPaymentMethod: byPaymentMethod.map((r) => ({
-                paymentMethod: r.paymentMethod,
-                amount: Number(r._sum.amountUzs ?? 0),
-                count: r._count.id,
-            })),
+            byPaymentMethod: [
+                ...byPaymentMethod.map((r) => ({
+                    paymentMethod: r.payment_method,
+                    amount: Number(r.amount),
+                    count: Number(r.count),
+                })),
+                {
+                    paymentMethod: "CREDIT",
+                    amount: Number(debtPaymentMethod._sum.debtAmountUzs ?? 0),
+                    count: debtPaymentMethod._count.id,
+                },
+            ],
             topProducts: topProducts.map((r) => ({
                 productId: r.product_id,
                 name: r.product_name,
@@ -275,17 +314,24 @@ export const AnalyticsService = {
                     p.sku,
                     p.unit::text,
                     p."lowStockThreshold"::text AS threshold,
-                    i.quantity::text            AS current_stock,
+                    stock.qty::text             AS current_stock,
                     b.id   AS branch_id,
                     b.name AS branch_name
-                FROM "Inventory" i
-                JOIN "Product" p ON p.id = i."productId"
-                JOIN "Branch" b ON b.id = i."branchId"
+                FROM (
+                    SELECT
+                        sb."branchId",
+                        sb."productId",
+                        SUM(sb."remainingQty") AS qty
+                    FROM "StockBatch" sb
+                    GROUP BY sb."branchId", sb."productId"
+                ) stock
+                JOIN "Product" p ON p.id = stock."productId"
+                JOIN "Branch" b ON b.id = stock."branchId"
                 WHERE p."lowStockThreshold" IS NOT NULL
                   AND p."isActive" = true
-                  AND i.quantity <= p."lowStockThreshold"
-                  ${branchId ? Prisma.sql`AND i."branchId" = ${branchId}` : Prisma.empty}
-                ORDER BY (i.quantity / NULLIF(p."lowStockThreshold", 0)) ASC NULLS LAST
+                  AND stock.qty <= p."lowStockThreshold"
+                  ${branchId ? Prisma.sql`AND stock."branchId" = ${branchId}` : Prisma.empty}
+                ORDER BY (stock.qty / NULLIF(p."lowStockThreshold", 0)) ASC NULLS LAST
                 LIMIT 50
             `,
 

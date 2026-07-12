@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authMiddleware } from "../auth/middleware/auth.middleware";
 import { validate } from "../../core/middleware/validate";
-import { stockInSchema, adjustmentSchema } from "./validations/inventory.validation";
+import { stockInBatchSchema, stockInSchema, adjustmentSchema } from "./validations/inventory.validation";
 import { InventoryController } from "./controllers/inventory.controller";
 
 const router = Router();
@@ -140,6 +140,7 @@ router.use(authMiddleware);
  *       422:
  *         description: Validation error
  */
+router.post("/stock-in/batch", validate(stockInBatchSchema), InventoryController.stockInBatch);
 router.post("/stock-in", validate(stockInSchema), InventoryController.stockIn);
 
 // ─── Adjustment ───────────────────────────────────────────────────────────────

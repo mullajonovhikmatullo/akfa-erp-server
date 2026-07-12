@@ -1,4 +1,4 @@
-import { prisma } from "../../../infrastructure/prisma/prisma";
+import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { CreateProductDto } from "../dto/create-product.dto";
 import { UpdateProductDto } from "../dto/update-product.dto";
 
@@ -15,8 +15,10 @@ const productSelect = {
     description: true,
     sku: true,
     unit: true,
+    costPriceUzs: true,
     retailPriceUzs: true,
     wholesalePriceUzs: true,
+    costPriceUsd: true,
     retailPriceUsd: true,
     wholesalePriceUsd: true,
     isActive: true,
@@ -43,11 +45,25 @@ function buildWhere(filters: ProductFilters) {
 }
 
 export const ProductsRepository = {
-    create(data: CreateProductDto) {
-        return prisma.product.create({
-            data,
-            select: productSelect,
-        });
+    create(data: Omit<CreateProductDto, "branchId">, branchId?: string) {
+        return prisma.$transaction(async (tx) => {
+            const product = await tx.product.create({
+                data,
+                select: productSelect,
+            });
+
+            if (branchId) {
+                await tx.inventory.create({
+                    data: {
+                        branchId,
+                        productId: product.id,
+                        quantity: 0,
+                    },
+                });
+            }
+
+            return product;
+        }, transactionOptions);
     },
 
     findAll(filters: ProductFilters) {
@@ -94,7 +110,27 @@ export const ProductsRepository = {
         });
     },
 
-    delete(id: string) {
-        return prisma.product.delete({ where: { id } });
+    async delete(id: string) {
+        return prisma.$transaction(async (tx) => {
+            const [stockBatches, stockMovements, saleItems, transferItems] = await Promise.all([
+                tx.stockBatch.count({ where: { productId: id } }),
+                tx.stockMovement.count({ where: { productId: id } }),
+                tx.saleItem.count({ where: { productId: id } }),
+                tx.transferItem.count({ where: { productId: id } }),
+            ]);
+
+            const hasHistory = stockBatches + stockMovements + saleItems + transferItems > 0;
+
+            if (hasHistory) {
+                return tx.product.update({
+                    where: { id },
+                    data: { isActive: false },
+                    select: productSelect,
+                });
+            }
+
+            await tx.inventory.deleteMany({ where: { productId: id } });
+            return tx.product.delete({ where: { id }, select: productSelect });
+        }, transactionOptions);
     },
 };

@@ -109,6 +109,15 @@ export const InventoryRepository = {
         });
     },
 
+    setBalance(branchId: string, productId: string, quantity: number, tx: Tx) {
+        return tx.inventory.upsert({
+            where: { branchId_productId: { branchId, productId } },
+            create: { branchId, productId, quantity },
+            update: { quantity },
+            select: { quantity: true },
+        });
+    },
+
     // ─── StockBatch ──────────────────────────────────────────────────────────
 
     createBatch(
@@ -138,6 +147,14 @@ export const InventoryRepository = {
             orderBy: { receivedAt: "asc" },
             select: { id: true, remainingQty: true },
         });
+    },
+
+    async sumRemainingQty(branchId: string, productId: string, tx: Tx) {
+        const result = await tx.stockBatch.aggregate({
+            where: { branchId, productId },
+            _sum: { remainingQty: true },
+        });
+        return Number(result._sum.remainingQty ?? 0);
     },
 
     decrementBatch(id: string, amount: number, tx: Tx) {

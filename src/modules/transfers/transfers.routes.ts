@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { authMiddleware } from "../auth/middleware/auth.middleware";
-import { requireRole } from "../../core/middleware/requireRole";
 import { validate } from "../../core/middleware/validate";
 import { createTransferSchema } from "./validations/transfer.validation";
 import { TransfersController } from "./controllers/transfers.controller";
@@ -146,7 +145,7 @@ router.get("/:id", TransfersController.findById);
  * @swagger
  * /transfers/{id}/complete:
  *   post:
- *     summary: Complete a transfer — moves stock atomically (SUPER_ADMIN only)
+ *     summary: Complete a transfer — moves stock atomically
  *     description: |
  *       Deducts stock from the source branch (FIFO, logged as TRANSFER_OUT) and
  *       adds it to the destination branch (new batch at transfer cost, logged as TRANSFER_IN).
@@ -171,7 +170,7 @@ router.get("/:id", TransfersController.findById);
  *       409:
  *         description: Transfer is not in PENDING status
  */
-router.post("/:id/complete", requireRole("SUPER_ADMIN"), TransfersController.complete);
+router.post("/:id/complete", TransfersController.complete);
 
 /**
  * @swagger

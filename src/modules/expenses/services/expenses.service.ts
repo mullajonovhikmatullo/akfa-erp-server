@@ -23,7 +23,12 @@ export const ExpensesService = {
         if (!category) throw new AppError(404, "Expense category not found");
         if (!category.isActive) throw new AppError(409, "Expense category is inactive");
 
-        return ExpensesRepository.create({ ...dto, branchId, createdById: user.id });
+        const amount =
+            dto.currency === "USD"
+                ? Number((dto.amountUsd * (dto.usdToUzsRate ?? 0)).toFixed(2))
+                : dto.amount;
+
+        return ExpensesRepository.create({ ...dto, amount, branchId, createdById: user.id });
     },
 
     async findAll(query: z.infer<typeof expenseQuerySchema>, user: JwtPayload) {

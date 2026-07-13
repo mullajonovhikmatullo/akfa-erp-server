@@ -47,6 +47,11 @@ enum TransferStatus {
   CANCELLED
 }
 
+enum ExpenseCurrency {
+  UZS
+  USD
+}
+
 // ─── Branch ───────────────────────────────────────────────────────────────────
 
 model Branch {
@@ -297,6 +302,9 @@ model Expense {
   categoryId  String
   category    ExpenseCategory @relation(fields: [categoryId], references: [id])
   amount      Decimal         @db.Decimal(18, 2)
+  currency    ExpenseCurrency @default(UZS)
+  amountUsd   Decimal         @default(0) @db.Decimal(10, 4)
+  usdToUzsRate Decimal?       @db.Decimal(18, 2)
   description String?
   expenseDate DateTime
   createdById String

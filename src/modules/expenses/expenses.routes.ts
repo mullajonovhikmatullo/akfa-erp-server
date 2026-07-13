@@ -216,7 +216,19 @@ router.delete(
  *         amount:
  *           type: number
  *           example: 3500000
- *           description: Amount in UZS
+ *           description: Amount in UZS equivalent
+ *         currency:
+ *           type: string
+ *           enum: [UZS, USD]
+ *           default: UZS
+ *         amountUsd:
+ *           type: number
+ *           example: 275
+ *           description: Original USD amount when currency is USD
+ *         usdToUzsRate:
+ *           type: number
+ *           example: 12650
+ *           description: Required when currency is USD
  *         description:
  *           type: string
  *           example: "Monthly rent payment"

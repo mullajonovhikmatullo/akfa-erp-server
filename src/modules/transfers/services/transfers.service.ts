@@ -64,7 +64,7 @@ export const TransfersService = {
         });
     },
 
-    // ─── Complete (SUPER_ADMIN only) ──────────────────────────────────────────
+    // ─── Complete ─────────────────────────────────────────────────────────────
     // This is the moment stock actually moves. Everything in one transaction:
     //   • TRANSFER_OUT from source (FIFO deduction)
     //   • TRANSFER_IN to destination (new batch with transfer cost)
@@ -76,6 +76,14 @@ export const TransfersService = {
         if (!transfer) throw new AppError(404, "Transfer not found");
         if (transfer.status !== "PENDING") {
             throw new AppError(409, `Transfer is already ${transfer.status.toLowerCase()}`);
+        }
+        if (user.role !== "ADMIN") {
+            throw new AppError(403, "Only the receiving branch can confirm this transfer");
+        }
+        if (
+            transfer.toBranch.id !== user.branchId
+        ) {
+            throw new AppError(403, "Only the receiving branch can confirm this transfer");
         }
 
         return prisma.$transaction(

@@ -244,14 +244,15 @@ export const InventoryService = {
             productId: query.productId,
             depleted: query.depleted,
         };
-        const [items, total, totalBatches, totalActive, totalCostUzs] = await Promise.all([
+        const [items, total, totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs] = await Promise.all([
             InventoryRepository.findBatchesPaginated(filters, page, pageSize),
             InventoryRepository.countBatches(filters),
             InventoryRepository.countBatches({ branchId: scope.branchId }),
             InventoryRepository.countBatches({ branchId: scope.branchId, depleted: false }),
             InventoryRepository.sumBatchCostUzs(scope.branchId),
+            InventoryRepository.sumRemainingValueUzs(scope.branchId),
         ]);
-        return { items, total, totalBatches, totalActive, totalCostUzs };
+        return { items, total, totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs };
     },
 
     // ─── Internal: FIFO deduction ─────────────────────────────────────────────

@@ -30,6 +30,13 @@ export const AnalyticsService = {
     async dashboard(query: AnalyticsQuery, user: JwtPayload) {
         const { branchId } = branchScope(user, query.branchId);
         const { start, end } = resolveRange(query.from, query.to);
+        const lowStockThreshold = query.lowStockThreshold;
+        const lowStockThresholdSql = lowStockThreshold
+            ? Prisma.sql`${lowStockThreshold}`
+            : Prisma.sql`p."lowStockThreshold"`;
+        const lowStockThresholdRequiredSql = lowStockThreshold
+            ? Prisma.empty
+            : Prisma.sql`p."lowStockThreshold" IS NOT NULL AND`;
 
         const saleWhere: Prisma.SaleWhereInput = {
             ...(branchId && { branchId }),
@@ -67,19 +74,12 @@ export const AnalyticsService = {
                 prisma.transfer.count({ where: transferWhere }),
                 prisma.$queryRaw<{ count: bigint }[]>`
                     SELECT COUNT(*)::bigint AS count
-                    FROM (
-                        SELECT
-                            sb."branchId",
-                            sb."productId",
-                            SUM(sb."remainingQty") AS qty
-                        FROM "StockBatch" sb
-                        GROUP BY sb."branchId", sb."productId"
-                    ) stock
-                    JOIN "Product" p ON p.id = stock."productId"
-                    WHERE p."lowStockThreshold" IS NOT NULL
-                      AND p."isActive" = true
-                      AND stock.qty <= p."lowStockThreshold"
-                      ${branchId ? Prisma.sql`AND stock."branchId" = ${branchId}` : Prisma.empty}
+                    FROM "Inventory" inv
+                    JOIN "Product" p ON p.id = inv."productId"
+                    WHERE ${lowStockThresholdRequiredSql}
+                      p."isActive" = true
+                      AND inv.quantity <= ${lowStockThresholdSql}
+                      ${branchId ? Prisma.sql`AND inv."branchId" = ${branchId}` : Prisma.empty}
                 `,
                 prisma.$queryRaw<{ value: string }[]>`
                     SELECT COALESCE(SUM(sb."remainingQty" * sb."costPriceUzs"), 0)::text AS value
@@ -275,6 +275,13 @@ export const AnalyticsService = {
     async inventoryReport(query: AnalyticsQuery, user: JwtPayload) {
         const { branchId } = branchScope(user, query.branchId);
         const { start, end } = resolveRange(query.from, query.to);
+        const lowStockThreshold = query.lowStockThreshold;
+        const lowStockThresholdSql = lowStockThreshold
+            ? Prisma.sql`${lowStockThreshold}`
+            : Prisma.sql`p."lowStockThreshold"`;
+        const lowStockThresholdRequiredSql = lowStockThreshold
+            ? Prisma.empty
+            : Prisma.sql`p."lowStockThreshold" IS NOT NULL AND`;
 
         const [stockByBranch, lowStock, movementSummary] = await Promise.all([
             prisma.$queryRaw<{
@@ -287,15 +294,26 @@ export const AnalyticsService = {
                 SELECT
                     b.id   AS branch_id,
                     b.name AS branch_name,
-                    COUNT(DISTINCT sb."productId")::bigint AS product_count,
-                    COALESCE(SUM(sb."remainingQty" * sb."costPriceUzs"), 0)::text AS stock_value_uzs,
-                    COALESCE(SUM(sb."remainingQty"), 0)::text AS total_quantity
-                FROM "StockBatch" sb
-                JOIN "Branch" b ON b.id = sb."branchId"
-                WHERE sb."remainingQty" > 0
-                  ${branchId ? Prisma.sql`AND sb."branchId" = ${branchId}` : Prisma.empty}
+                    COUNT(DISTINCT inv."productId")::bigint AS product_count,
+                    COALESCE(SUM(inv.quantity * COALESCE(batch_cost.unit_cost, p."costPriceUzs", 0)), 0)::text AS stock_value_uzs,
+                    COALESCE(SUM(inv.quantity), 0)::text AS total_quantity
+                FROM "Inventory" inv
+                JOIN "Branch" b ON b.id = inv."branchId"
+                JOIN "Product" p ON p.id = inv."productId"
+                LEFT JOIN (
+                    SELECT
+                        sb."branchId",
+                        sb."productId",
+                        SUM(sb."remainingQty" * sb."costPriceUzs") / NULLIF(SUM(sb."remainingQty"), 0) AS unit_cost
+                    FROM "StockBatch" sb
+                    WHERE sb."remainingQty" > 0
+                    GROUP BY sb."branchId", sb."productId"
+                ) batch_cost ON batch_cost."branchId" = inv."branchId" AND batch_cost."productId" = inv."productId"
+                WHERE inv.quantity > 0
+                  AND p."isActive" = true
+                  ${branchId ? Prisma.sql`AND inv."branchId" = ${branchId}` : Prisma.empty}
                 GROUP BY b.id, b.name
-                ORDER BY SUM(sb."remainingQty" * sb."costPriceUzs") DESC
+                ORDER BY SUM(inv.quantity * COALESCE(batch_cost.unit_cost, p."costPriceUzs", 0)) DESC
             `,
 
             prisma.$queryRaw<{
@@ -313,25 +331,18 @@ export const AnalyticsService = {
                     p.name AS product_name,
                     p.sku,
                     p.unit::text,
-                    p."lowStockThreshold"::text AS threshold,
-                    stock.qty::text             AS current_stock,
+                    ${lowStockThresholdSql}::text AS threshold,
+                    inv.quantity::text          AS current_stock,
                     b.id   AS branch_id,
                     b.name AS branch_name
-                FROM (
-                    SELECT
-                        sb."branchId",
-                        sb."productId",
-                        SUM(sb."remainingQty") AS qty
-                    FROM "StockBatch" sb
-                    GROUP BY sb."branchId", sb."productId"
-                ) stock
-                JOIN "Product" p ON p.id = stock."productId"
-                JOIN "Branch" b ON b.id = stock."branchId"
-                WHERE p."lowStockThreshold" IS NOT NULL
-                  AND p."isActive" = true
-                  AND stock.qty <= p."lowStockThreshold"
-                  ${branchId ? Prisma.sql`AND stock."branchId" = ${branchId}` : Prisma.empty}
-                ORDER BY (stock.qty / NULLIF(p."lowStockThreshold", 0)) ASC NULLS LAST
+                FROM "Inventory" inv
+                JOIN "Product" p ON p.id = inv."productId"
+                JOIN "Branch" b ON b.id = inv."branchId"
+                WHERE ${lowStockThresholdRequiredSql}
+                  p."isActive" = true
+                  AND inv.quantity <= ${lowStockThresholdSql}
+                  ${branchId ? Prisma.sql`AND inv."branchId" = ${branchId}` : Prisma.empty}
+                ORDER BY (inv.quantity / NULLIF(${lowStockThresholdSql}, 0)) ASC NULLS LAST
                 LIMIT 50
             `,
 

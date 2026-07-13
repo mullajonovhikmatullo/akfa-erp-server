@@ -203,6 +203,15 @@ export const InventoryRepository = {
         return Number(rows[0].total);
     },
 
+    async sumRemainingValueUzs(branchId?: string): Promise<number> {
+        const rows = await prisma.$queryRaw<[{ total: unknown }]>(
+            branchId
+                ? Prisma.sql`SELECT COALESCE(SUM("remainingQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "branchId" = ${branchId}`
+                : Prisma.sql`SELECT COALESCE(SUM("remainingQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch"`
+        );
+        return Number(rows[0].total);
+    },
+
     // ─── StockMovement ───────────────────────────────────────────────────────
 
     createMovement(

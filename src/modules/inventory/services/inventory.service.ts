@@ -229,6 +229,8 @@ export const InventoryService = {
             ...scope,
             productId: query.productId,
             depleted: query.depleted,
+            from: query.from,
+            to: query.to,
         });
     },
 
@@ -243,6 +245,8 @@ export const InventoryService = {
             ...scope,
             productId: query.productId,
             depleted: query.depleted,
+            from: query.from,
+            to: query.to,
         };
         const [items, total, totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs] = await Promise.all([
             InventoryRepository.findBatchesPaginated(filters, page, pageSize),

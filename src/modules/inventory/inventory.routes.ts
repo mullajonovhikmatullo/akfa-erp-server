@@ -319,6 +319,19 @@ router.get("/movements", InventoryController.findMovements);
  *         schema:
  *           type: boolean
  *         description: true = show fully consumed batches, false = active batches only
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Filter by receivedAt from this timestamp
+ *         example: "2025-01-01T00:00:00.000Z"
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Filter by receivedAt until this timestamp
  *     responses:
  *       200:
  *         description: List of stock batches

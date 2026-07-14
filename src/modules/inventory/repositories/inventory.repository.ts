@@ -50,12 +50,24 @@ const batchSelect = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function buildBatchWhere(filters: { branchId?: string; productId?: string; depleted?: boolean }) {
+function buildBatchWhere(filters: {
+    branchId?: string;
+    productId?: string;
+    depleted?: boolean;
+    from?: string;
+    to?: string;
+}) {
     return {
         ...(filters.branchId && { branchId: filters.branchId }),
         ...(filters.productId && { productId: filters.productId }),
         ...(filters.depleted === false && { remainingQty: { gt: 0 } }),
         ...(filters.depleted === true && { remainingQty: { equals: 0 } }),
+        ...((filters.from || filters.to) && {
+            receivedAt: {
+                ...(filters.from && { gte: new Date(filters.from) }),
+                ...(filters.to && { lte: new Date(filters.to) }),
+            },
+        }),
     };
 }
 
@@ -165,7 +177,7 @@ export const InventoryRepository = {
     },
 
     findBatches(
-        filters: { branchId?: string; productId?: string; depleted?: boolean },
+        filters: { branchId?: string; productId?: string; depleted?: boolean; from?: string; to?: string },
         tx?: Tx
     ) {
         const client = tx ?? prisma;
@@ -177,7 +189,7 @@ export const InventoryRepository = {
     },
 
     findBatchesPaginated(
-        filters: { branchId?: string; productId?: string; depleted?: boolean },
+        filters: { branchId?: string; productId?: string; depleted?: boolean; from?: string; to?: string },
         page: number,
         pageSize: number
     ) {
@@ -190,7 +202,7 @@ export const InventoryRepository = {
         });
     },
 
-    countBatches(filters: { branchId?: string; productId?: string; depleted?: boolean }) {
+    countBatches(filters: { branchId?: string; productId?: string; depleted?: boolean; from?: string; to?: string }) {
         return prisma.stockBatch.count({ where: buildBatchWhere(filters) });
     },
 

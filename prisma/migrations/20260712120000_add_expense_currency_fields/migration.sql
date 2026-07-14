@@ -1,0 +1,6 @@
+CREATE TYPE "ExpenseCurrency" AS ENUM ('UZS', 'USD');
+
+ALTER TABLE "Expense"
+ADD COLUMN "currency" "ExpenseCurrency" NOT NULL DEFAULT 'UZS',
+ADD COLUMN "amountUsd" DECIMAL(10,4) NOT NULL DEFAULT 0,
+ADD COLUMN "usdToUzsRate" DECIMAL(18,2);

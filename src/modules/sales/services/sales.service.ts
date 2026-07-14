@@ -22,6 +22,21 @@ function resolveSaleBranchId(requestedBranchId: string | undefined, user: JwtPay
     throw new AppError(403, "Your account is not assigned to any branch");
 }
 
+function resolveUnitPriceUzs(priceUzs: unknown, priceUsd: unknown, usdToUzsRate?: number): number {
+    const uzs = Number(priceUzs ?? 0);
+    const usd = priceUsd == null ? null : Number(priceUsd);
+
+    if (uzs > 0 || !usd) {
+        return uzs;
+    }
+
+    if (!usdToUzsRate) {
+        throw new AppError(400, "usdToUzsRate is required when selling USD-priced products");
+    }
+
+    return Number((usd * usdToUzsRate).toFixed(2));
+}
+
 export const SalesService = {
     // ─── Create Sale ──────────────────────────────────────────────────────────
 
@@ -55,6 +70,8 @@ export const SalesService = {
                 isActive: true,
                 retailPriceUzs: true,
                 wholesalePriceUzs: true,
+                retailPriceUsd: true,
+                wholesalePriceUsd: true,
             },
         });
 
@@ -78,8 +95,8 @@ export const SalesService = {
             const product = productMap.get(item.productId)!;
             const unitPrice =
                 dto.saleType === "RETAIL"
-                    ? Number(product.retailPriceUzs)
-                    : Number(product.wholesalePriceUzs);
+                    ? resolveUnitPriceUzs(product.retailPriceUzs, product.retailPriceUsd, dto.usdToUzsRate)
+                    : resolveUnitPriceUzs(product.wholesalePriceUzs, product.wholesalePriceUsd, dto.usdToUzsRate);
             return {
                 productId: item.productId,
                 quantity: item.quantity,

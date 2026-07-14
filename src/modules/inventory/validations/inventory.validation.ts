@@ -62,6 +62,8 @@ export const movementQuerySchema = z.object({
 export const batchQuerySchema = z.object({
     branchId: z.string().uuid().optional(),
     productId: z.string().uuid().optional(),
+    from: z.string().datetime({ message: "from must be ISO datetime" }).optional(),
+    to: z.string().datetime({ message: "to must be ISO datetime" }).optional(),
     depleted: z
         .string()
         .optional()

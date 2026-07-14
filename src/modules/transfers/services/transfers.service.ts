@@ -4,6 +4,7 @@ import { AppError } from "../../../core/errors/AppError";
 import { JwtPayload } from "../../../core/types/jwt.types";
 import { branchScope, resolveBranchId } from "../../../core/utils/branch-access";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
+import { emitTransferChanged } from "../../../infrastructure/socket";
 import { InventoryService } from "../../inventory/services/inventory.service";
 import { CreateTransferDto } from "../dto/create-transfer.dto";
 import { TransfersRepository } from "../repositories/transfers.repository";
@@ -31,7 +32,7 @@ export const TransfersService = {
         const productIds = dto.items.map((i) => i.productId);
         const products = await prisma.product.findMany({
             where: { id: { in: productIds } },
-            select: { id: true, name: true, isActive: true, wholesalePriceUzs: true },
+            select: { id: true, name: true, isActive: true, wholesalePriceUzs: true, wholesalePriceUsd: true },
         });
 
         if (products.length !== productIds.length) {
@@ -45,8 +46,12 @@ export const TransfersService = {
         // Build items — default cost to wholesale price when not supplied
         const items = dto.items.map((item) => {
             const product = productMap.get(item.productId)!;
-            const unitCostUzs =
-                item.unitCostUzs ?? Number(product.wholesalePriceUzs);
+            const wholesalePriceUzs = Number(product.wholesalePriceUzs);
+            const wholesalePriceUsd = product.wholesalePriceUsd == null ? null : Number(product.wholesalePriceUsd);
+            if (item.unitCostUzs === undefined && wholesalePriceUzs <= 0 && wholesalePriceUsd) {
+                throw new AppError(400, `unitCostUzs is required when transferring USD-priced product "${product.name}"`);
+            }
+            const unitCostUzs = item.unitCostUzs ?? wholesalePriceUzs;
             return {
                 productId: item.productId,
                 quantity: item.quantity,
@@ -55,13 +60,22 @@ export const TransfersService = {
             };
         });
 
-        return TransfersRepository.create({
+        const created = await TransfersRepository.create({
             fromBranchId,
             toBranchId: dto.toBranchId,
             note: dto.note,
             initiatedById: user.id,
             items,
         });
+
+        emitTransferChanged({
+            transferId: created.id,
+            status: created.status,
+            fromBranchId: created.fromBranch.id,
+            toBranchId: created.toBranch.id,
+        });
+
+        return created;
     },
 
     // ─── Complete ─────────────────────────────────────────────────────────────
@@ -86,7 +100,7 @@ export const TransfersService = {
             throw new AppError(403, "Only the receiving branch can confirm this transfer");
         }
 
-        return prisma.$transaction(
+        const completed = await prisma.$transaction(
             async (tx) => {
                 for (const item of transfer.items) {
                     const qty = Number(item.quantity);
@@ -109,7 +123,7 @@ export const TransfersService = {
                         item.product.id,
                         qty,
                         cost,
-                        `Transfer ${id} ← ${transfer.fromBranch.name}`,
+                        transfer.fromBranch.name,
                         user.id,
                         tx
                     );
@@ -119,6 +133,15 @@ export const TransfersService = {
             },
             transactionOptions
         );
+
+        emitTransferChanged({
+            transferId: completed.id,
+            status: completed.status,
+            fromBranchId: completed.fromBranch.id,
+            toBranchId: completed.toBranch.id,
+        });
+
+        return completed;
     },
 
     // ─── Cancel ───────────────────────────────────────────────────────────────
@@ -138,10 +161,19 @@ export const TransfersService = {
             throw new AppError(403, "You can only cancel transfers you initiated");
         }
 
-        return prisma.$transaction((tx) =>
+        const cancelled = await prisma.$transaction((tx) =>
             TransfersRepository.updateStatus(id, "CANCELLED", null, tx),
             transactionOptions
         );
+
+        emitTransferChanged({
+            transferId: cancelled.id,
+            status: cancelled.status,
+            fromBranchId: cancelled.fromBranch.id,
+            toBranchId: cancelled.toBranch.id,
+        });
+
+        return cancelled;
     },
 
     // ─── Queries ──────────────────────────────────────────────────────────────

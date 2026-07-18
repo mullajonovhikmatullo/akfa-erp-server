@@ -67,6 +67,7 @@ export const updateProductSchema = z.object({
 export const listProductsSchema = z.object({
     categoryId: z.string().uuid().optional(),
     unit: activeProductUnitSchema.optional(),
+    priceCurrency: z.enum(["UZS", "USD"]).optional(),
     isActive: z
         .string()
         .optional()

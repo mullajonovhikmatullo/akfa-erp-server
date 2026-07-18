@@ -9,6 +9,7 @@ type ProductFilters = {
     categoryId?: string;
     unit?: string;
     isActive?: boolean;
+    priceCurrency?: "UZS" | "USD";
     search?: string;
 };
 
@@ -77,6 +78,14 @@ export const ProductsService = {
             ProductsRepository.count(filters),
         ]);
         return { items, total };
+    },
+
+    async summary() {
+        const [totalActive, totalInactive] = await Promise.all([
+            ProductsRepository.count({ isActive: true }),
+            ProductsRepository.count({ isActive: false }),
+        ]);
+        return { totalActive, totalInactive };
     },
 
     async findById(id: string) {

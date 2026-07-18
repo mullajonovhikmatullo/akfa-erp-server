@@ -295,6 +295,8 @@ router.get("/movements", InventoryController.findMovements);
 
 // ─── Batch History ────────────────────────────────────────────────────────────
 
+router.get("/batches/summary", InventoryController.findBatchesSummary);
+
 /**
  * @swagger
  * /inventory/batches:

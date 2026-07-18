@@ -93,6 +93,7 @@ router.post("/categories", (0, role_middleware_1.roleMiddleware)("SUPER_ADMIN"),
  *         description: List of categories
  */
 router.get("/categories", categories_controller_1.CategoriesController.findAll);
+router.get("/categories/summary", categories_controller_1.CategoriesController.summary);
 /**
  * @swagger
  * /products/categories/{id}:
@@ -358,6 +359,7 @@ router.post("/", (0, role_middleware_1.roleMiddleware)("SUPER_ADMIN"), (0, valid
  *         description: List of products
  */
 router.get("/", products_controller_1.ProductsController.findAll);
+router.get("/summary", products_controller_1.ProductsController.summary);
 /**
  * @swagger
  * /products/sku/{sku}:

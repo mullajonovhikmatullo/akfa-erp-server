@@ -109,6 +109,8 @@ router.post(
  */
 router.get("/categories", CategoriesController.findAll);
 
+router.get("/categories/summary", CategoriesController.summary);
+
 /**
  * @swagger
  * /products/categories/{id}:
@@ -394,6 +396,8 @@ router.post(
  *         description: List of products
  */
 router.get("/", ProductsController.findAll);
+
+router.get("/summary", ProductsController.summary);
 
 /**
  * @swagger

@@ -2,10 +2,14 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InventoryService = void 0;
 const client_1 = require("@prisma/client");
+const crypto_1 = require("crypto");
 const AppError_1 = require("../../../core/errors/AppError");
 const branch_access_1 = require("../../../core/utils/branch-access");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const inventory_repository_1 = require("../repositories/inventory.repository");
+function stockInKey(branchId, productId) {
+    return `${branchId}:${productId}`;
+}
 async function assertActiveActor(userId) {
     const actor = await prisma_1.prisma.user.findUnique({
         where: { id: userId },
@@ -90,11 +94,65 @@ exports.InventoryService = {
             assertStockInTargets(items),
         ]);
         return prisma_1.prisma.$transaction(async (tx) => {
-            const batches = [];
-            for (const item of items) {
-                batches.push(await createStockInEntry(item, user.id, tx));
+            const batchIds = items.map(() => (0, crypto_1.randomUUID)());
+            const balanceIncrements = new Map();
+            items.forEach((item) => {
+                const key = stockInKey(item.branchId, item.dto.productId);
+                const current = balanceIncrements.get(key);
+                if (current) {
+                    current.quantity = Number((current.quantity + item.dto.quantity).toFixed(4));
+                }
+                else {
+                    balanceIncrements.set(key, {
+                        branchId: item.branchId,
+                        productId: item.dto.productId,
+                        quantity: item.dto.quantity,
+                    });
+                }
+            });
+            await tx.stockBatch.createMany({
+                data: items.map((item, index) => ({
+                    id: batchIds[index],
+                    branchId: item.branchId,
+                    productId: item.dto.productId,
+                    initialQty: item.dto.quantity,
+                    remainingQty: item.dto.quantity,
+                    costPriceUzs: item.dto.costPriceUzs,
+                    costPriceUsd: item.dto.costPriceUsd,
+                    supplierNote: item.dto.supplierNote,
+                    createdById: user.id,
+                })),
+            });
+            const updatedBalances = await inventory_repository_1.InventoryRepository.incrementBalances([...balanceIncrements.values()], tx);
+            const finalBalanceByKey = new Map(updatedBalances.map((row) => [
+                stockInKey(row.branchId, row.productId),
+                Number(row.quantity),
+            ]));
+            const laterQuantityByKey = new Map();
+            const movements = Array(items.length);
+            for (let index = items.length - 1; index >= 0; index--) {
+                const item = items[index];
+                const key = stockInKey(item.branchId, item.dto.productId);
+                const laterQuantity = laterQuantityByKey.get(key) ?? 0;
+                const finalBalance = finalBalanceByKey.get(key) ?? item.dto.quantity;
+                const balanceAfter = Number((finalBalance - laterQuantity).toFixed(4));
+                movements[index] = {
+                    branchId: item.branchId,
+                    productId: item.dto.productId,
+                    type: client_1.StockMovementType.STOCK_IN,
+                    quantity: item.dto.quantity,
+                    balanceAfter,
+                    note: item.dto.supplierNote,
+                    createdById: user.id,
+                };
+                laterQuantityByKey.set(key, Number((laterQuantity + item.dto.quantity).toFixed(4)));
             }
-            return batches;
+            await tx.stockMovement.createMany({ data: movements });
+            const batches = await inventory_repository_1.InventoryRepository.findBatchesByIds(batchIds, tx);
+            const batchById = new Map(batches.map((batch) => [batch.id, batch]));
+            return batchIds
+                .map((id) => batchById.get(id))
+                .filter((batch) => Boolean(batch));
         }, prisma_1.transactionOptions);
     },
     // ─── Manual Adjustment ───────────────────────────────────────────────────
@@ -162,6 +220,16 @@ exports.InventoryService = {
             from: query.from,
             to: query.to,
         });
+    },
+    async findBatchesSummary(user) {
+        const scope = (0, branch_access_1.branchScope)(user);
+        const [totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs] = await Promise.all([
+            inventory_repository_1.InventoryRepository.countBatches({ branchId: scope.branchId }),
+            inventory_repository_1.InventoryRepository.countBatches({ branchId: scope.branchId, depleted: false }),
+            inventory_repository_1.InventoryRepository.sumBatchCostUzs(scope.branchId),
+            inventory_repository_1.InventoryRepository.sumRemainingValueUzs(scope.branchId),
+        ]);
+        return { totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs };
     },
     async findBatchesPaginated(query, page, pageSize, user) {
         const scope = (0, branch_access_1.branchScope)(user, query.branchId);

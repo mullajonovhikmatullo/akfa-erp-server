@@ -282,6 +282,7 @@ router.get("/low-stock", (req, res, next) => {
  */
 router.get("/movements", inventory_controller_1.InventoryController.findMovements);
 // ─── Batch History ────────────────────────────────────────────────────────────
+router.get("/batches/summary", inventory_controller_1.InventoryController.findBatchesSummary);
 /**
  * @swagger
  * /inventory/batches:

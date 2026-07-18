@@ -29,6 +29,15 @@ exports.CategoriesController = {
             next(error);
         }
     },
+    async summary(_req, res, next) {
+        try {
+            const summary = await categories_service_1.CategoriesService.summary();
+            return ApiResponse_1.ApiResponse.success(res, summary);
+        }
+        catch (error) {
+            next(error);
+        }
+    },
     async findById(req, res, next) {
         try {
             const category = await categories_service_1.CategoriesService.findById(req.params.id);

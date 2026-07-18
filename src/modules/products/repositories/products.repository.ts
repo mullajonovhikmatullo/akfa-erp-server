@@ -6,6 +6,7 @@ type ProductFilters = {
     categoryId?: string;
     unit?: string;
     isActive?: boolean;
+    priceCurrency?: "UZS" | "USD";
     search?: string;
 };
 
@@ -30,10 +31,23 @@ const productSelect = {
 } as const;
 
 function buildWhere(filters: ProductFilters) {
+    const usdPriceWhere = {
+        costPriceUzs: { equals: 0 },
+        retailPriceUzs: { equals: 0 },
+        wholesalePriceUzs: { equals: 0 },
+        costPriceUsd: { gt: 0 },
+        retailPriceUsd: { gt: 0 },
+        wholesalePriceUsd: { gt: 0 },
+    };
+
     return {
         ...(filters.categoryId && { categoryId: filters.categoryId }),
         ...(filters.unit && { unit: filters.unit as any }),
         ...(filters.isActive !== undefined && { isActive: filters.isActive }),
+        ...(filters.priceCurrency === "USD" && usdPriceWhere),
+        ...(filters.priceCurrency === "UZS" && {
+            NOT: usdPriceWhere,
+        }),
         ...(filters.search && {
             OR: [
                 { name: { contains: filters.search, mode: "insensitive" as const } },

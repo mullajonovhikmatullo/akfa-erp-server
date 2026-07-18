@@ -63,6 +63,13 @@ exports.ProductsService = {
         ]);
         return { items, total };
     },
+    async summary() {
+        const [totalActive, totalInactive] = await Promise.all([
+            products_repository_1.ProductsRepository.count({ isActive: true }),
+            products_repository_1.ProductsRepository.count({ isActive: false }),
+        ]);
+        return { totalActive, totalInactive };
+    },
     async findById(id) {
         const product = await products_repository_1.ProductsRepository.findById(id);
         if (!product) {

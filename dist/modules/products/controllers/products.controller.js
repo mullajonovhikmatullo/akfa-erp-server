@@ -30,6 +30,15 @@ exports.ProductsController = {
             next(error);
         }
     },
+    async summary(_req, res, next) {
+        try {
+            const summary = await products_service_1.ProductsService.summary();
+            return ApiResponse_1.ApiResponse.success(res, summary);
+        }
+        catch (error) {
+            next(error);
+        }
+    },
     async findById(req, res, next) {
         try {
             const product = await products_service_1.ProductsService.findById(req.params.id);

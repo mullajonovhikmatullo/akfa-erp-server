@@ -31,6 +31,15 @@ export const CategoriesController = {
         }
     },
 
+    async summary(_req: Request, res: Response, next: NextFunction) {
+        try {
+            const summary = await CategoriesService.summary();
+            return ApiResponse.success(res, summary);
+        } catch (error) {
+            next(error);
+        }
+    },
+
     async findById(req: Request, res: Response, next: NextFunction) {
         try {
             const category = await CategoriesService.findById(req.params.id as string);

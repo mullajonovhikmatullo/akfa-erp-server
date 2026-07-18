@@ -52,6 +52,15 @@ exports.InventoryController = {
             next(error);
         }
     },
+    async findBatchesSummary(req, res, next) {
+        try {
+            const summary = await inventory_service_1.InventoryService.findBatchesSummary(req.user);
+            return ApiResponse_1.ApiResponse.success(res, summary);
+        }
+        catch (error) {
+            next(error);
+        }
+    },
     async findBatches(req, res, next) {
         try {
             const query = inventory_validation_1.batchQuerySchema.parse(req.query);

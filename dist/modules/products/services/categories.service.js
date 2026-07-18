@@ -15,13 +15,18 @@ exports.CategoriesService = {
         return categories_repository_1.CategoriesRepository.findAll(isActive);
     },
     async findPaginated({ page, pageSize, isActive }) {
-        const [items, total, totalActive, totalInactive] = await Promise.all([
+        const [items, total] = await Promise.all([
             categories_repository_1.CategoriesRepository.findPaginated({ page, pageSize, isActive }),
             categories_repository_1.CategoriesRepository.count(isActive),
+        ]);
+        return { items, total };
+    },
+    async summary() {
+        const [totalActive, totalInactive] = await Promise.all([
             categories_repository_1.CategoriesRepository.count(true),
             categories_repository_1.CategoriesRepository.count(false),
         ]);
-        return { items, total, totalActive, totalInactive };
+        return { totalActive, totalInactive };
     },
     async findById(id) {
         const category = await categories_repository_1.CategoriesRepository.findById(id);

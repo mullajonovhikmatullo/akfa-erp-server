@@ -1,4 +1,5 @@
 import { Prisma, StockMovementType } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 
 type Tx = Prisma.TransactionClient;
@@ -146,6 +147,38 @@ export const InventoryRepository = {
         tx: Tx
     ) {
         return tx.stockBatch.create({ data, select: batchSelect });
+    },
+
+    findBatchesByIds(ids: string[], tx: Tx) {
+        return tx.stockBatch.findMany({
+            where: { id: { in: ids } },
+            select: batchSelect,
+        });
+    },
+
+    incrementBalances(
+        rows: Array<{ branchId: string; productId: string; quantity: number }>,
+        tx: Tx
+    ) {
+        if (rows.length === 0) return Promise.resolve([]);
+
+        const values = Prisma.join(
+            rows.map((row) =>
+                Prisma.sql`(${randomUUID()}, ${row.branchId}, ${row.productId}, ${row.quantity}, NOW())`
+            )
+        );
+
+        return tx.$queryRaw<Array<{ branchId: string; productId: string; quantity: unknown }>>(
+            Prisma.sql`
+                INSERT INTO "Inventory" ("id", "branchId", "productId", "quantity", "updatedAt")
+                VALUES ${values}
+                ON CONFLICT ("branchId", "productId")
+                DO UPDATE SET
+                    "quantity" = "Inventory"."quantity" + EXCLUDED."quantity",
+                    "updatedAt" = NOW()
+                RETURNING "branchId", "productId", "quantity"
+            `
+        );
     },
 
     // Returns batches ordered oldest-first (FIFO) with remaining stock > 0

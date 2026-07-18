@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InventoryRepository = void 0;
 const client_1 = require("@prisma/client");
+const crypto_1 = require("crypto");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 // ─── Selects ─────────────────────────────────────────────────────────────────
 const inventorySelect = {
@@ -108,6 +109,26 @@ exports.InventoryRepository = {
     // ─── StockBatch ──────────────────────────────────────────────────────────
     createBatch(data, tx) {
         return tx.stockBatch.create({ data, select: batchSelect });
+    },
+    findBatchesByIds(ids, tx) {
+        return tx.stockBatch.findMany({
+            where: { id: { in: ids } },
+            select: batchSelect,
+        });
+    },
+    incrementBalances(rows, tx) {
+        if (rows.length === 0)
+            return Promise.resolve([]);
+        const values = client_1.Prisma.join(rows.map((row) => client_1.Prisma.sql `(${(0, crypto_1.randomUUID)()}, ${row.branchId}, ${row.productId}, ${row.quantity}, NOW())`));
+        return tx.$queryRaw(client_1.Prisma.sql `
+                INSERT INTO "Inventory" ("id", "branchId", "productId", "quantity", "updatedAt")
+                VALUES ${values}
+                ON CONFLICT ("branchId", "productId")
+                DO UPDATE SET
+                    "quantity" = "Inventory"."quantity" + EXCLUDED."quantity",
+                    "updatedAt" = NOW()
+                RETURNING "branchId", "productId", "quantity"
+            `);
     },
     // Returns batches ordered oldest-first (FIFO) with remaining stock > 0
     findActiveBatches(branchId, productId, tx) {

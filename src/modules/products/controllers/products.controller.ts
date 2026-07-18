@@ -29,6 +29,15 @@ export const ProductsController = {
         }
     },
 
+    async summary(_req: Request, res: Response, next: NextFunction) {
+        try {
+            const summary = await ProductsService.summary();
+            return ApiResponse.success(res, summary);
+        } catch (error) {
+            next(error);
+        }
+    },
+
     async findById(req: Request, res: Response, next: NextFunction) {
         try {
             const product = await ProductsService.findById(req.params.id as string);

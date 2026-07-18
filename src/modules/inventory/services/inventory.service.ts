@@ -1,4 +1,5 @@
 import { Prisma, StockMovementType } from "@prisma/client";
+import { randomUUID } from "crypto";
 import { AppError } from "../../../core/errors/AppError";
 import { JwtPayload } from "../../../core/types/jwt.types";
 import { branchScope, resolveBranchId } from "../../../core/utils/branch-access";
@@ -17,6 +18,10 @@ type ResolvedStockIn = {
     dto: StockInDto;
     branchId: string;
 };
+
+function stockInKey(branchId: string, productId: string) {
+    return `${branchId}:${productId}`;
+}
 
 async function assertActiveActor(userId: string) {
     const actor = await prisma.user.findUnique({
@@ -138,11 +143,80 @@ export const InventoryService = {
         ]);
 
         return prisma.$transaction(async (tx) => {
-            const batches = [];
-            for (const item of items) {
-                batches.push(await createStockInEntry(item, user.id, tx));
+            const batchIds = items.map(() => randomUUID());
+            const balanceIncrements = new Map<string, { branchId: string; productId: string; quantity: number }>();
+
+            items.forEach((item) => {
+                const key = stockInKey(item.branchId, item.dto.productId);
+                const current = balanceIncrements.get(key);
+                if (current) {
+                    current.quantity = Number((current.quantity + item.dto.quantity).toFixed(4));
+                } else {
+                    balanceIncrements.set(key, {
+                        branchId: item.branchId,
+                        productId: item.dto.productId,
+                        quantity: item.dto.quantity,
+                    });
+                }
+            });
+
+            await tx.stockBatch.createMany({
+                data: items.map((item, index) => ({
+                    id: batchIds[index],
+                    branchId: item.branchId,
+                    productId: item.dto.productId,
+                    initialQty: item.dto.quantity,
+                    remainingQty: item.dto.quantity,
+                    costPriceUzs: item.dto.costPriceUzs,
+                    costPriceUsd: item.dto.costPriceUsd,
+                    supplierNote: item.dto.supplierNote,
+                    createdById: user.id,
+                })),
+            });
+
+            const updatedBalances = await InventoryRepository.incrementBalances(
+                [...balanceIncrements.values()],
+                tx
+            );
+            const finalBalanceByKey = new Map(
+                updatedBalances.map((row) => [
+                    stockInKey(row.branchId, row.productId),
+                    Number(row.quantity),
+                ])
+            );
+
+            const laterQuantityByKey = new Map<string, number>();
+            const movements = Array(items.length);
+            for (let index = items.length - 1; index >= 0; index--) {
+                const item = items[index];
+                const key = stockInKey(item.branchId, item.dto.productId);
+                const laterQuantity = laterQuantityByKey.get(key) ?? 0;
+                const finalBalance = finalBalanceByKey.get(key) ?? item.dto.quantity;
+                const balanceAfter = Number((finalBalance - laterQuantity).toFixed(4));
+
+                movements[index] = {
+                    branchId: item.branchId,
+                    productId: item.dto.productId,
+                    type: StockMovementType.STOCK_IN,
+                    quantity: item.dto.quantity,
+                    balanceAfter,
+                    note: item.dto.supplierNote,
+                    createdById: user.id,
+                };
+
+                laterQuantityByKey.set(
+                    key,
+                    Number((laterQuantity + item.dto.quantity).toFixed(4))
+                );
             }
-            return batches;
+
+            await tx.stockMovement.createMany({ data: movements });
+
+            const batches = await InventoryRepository.findBatchesByIds(batchIds, tx);
+            const batchById = new Map(batches.map((batch) => [batch.id, batch]));
+            return batchIds
+                .map((id) => batchById.get(id))
+                .filter((batch): batch is NonNullable<typeof batch> => Boolean(batch));
         }, transactionOptions);
     },
 
@@ -232,6 +306,18 @@ export const InventoryService = {
             from: query.from,
             to: query.to,
         });
+    },
+
+    async findBatchesSummary(user: JwtPayload) {
+        const scope = branchScope(user);
+        const [totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs] = await Promise.all([
+            InventoryRepository.countBatches({ branchId: scope.branchId }),
+            InventoryRepository.countBatches({ branchId: scope.branchId, depleted: false }),
+            InventoryRepository.sumBatchCostUzs(scope.branchId),
+            InventoryRepository.sumRemainingValueUzs(scope.branchId),
+        ]);
+
+        return { totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs };
     },
 
     async findBatchesPaginated(

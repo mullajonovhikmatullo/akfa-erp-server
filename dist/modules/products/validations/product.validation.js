@@ -51,6 +51,7 @@ exports.updateProductSchema = zod_1.z.object({
 exports.listProductsSchema = zod_1.z.object({
     categoryId: zod_1.z.string().uuid().optional(),
     unit: activeProductUnitSchema.optional(),
+    priceCurrency: zod_1.z.enum(["UZS", "USD"]).optional(),
     isActive: zod_1.z
         .string()
         .optional()

@@ -2,7 +2,8 @@ import { z } from "zod";
 import { StockMovementType } from "@prisma/client";
 import { AppError } from "../../../core/errors/AppError";
 import { JwtPayload } from "../../../core/types/jwt.types";
-import { branchScope, resolveBranchId } from "../../../core/utils/branch-access";
+import { branchScope, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
+import { isBranchScopedRole } from "../../../core/utils/role-access";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { emitTransferChanged } from "../../../infrastructure/socket";
 import { InventoryService } from "../../inventory/services/inventory.service";
@@ -14,6 +15,7 @@ export const TransfersService = {
     // ─── Create (PENDING) ─────────────────────────────────────────────────────
 
     async create(dto: CreateTransferDto, user: JwtPayload) {
+        const storeId = requireStoreId(user);
         const fromBranchId = resolveBranchId(dto.fromBranchId, user);
 
         if (fromBranchId === dto.toBranchId) {
@@ -22,8 +24,8 @@ export const TransfersService = {
 
         // Validate both branches exist
         const [fromBranch, toBranch] = await Promise.all([
-            prisma.branch.findUnique({ where: { id: fromBranchId }, select: { id: true, name: true } }),
-            prisma.branch.findUnique({ where: { id: dto.toBranchId }, select: { id: true, name: true } }),
+            prisma.branch.findFirst({ where: { id: fromBranchId, storeId }, select: { id: true, name: true } }),
+            prisma.branch.findFirst({ where: { id: dto.toBranchId, storeId }, select: { id: true, name: true } }),
         ]);
         if (!fromBranch) throw new AppError(404, "Source branch not found");
         if (!toBranch) throw new AppError(404, "Destination branch not found");
@@ -31,7 +33,7 @@ export const TransfersService = {
         // Load all products in one query
         const productIds = dto.items.map((i) => i.productId);
         const products = await prisma.product.findMany({
-            where: { id: { in: productIds } },
+            where: { id: { in: productIds }, storeId },
             select: { id: true, name: true, isActive: true, wholesalePriceUzs: true, wholesalePriceUsd: true },
         });
 
@@ -61,6 +63,7 @@ export const TransfersService = {
         });
 
         const created = await TransfersRepository.create({
+            storeId,
             fromBranchId,
             toBranchId: dto.toBranchId,
             note: dto.note,
@@ -69,6 +72,7 @@ export const TransfersService = {
         });
 
         emitTransferChanged({
+            storeId,
             transferId: created.id,
             status: created.status,
             fromBranchId: created.fromBranch.id,
@@ -86,12 +90,13 @@ export const TransfersService = {
     // NOT counted in sales figures — uses TRANSFER_OUT / TRANSFER_IN movement types.
 
     async complete(id: string, user: JwtPayload) {
-        const transfer = await TransfersRepository.findById(id);
+        const storeId = requireStoreId(user);
+        const transfer = await TransfersRepository.findById(id, storeId);
         if (!transfer) throw new AppError(404, "Transfer not found");
         if (transfer.status !== "PENDING") {
             throw new AppError(409, `Transfer is already ${transfer.status.toLowerCase()}`);
         }
-        if (user.role !== "ADMIN") {
+        if (!isBranchScopedRole(user.role)) {
             throw new AppError(403, "Only the receiving branch can confirm this transfer");
         }
         if (
@@ -108,6 +113,7 @@ export const TransfersService = {
 
                     // 1. Deduct from source branch (TRANSFER_OUT + FIFO)
                     await InventoryService.deductStock(
+                        storeId,
                         transfer.fromBranch.id,
                         item.product.id,
                         qty,
@@ -119,6 +125,7 @@ export const TransfersService = {
 
                     // 2. Add to destination branch (TRANSFER_IN + new batch)
                     await InventoryService.transferIn(
+                        storeId,
                         transfer.toBranch.id,
                         item.product.id,
                         qty,
@@ -135,6 +142,7 @@ export const TransfersService = {
         );
 
         emitTransferChanged({
+            storeId,
             transferId: completed.id,
             status: completed.status,
             fromBranchId: completed.fromBranch.id,
@@ -147,7 +155,8 @@ export const TransfersService = {
     // ─── Cancel ───────────────────────────────────────────────────────────────
 
     async cancel(id: string, user: JwtPayload) {
-        const transfer = await TransfersRepository.findById(id);
+        const storeId = requireStoreId(user);
+        const transfer = await TransfersRepository.findById(id, storeId);
         if (!transfer) throw new AppError(404, "Transfer not found");
         if (transfer.status !== "PENDING") {
             throw new AppError(409, `Only PENDING transfers can be cancelled`);
@@ -155,7 +164,7 @@ export const TransfersService = {
 
         // ADMIN can cancel their own initiated transfers; SUPER_ADMIN can cancel any
         if (
-            user.role === "ADMIN" &&
+            isBranchScopedRole(user.role) &&
             transfer.initiatedBy.id !== user.id
         ) {
             throw new AppError(403, "You can only cancel transfers you initiated");
@@ -167,6 +176,7 @@ export const TransfersService = {
         );
 
         emitTransferChanged({
+            storeId,
             transferId: cancelled.id,
             status: cancelled.status,
             fromBranchId: cancelled.fromBranch.id,
@@ -179,14 +189,11 @@ export const TransfersService = {
     // ─── Queries ──────────────────────────────────────────────────────────────
 
     async findAll(query: z.infer<typeof transferQuerySchema>, user: JwtPayload) {
-        // ADMIN sees transfers involving their branch (as source or destination)
-        const branchId =
-            user.role === "ADMIN"
-                ? (user.branchId ?? undefined)
-                : query.branchId;
+        const scope = branchScope(user, query.branchId);
 
         return TransfersRepository.findAll({
-            branchId,
+            storeId: scope.storeId,
+            branchId: scope.branchId,
             status: query.status,
             from: query.from,
             to: query.to,
@@ -195,11 +202,12 @@ export const TransfersService = {
     },
 
     async findById(id: string, user: JwtPayload) {
-        const transfer = await TransfersRepository.findById(id);
+        const storeId = requireStoreId(user);
+        const transfer = await TransfersRepository.findById(id, storeId);
         if (!transfer) throw new AppError(404, "Transfer not found");
 
         if (
-            user.role === "ADMIN" &&
+            isBranchScopedRole(user.role) &&
             transfer.fromBranch.id !== user.branchId &&
             transfer.toBranch.id !== user.branchId
         ) {

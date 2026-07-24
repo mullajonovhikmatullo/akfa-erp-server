@@ -1,0 +1,4481 @@
+{
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "StoreStatus": {
+        "type": "string",
+        "enum": [
+          "TRIALING",
+          "ACTIVE",
+          "PAST_DUE",
+          "SUSPENDED",
+          "CANCELLED"
+        ]
+      },
+      "PaymentStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "APPROVED",
+          "REJECTED"
+        ]
+      },
+      "PaymentCurrency": {
+        "type": "string",
+        "enum": [
+          "UZS",
+          "USD"
+        ]
+      },
+      "PlanCode": {
+        "type": "string",
+        "enum": [
+          "START",
+          "BUSINESS",
+          "NETWORK"
+        ]
+      },
+      "PlatformUser": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "username",
+          "role",
+          "rawRole",
+          "storeId",
+          "branchId"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "rawRole": {
+            "type": "string"
+          },
+          "storeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "branchId": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PlatformLoginPayload": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "PlatformLoginResponse": {
+        "type": "object",
+        "required": [
+          "accessToken",
+          "user"
+        ],
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/PlatformUser"
+          }
+        }
+      },
+      "PlatformDashboardResponse": {
+        "type": "object",
+        "required": [
+          "storesByStatus",
+          "activeStores",
+          "overdueStores",
+          "pendingPayments",
+          "renewalsDueSoon"
+        ],
+        "properties": {
+          "storesByStatus": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "number"
+            }
+          },
+          "activeStores": {
+            "type": "number"
+          },
+          "overdueStores": {
+            "type": "number"
+          },
+          "pendingPayments": {
+            "type": "number"
+          },
+          "renewalsDueSoon": {
+            "type": "number"
+          }
+        }
+      },
+      "PlatformStorePlan": {
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "monthlyPriceUzs"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "monthlyPriceUzs": {
+            "type": "number"
+          }
+        }
+      },
+      "PlatformStoreSubscription": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "trialEndsAt",
+          "currentPeriodStart",
+          "currentPeriodEnd",
+          "nextPaymentDueAt",
+          "lastPaymentAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "trialEndsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "currentPeriodStart": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "currentPeriodEnd": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "nextPaymentDueAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastPaymentAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "PlatformStoreCounts": {
+        "type": "object",
+        "required": [
+          "branches",
+          "users",
+          "products"
+        ],
+        "properties": {
+          "branches": {
+            "type": "number"
+          },
+          "users": {
+            "type": "number"
+          },
+          "products": {
+            "type": "number"
+          }
+        }
+      },
+      "PlatformStore": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "ownerName",
+          "phone",
+          "email",
+          "status",
+          "trialEndsAt",
+          "activatedAt",
+          "suspendedAt",
+          "createdAt",
+          "updatedAt",
+          "plan",
+          "subscription",
+          "_count"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "ownerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/StoreStatus"
+          },
+          "trialEndsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "activatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "suspendedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "plan": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PlatformStorePlan"
+              }
+            ],
+            "nullable": true
+          },
+          "subscription": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PlatformStoreSubscription"
+              }
+            ],
+            "nullable": true
+          },
+          "_count": {
+            "$ref": "#/components/schemas/PlatformStoreCounts"
+          }
+        }
+      },
+      "PlatformStoresResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlatformStore"
+            }
+          },
+          "total": {
+            "type": "number"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          }
+        }
+      },
+      "ListStoresParams": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/StoreStatus"
+          },
+          "search": {
+            "type": "string"
+          },
+          "page": {
+            "type": "number"
+          },
+          "pageSize": {
+            "type": "number"
+          }
+        }
+      },
+      "UpdateStoreStatusPayload": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/StoreStatus"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "PlatformPaymentStore": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StoreStatus"
+          }
+        }
+      },
+      "PlatformPaymentApprover": {
+        "type": "object",
+        "required": [
+          "id",
+          "fullName",
+          "username"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "PlatformPayment": {
+        "type": "object",
+        "required": [
+          "id",
+          "amount",
+          "currency",
+          "status",
+          "periodStart",
+          "periodEnd",
+          "paidAt",
+          "approvedAt",
+          "rejectedAt",
+          "note",
+          "createdAt",
+          "store",
+          "approvedBy"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/PaymentCurrency"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PaymentStatus"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "approvedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "rejectedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "store": {
+            "$ref": "#/components/schemas/PlatformPaymentStore"
+          },
+          "approvedBy": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PlatformPaymentApprover"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "CreatePaymentPayload": {
+        "type": "object",
+        "required": [
+          "storeId",
+          "amount"
+        ],
+        "properties": {
+          "storeId": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          },
+          "currency": {
+            "$ref": "#/components/schemas/PaymentCurrency"
+          },
+          "paidAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "periodStart": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "periodEnd": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "RejectPaymentPayload": {
+        "type": "object",
+        "properties": {
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisterStorePayload": {
+        "type": "object",
+        "required": [
+          "storeName",
+          "ownerName",
+          "phone",
+          "username",
+          "password"
+        ],
+        "properties": {
+          "storeName": {
+            "type": "string"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "planCode": {
+            "$ref": "#/components/schemas/PlanCode"
+          }
+        }
+      },
+      "RegisteredStore": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "status",
+          "trialEndsAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StoreStatus"
+          },
+          "trialEndsAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RegisteredBranch": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "RegisteredSubscription": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "trialEndsAt",
+          "nextPaymentDueAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "trialEndsAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "nextPaymentDueAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RegisterStoreResult": {
+        "type": "object",
+        "required": [
+          "accessToken",
+          "user",
+          "store",
+          "branch",
+          "subscription"
+        ],
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/PlatformUser"
+          },
+          "store": {
+            "$ref": "#/components/schemas/RegisteredStore"
+          },
+          "branch": {
+            "$ref": "#/components/schemas/RegisteredBranch"
+          },
+          "subscription": {
+            "$ref": "#/components/schemas/RegisteredSubscription"
+          }
+        }
+      },
+      "AdminResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "example": "ADMIN"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "branch": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateAdminRequest": {
+        "type": "object",
+        "required": [
+          "fullName",
+          "username",
+          "password",
+          "branchId"
+        ],
+        "properties": {
+          "fullName": {
+            "type": "string",
+            "example": "John Doe"
+          },
+          "username": {
+            "type": "string",
+            "example": "john_admin"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 6,
+            "example": "secret123"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "UpdateAdminRequest": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AnalyticsPeriod": {
+        "type": "string",
+        "enum": [
+          "day",
+          "week",
+          "month"
+        ],
+        "default": "day"
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "admin"
+          },
+          "password": {
+            "type": "string",
+            "example": "secret123"
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "required": [
+          "accessToken",
+          "user"
+        ],
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "user": {
+            "type": "object",
+            "required": [
+              "id",
+              "name",
+              "username",
+              "role",
+              "rawRole",
+              "storeId",
+              "branchId"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "username": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "rawRole": {
+                "type": "string"
+              },
+              "storeId": {
+                "type": "string",
+                "nullable": true
+              },
+              "branchId": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          }
+        }
+      },
+      "CreateBranchDto": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Main Branch"
+          },
+          "address": {
+            "type": "string",
+            "example": "123 Main St"
+          },
+          "phone": {
+            "type": "string",
+            "example": 998901234567
+          }
+        }
+      },
+      "CustomerResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true
+          },
+          "address": {
+            "type": "string",
+            "nullable": true
+          },
+          "balance": {
+            "type": "string",
+            "description": "Positive = owes us (debt); Negative = we owe them (credit)",
+            "example": "50000.00"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "branch": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "CreateCustomerRequest": {
+        "type": "object",
+        "required": [
+          "fullName"
+        ],
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Required for SUPER_ADMIN; ignored for ADMIN"
+          },
+          "fullName": {
+            "type": "string",
+            "example": "Bobur Toshmatov"
+          },
+          "phone": {
+            "type": "string",
+            "example": "+998901234567"
+          },
+          "address": {
+            "type": "string",
+            "example": "Tashkent, Chilanzar 5"
+          },
+          "balance": {
+            "type": "number",
+            "example": 50000
+          }
+        }
+      },
+      "UpdateCustomerRequest": {
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ExpenseCategory": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "example": "Rent"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "_count": {
+            "type": "object",
+            "properties": {
+              "expenses": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "CreateExpenseCategoryRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Rent"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateExpenseCategoryRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateExpenseRequest": {
+        "type": "object",
+        "required": [
+          "categoryId",
+          "amount"
+        ],
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Ignored on create; expense is recorded for authenticated user's branch"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "ID of an active ExpenseCategory"
+          },
+          "amount": {
+            "type": "number",
+            "example": 3500000,
+            "description": "Amount in UZS equivalent"
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "UZS",
+              "USD"
+            ],
+            "default": "UZS"
+          },
+          "amountUsd": {
+            "type": "number",
+            "example": 275,
+            "description": "Original USD amount when currency is USD"
+          },
+          "usdToUzsRate": {
+            "type": "number",
+            "example": 12650,
+            "description": "Required when currency is USD"
+          },
+          "description": {
+            "type": "string",
+            "example": "Monthly rent payment"
+          },
+          "expenseDate": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Defaults to now if omitted"
+          }
+        }
+      },
+      "StockInRequest": {
+        "type": "object",
+        "required": [
+          "productId",
+          "quantity",
+          "costPriceUzs"
+        ],
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Required for SUPER_ADMIN; ignored for ADMIN (uses own branch)"
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "example": 100
+          },
+          "costPriceUzs": {
+            "type": "number",
+            "example": 180000
+          },
+          "costPriceUsd": {
+            "type": "number",
+            "example": 14.5
+          },
+          "supplierNote": {
+            "type": "string",
+            "example": "Delivery #2341 from Tashkent warehouse"
+          }
+        }
+      },
+      "AdjustmentRequest": {
+        "type": "object",
+        "required": [
+          "productId",
+          "newQuantity",
+          "reason"
+        ],
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Required for SUPER_ADMIN; ignored for ADMIN"
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "newQuantity": {
+            "type": "number",
+            "example": 95,
+            "description": "Absolute new quantity (not a delta)"
+          },
+          "reason": {
+            "type": "string",
+            "example": "Physical count correction — 5 units damaged"
+          }
+        }
+      },
+      "InventoryRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Decimal — current stock level",
+            "example": "95.0000"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "branch": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "product": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "sku": {
+                "type": "string"
+              },
+              "unit": {
+                "type": "string"
+              },
+              "lowStockThreshold": {
+                "type": "string",
+                "nullable": true
+              }
+            }
+          }
+        }
+      },
+      "StockMovement": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "STOCK_IN",
+              "STOCK_OUT",
+              "ADJUSTMENT",
+              "TRANSFER_IN",
+              "TRANSFER_OUT"
+            ]
+          },
+          "quantity": {
+            "type": "string",
+            "description": "Positive = in, negative = out"
+          },
+          "balanceAfter": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "product": {
+            "type": "object"
+          },
+          "branch": {
+            "type": "object"
+          },
+          "createdBy": {
+            "type": "object"
+          }
+        }
+      },
+      "CategoryResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateCategoryRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Glass Panels"
+          },
+          "description": {
+            "type": "string",
+            "example": "All types of flat glass products"
+          }
+        }
+      },
+      "UpdateCategoryRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProductUnit": {
+        "type": "string",
+        "enum": [
+          "KG",
+          "PIECE"
+        ]
+      },
+      "ProductResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "sku": {
+            "type": "string",
+            "nullable": true
+          },
+          "unit": {
+            "$ref": "#/components/schemas/ProductUnit"
+          },
+          "costPriceUzs": {
+            "type": "string",
+            "description": "Decimal value as string",
+            "example": "180000.00"
+          },
+          "retailPriceUzs": {
+            "type": "string",
+            "description": "Decimal value as string",
+            "example": "250000.00"
+          },
+          "wholesalePriceUzs": {
+            "type": "string",
+            "example": "200000.00"
+          },
+          "costPriceUsd": {
+            "type": "string",
+            "nullable": true,
+            "example": "14.0000"
+          },
+          "retailPriceUsd": {
+            "type": "string",
+            "nullable": true,
+            "example": "19.9900"
+          },
+          "wholesalePriceUsd": {
+            "type": "string",
+            "nullable": true,
+            "example": "16.5000"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "category": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateProductRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "unit",
+          "costPriceUzs",
+          "retailPriceUzs",
+          "wholesalePriceUzs"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Float Glass 4mm"
+          },
+          "description": {
+            "type": "string",
+            "example": "Clear float glass, thickness 4mm"
+          },
+          "sku": {
+            "type": "string",
+            "example": "FG-4MM-CLR"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/ProductUnit"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Branch where an initial zero-balance inventory row is created"
+          },
+          "costPriceUzs": {
+            "type": "number",
+            "example": 180000
+          },
+          "retailPriceUzs": {
+            "type": "number",
+            "example": 250000
+          },
+          "wholesalePriceUzs": {
+            "type": "number",
+            "example": 200000
+          },
+          "costPriceUsd": {
+            "type": "number",
+            "example": 14
+          },
+          "retailPriceUsd": {
+            "type": "number",
+            "example": 19.99
+          },
+          "wholesalePriceUsd": {
+            "type": "number",
+            "example": 16.5
+          }
+        }
+      },
+      "UpdateProductRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/ProductUnit"
+          },
+          "categoryId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "costPriceUzs": {
+            "type": "number"
+          },
+          "retailPriceUzs": {
+            "type": "number"
+          },
+          "wholesalePriceUzs": {
+            "type": "number"
+          },
+          "costPriceUsd": {
+            "type": "number"
+          },
+          "retailPriceUsd": {
+            "type": "number"
+          },
+          "wholesalePriceUsd": {
+            "type": "number"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SaleType": {
+        "type": "string",
+        "enum": [
+          "RETAIL",
+          "WHOLESALE"
+        ]
+      },
+      "PaymentMethod": {
+        "type": "string",
+        "enum": [
+          "CASH_UZS",
+          "CASH_USD",
+          "CARD",
+          "TRANSFER",
+          "MIXED",
+          "CREDIT"
+        ]
+      },
+      "SaleItemRequest": {
+        "type": "object",
+        "required": [
+          "productId",
+          "quantity"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "example": 5
+          }
+        }
+      },
+      "CreateSaleRequest": {
+        "type": "object",
+        "required": [
+          "saleType",
+          "items",
+          "paymentMethod"
+        ],
+        "properties": {
+          "branchId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional. Defaults to the authenticated user's branch; ADMIN cannot override it."
+          },
+          "customerId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Required when paidAmountUzs < totalAmount (creates debt)"
+          },
+          "saleType": {
+            "$ref": "#/components/schemas/SaleType"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SaleItemRequest"
+            }
+          },
+          "paidAmountUzs": {
+            "type": "number",
+            "default": 0,
+            "example": 200000
+          },
+          "paidAmountUsd": {
+            "type": "number",
+            "default": 0,
+            "example": 0
+          },
+          "usdToUzsRate": {
+            "type": "number",
+            "description": "Required when paidAmountUsd > 0",
+            "example": 12700
+          },
+          "paymentMethod": {
+            "$ref": "#/components/schemas/PaymentMethod"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "AddPaymentRequest": {
+        "type": "object",
+        "required": [
+          "paymentMethod"
+        ],
+        "properties": {
+          "amountUzs": {
+            "type": "number",
+            "default": 0,
+            "example": 100000
+          },
+          "amountUsd": {
+            "type": "number",
+            "default": 0
+          },
+          "usdToUzsRate": {
+            "type": "number"
+          },
+          "paymentMethod": {
+            "$ref": "#/components/schemas/PaymentMethod"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "SaleResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "saleType": {
+            "$ref": "#/components/schemas/SaleType"
+          },
+          "totalAmountUzs": {
+            "type": "string",
+            "example": "250000.00"
+          },
+          "paidAmountUzs": {
+            "type": "string",
+            "example": "200000.00"
+          },
+          "debtAmountUzs": {
+            "type": "string",
+            "example": "50000.00"
+          },
+          "branch": {
+            "type": "object"
+          },
+          "customer": {
+            "type": "object",
+            "nullable": true
+          },
+          "soldBy": {
+            "type": "object"
+          },
+          "items": {
+            "type": "array"
+          },
+          "payments": {
+            "type": "array"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "TransferStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "COMPLETED",
+          "CANCELLED"
+        ]
+      },
+      "TransferItem": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "quantity": {
+            "type": "number",
+            "example": 10
+          },
+          "unitCostUzs": {
+            "type": "number",
+            "example": 85000,
+            "description": "Defaults to product wholesale price if omitted"
+          }
+        }
+      },
+      "CreateTransferRequest": {
+        "type": "object",
+        "required": [
+          "toBranchId",
+          "items"
+        ],
+        "properties": {
+          "fromBranchId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Required for SUPER_ADMIN; ignored for ADMIN (uses their branch)"
+          },
+          "toBranchId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/TransferItem"
+            }
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      }
+    }
+  },
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Store Management API",
+    "version": "1.0.0",
+    "description": "Multi-branch retail management system API"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000"
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Login with username and password",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformLoginResponse"
+                    }
+                  },
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials"
+          }
+        }
+      }
+    },
+    "/platform/dashboard": {
+      "get": {
+        "tags": [
+          "Platform"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Platform dashboard metrics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformDashboardResponse"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/stores": {
+      "get": {
+        "tags": [
+          "Platform"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated store list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformStoresResponse"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/stores/{id}": {
+      "get": {
+        "tags": [
+          "Platform"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Store detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformStore"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/stores/{id}/status": {
+      "patch": {
+        "tags": [
+          "Platform"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStoreStatusPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Store status updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformStore"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/payments": {
+      "get": {
+        "tags": [
+          "Platform"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PlatformPayment"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Platform"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePaymentPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Payment created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformPayment"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/payments/{id}/approve": {
+      "patch": {
+        "tags": [
+          "Platform"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Payment approved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformPayment"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/payments/{id}/reject": {
+      "patch": {
+        "tags": [
+          "Platform"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectPaymentPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformPayment"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/stores/register": {
+      "post": {
+        "tags": [
+          "Onboarding"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterStorePayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Store registered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/RegisterStoreResult"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admins": {
+      "post": {
+        "summary": "Create a new admin and assign to a branch",
+        "tags": [
+          "Admins"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAdminRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Admin created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Branch not found"
+          },
+          "409": {
+            "description": "Username already taken"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "get": {
+        "summary": "List all admins (filterable by branch and status)",
+        "tags": [
+          "Admins"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "isActive",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of admins"
+          }
+        }
+      }
+    },
+    "/admins/{id}": {
+      "get": {
+        "summary": "Get a single admin by ID",
+        "tags": [
+          "Admins"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Admin found"
+          },
+          "404": {
+            "description": "Admin not found"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update admin details or reassign to another branch",
+        "tags": [
+          "Admins"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAdminRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Admin updated"
+          },
+          "404": {
+            "description": "Admin or branch not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Permanently delete an admin",
+        "tags": [
+          "Admins"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Admin deleted"
+          },
+          "404": {
+            "description": "Admin not found"
+          }
+        }
+      }
+    },
+    "/admins/{id}/disable": {
+      "patch": {
+        "summary": "Disable an admin account",
+        "tags": [
+          "Admins"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Admin disabled"
+          }
+        }
+      }
+    },
+    "/admins/{id}/enable": {
+      "patch": {
+        "summary": "Re-enable a disabled admin account",
+        "tags": [
+          "Admins"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Admin enabled"
+          }
+        }
+      }
+    },
+    "/analytics/dashboard": {
+      "get": {
+        "summary": "Top-level KPIs for a date range",
+        "description": "Returns aggregated sales, expenses, net profit, inventory value,\nlow-stock count, customer debt, and pending transfers.\nADMIN sees their branch only; SUPER_ADMIN sees all or a specific branch.\n",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "SUPER_ADMIN only"
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Defaults to the first day of the current month"
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Defaults to now"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dashboard KPIs"
+          }
+        }
+      }
+    },
+    "/analytics/sales": {
+      "get": {
+        "summary": "Sales breakdown — by period, type, payment method, and top products",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "$ref": "#/components/schemas/AnalyticsPeriod"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "maximum": 100
+            },
+            "description": "Number of top products to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sales report"
+          }
+        }
+      }
+    },
+    "/analytics/inventory": {
+      "get": {
+        "summary": "Inventory report — stock value per branch, low-stock items, movement summary",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Used to scope the stock-movement summary"
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inventory report"
+          }
+        }
+      }
+    },
+    "/analytics/expenses": {
+      "get": {
+        "summary": "Expense breakdown — totals by category and over time",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "period",
+            "schema": {
+              "$ref": "#/components/schemas/AnalyticsPeriod"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Expense report"
+          }
+        }
+      }
+    },
+    "/analytics/customers/debt": {
+      "get": {
+        "summary": "Customer debt summary — total outstanding, overdue breakdown, and top debtors",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Customer debt report"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Get the currently authenticated user",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current user profile"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/branches": {
+      "post": {
+        "summary": "Create branch",
+        "tags": [
+          "Branches"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateBranchDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Branch created successfully"
+          },
+          "500": {
+            "description": "Failed to create branch"
+          }
+        }
+      },
+      "get": {
+        "summary": "Get all branches",
+        "tags": [
+          "Branches"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of branches"
+          }
+        }
+      }
+    },
+    "/branches/{id}": {
+      "patch": {
+        "summary": "Update branch",
+        "tags": [
+          "Branches"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Branch updated"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete branch",
+        "tags": [
+          "Branches"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Branch deleted"
+          },
+          "500": {
+            "description": "Delete failed"
+          }
+        }
+      }
+    },
+    "/customers": {
+      "post": {
+        "summary": "Register a new customer",
+        "tags": [
+          "Customers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Customer created"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "get": {
+        "summary": "List customers (branch-scoped for ADMIN)",
+        "tags": [
+          "Customers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search by name or phone"
+          },
+          {
+            "in": "query",
+            "name": "isActive",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hasDebt",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Filter customers with outstanding debt"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Customer list"
+          }
+        }
+      }
+    },
+    "/customers/{id}": {
+      "get": {
+        "summary": "Get customer detail with recent sales",
+        "tags": [
+          "Customers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Customer detail with last 10 sales"
+          },
+          "403": {
+            "description": "Forbidden — customer belongs to another branch"
+          },
+          "404": {
+            "description": "Customer not found"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update customer info",
+        "tags": [
+          "Customers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCustomerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Customer updated"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Deactivate a customer (blocked if outstanding debt exists)",
+        "tags": [
+          "Customers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Customer deactivated"
+          },
+          "409": {
+            "description": "Customer has outstanding debt"
+          }
+        }
+      }
+    },
+    "/expenses/categories": {
+      "post": {
+        "summary": "Create an expense category (SUPER_ADMIN only)",
+        "tags": [
+          "Expense Categories"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExpenseCategoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Category created"
+          },
+          "409": {
+            "description": "Name already exists"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "get": {
+        "summary": "List expense categories",
+        "tags": [
+          "Expense Categories"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "includeInactive",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Include inactive categories (SUPER_ADMIN use)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category list with linked expense count"
+          }
+        }
+      }
+    },
+    "/expenses/categories/{id}": {
+      "get": {
+        "summary": "Get a single expense category",
+        "tags": [
+          "Expense Categories"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category detail"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update an expense category (SUPER_ADMIN only)",
+        "tags": [
+          "Expense Categories"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateExpenseCategoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Category updated"
+          },
+          "404": {
+            "description": "Not found"
+          },
+          "409": {
+            "description": "Name conflict"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete an expense category (SUPER_ADMIN only, only if no linked expenses)",
+        "tags": [
+          "Expense Categories"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "409": {
+            "description": "Category has linked expenses — deactivate it instead"
+          }
+        }
+      }
+    },
+    "/expenses": {
+      "post": {
+        "summary": "Record a branch expense",
+        "tags": [
+          "Expenses"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateExpenseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Expense recorded"
+          },
+          "404": {
+            "description": "Expense category not found"
+          },
+          "409": {
+            "description": "Category is inactive"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "get": {
+        "summary": "List expenses (branch-scoped for ADMIN)",
+        "tags": [
+          "Expenses"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "categoryId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Expense list"
+          }
+        }
+      }
+    },
+    "/expenses/summary/categories": {
+      "get": {
+        "summary": "Expense category totals for KPI and breakdown",
+        "tags": [
+          "Expenses"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "categoryId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 5,
+              "maximum": 20
+            },
+            "description": "Maximum KPI cards. Overflow is grouped into the final item."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category totals"
+          }
+        }
+      }
+    },
+    "/expenses/{id}": {
+      "get": {
+        "summary": "Get a single expense",
+        "tags": [
+          "Expenses"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Expense detail"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete an expense (ADMIN within 24h; SUPER_ADMIN anytime)",
+        "tags": [
+          "Expenses"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "403": {
+            "description": "Too old to delete or wrong branch"
+          }
+        }
+      }
+    },
+    "/inventory/stock-in": {
+      "post": {
+        "summary": "Receive goods into branch inventory (creates batch + updates stock)",
+        "tags": [
+          "Inventory"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StockInRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stock received, batch created"
+          },
+          "404": {
+            "description": "Branch or product not found"
+          },
+          "409": {
+            "description": "Product is inactive"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/inventory/adjustment": {
+      "post": {
+        "summary": "Manual stock correction (physical count reconciliation)",
+        "tags": [
+          "Inventory"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stock adjusted with delta and movement log"
+          },
+          "400": {
+            "description": "New quantity equals current stock"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/inventory": {
+      "get": {
+        "summary": "Current stock levels (branch-scoped for ADMIN)",
+        "tags": [
+          "Inventory"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "SUPER_ADMIN only — omit to see all branches"
+          },
+          {
+            "in": "query",
+            "name": "productId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "categoryId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lowStock",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Filter products at or below their lowStockThreshold"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of inventory records",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InventoryRecord"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inventory/low-stock": {
+      "get": {
+        "summary": "Products at or below their low-stock threshold",
+        "tags": [
+          "Inventory"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Low-stock inventory records"
+          }
+        }
+      }
+    },
+    "/inventory/movements": {
+      "get": {
+        "summary": "Full stock movement audit log",
+        "tags": [
+          "Inventory"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "productId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "STOCK_IN",
+                "STOCK_OUT",
+                "ADJUSTMENT",
+                "TRANSFER_IN",
+                "TRANSFER_OUT"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2025-01-01T00:00:00.000Z"
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 100,
+              "maximum": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Movement log entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StockMovement"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inventory/batches": {
+      "get": {
+        "summary": "View delivery batches (FIFO source — cost price per batch)",
+        "tags": [
+          "Inventory"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "productId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "depleted",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "true = show fully consumed batches, false = active batches only"
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Filter by receivedAt from this timestamp",
+            "example": "2025-01-01T00:00:00.000Z"
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Filter by receivedAt until this timestamp"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of stock batches"
+          }
+        }
+      }
+    },
+    "/products/categories": {
+      "post": {
+        "summary": "Create a product category",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCategoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Category created"
+          },
+          "409": {
+            "description": "Category name already exists"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "get": {
+        "summary": "List all categories",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "isActive",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of categories"
+          }
+        }
+      }
+    },
+    "/products/categories/{id}": {
+      "get": {
+        "summary": "Get a category by ID",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Category found"
+          },
+          "404": {
+            "description": "Category not found"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update a category",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCategoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Category updated"
+          },
+          "404": {
+            "description": "Category not found"
+          },
+          "409": {
+            "description": "Name already in use"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a category (only if no products assigned)",
+        "tags": [
+          "Categories"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Category deleted"
+          },
+          "409": {
+            "description": "Category has assigned products"
+          }
+        }
+      }
+    },
+    "/products": {
+      "post": {
+        "summary": "Create a new product",
+        "tags": [
+          "Products"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Product created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Category not found"
+          },
+          "409": {
+            "description": "SKU already in use"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "get": {
+        "summary": "List products with optional filters",
+        "tags": [
+          "Products"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search by name, SKU, or description"
+          },
+          {
+            "in": "query",
+            "name": "categoryId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "unit",
+            "schema": {
+              "$ref": "#/components/schemas/ProductUnit"
+            }
+          },
+          {
+            "in": "query",
+            "name": "isActive",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of products"
+          }
+        }
+      }
+    },
+    "/products/sku/{sku}": {
+      "get": {
+        "summary": "Lookup a product by SKU (barcode scan)",
+        "tags": [
+          "Products"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sku",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "FG-4MM-CLR"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product found"
+          },
+          "404": {
+            "description": "No product with that SKU"
+          }
+        }
+      }
+    },
+    "/products/{id}": {
+      "get": {
+        "summary": "Get a product by ID",
+        "tags": [
+          "Products"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product found"
+          },
+          "404": {
+            "description": "Product not found"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update a product",
+        "tags": [
+          "Products"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Product updated"
+          },
+          "404": {
+            "description": "Product or category not found"
+          },
+          "409": {
+            "description": "SKU already in use"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a product",
+        "tags": [
+          "Products"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Product deleted"
+          },
+          "404": {
+            "description": "Product not found"
+          }
+        }
+      }
+    },
+    "/sales": {
+      "post": {
+        "summary": "Create a sale (deducts inventory + updates customer debt atomically)",
+        "tags": [
+          "Sales"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSaleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Sale recorded with inventory deducted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SaleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Debt requires a customer"
+          },
+          "404": {
+            "description": "Product, branch or customer not found"
+          },
+          "409": {
+            "description": "Insufficient stock or inactive product"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "get": {
+        "summary": "List sales with filters (branch-scoped for ADMIN)",
+        "tags": [
+          "Sales"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "customerId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "saleType",
+            "schema": {
+              "$ref": "#/components/schemas/SaleType"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hasDebt",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Filter sales with outstanding debt"
+          },
+          {
+            "in": "query",
+            "name": "overdue",
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Filter sales where debtDueDate has passed and debt remains"
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sale list (without items/payments for performance)"
+          }
+        }
+      }
+    },
+    "/sales/{id}": {
+      "get": {
+        "summary": "Get full sale detail including all items and payments",
+        "tags": [
+          "Sales"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Full sale detail"
+          },
+          "403": {
+            "description": "Sale belongs to another branch"
+          },
+          "404": {
+            "description": "Sale not found"
+          }
+        }
+      }
+    },
+    "/sales/{id}/payments": {
+      "post": {
+        "summary": "Record an additional payment against an existing sale (debt repayment)",
+        "tags": [
+          "Sales"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPaymentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Payment recorded, debt updated"
+          },
+          "400": {
+            "description": "No outstanding debt on this sale"
+          },
+          "404": {
+            "description": "Sale not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/sales/{id}/debt-deadline": {
+      "patch": {
+        "summary": "Set or clear the repayment deadline on a credit sale",
+        "description": "Sets `debtDueDate` on a sale that has outstanding debt. Pass `null` to remove\nan existing deadline. Once the deadline passes and debt remains, the sale\nappears in `GET /sales?overdue=true` and the analytics overdue summary.\n",
+        "tags": [
+          "Sales"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "debtDueDate"
+                ],
+                "properties": {
+                  "debtDueDate": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "example": "2025-06-01T00:00:00.000Z"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deadline updated"
+          },
+          "400": {
+            "description": "Sale has no outstanding debt"
+          },
+          "403": {
+            "description": "Sale belongs to another branch"
+          },
+          "404": {
+            "description": "Sale not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      }
+    },
+    "/transfers": {
+      "post": {
+        "summary": "Create a pending stock transfer between branches",
+        "tags": [
+          "Transfers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTransferRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Transfer created in PENDING status"
+          },
+          "400": {
+            "description": "Same source/destination or missing branchId"
+          },
+          "404": {
+            "description": "Branch or product not found"
+          },
+          "422": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "get": {
+        "summary": "List transfers (branch-scoped for ADMIN)",
+        "tags": [
+          "Transfers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "SUPER_ADMIN only — filter by branch (as source or destination)"
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "$ref": "#/components/schemas/TransferStatus"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transfer list"
+          }
+        }
+      }
+    },
+    "/transfers/{id}": {
+      "get": {
+        "summary": "Get a single transfer",
+        "tags": [
+          "Transfers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transfer detail"
+          },
+          "403": {
+            "description": "Transfer does not involve your branch"
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/transfers/{id}/complete": {
+      "post": {
+        "summary": "Complete a transfer — moves stock atomically",
+        "description": "Deducts stock from the source branch (FIFO, logged as TRANSFER_OUT) and\nadds it to the destination branch (new batch at transfer cost, logged as TRANSFER_IN).\nNot counted in sales figures.\n",
+        "tags": [
+          "Transfers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transfer completed and stock moved"
+          },
+          "403": {
+            "description": "Not authorized"
+          },
+          "404": {
+            "description": "Transfer not found"
+          },
+          "409": {
+            "description": "Transfer is not in PENDING status"
+          }
+        }
+      }
+    },
+    "/transfers/{id}/cancel": {
+      "post": {
+        "summary": "Cancel a pending transfer (no stock movement)",
+        "description": "ADMIN can cancel only their own transfers; SUPER_ADMIN can cancel any.",
+        "tags": [
+          "Transfers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transfer cancelled"
+          },
+          "403": {
+            "description": "Cannot cancel another admin's transfer"
+          },
+          "404": {
+            "description": "Transfer not found"
+          },
+          "409": {
+            "description": "Transfer is not in PENDING status"
+          }
+        }
+      }
+    },
+    "/users/me": {
+      "get": {
+        "summary": "Current user",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    },
+    "/users/super-admin": {
+      "get": {
+        "summary": "Super admin only",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          }
+        }
+      }
+    }
+  },
+  "tags": []
+}

@@ -4,6 +4,7 @@ exports.AdminsRepository = void 0;
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const adminSelect = {
     id: true,
+    storeId: true,
     fullName: true,
     username: true,
     role: true,
@@ -13,17 +14,19 @@ const adminSelect = {
     createdAt: true,
     updatedAt: true,
 };
+const STORE_ADMIN_ROLES = ["ADMIN", "BRANCH_ADMIN", "STORE_ADMIN", "CASHIER"];
 exports.AdminsRepository = {
     create(data) {
         return prisma_1.prisma.user.create({
-            data: { ...data, role: "ADMIN" },
+            data: { ...data, role: "BRANCH_ADMIN" },
             select: adminSelect,
         });
     },
     findAll(filters) {
         return prisma_1.prisma.user.findMany({
             where: {
-                role: "ADMIN",
+                storeId: filters.storeId,
+                role: { in: [...STORE_ADMIN_ROLES] },
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.isActive !== undefined && { isActive: filters.isActive }),
             },
@@ -34,7 +37,8 @@ exports.AdminsRepository = {
     findPaginated(filters, page, pageSize) {
         return prisma_1.prisma.user.findMany({
             where: {
-                role: "ADMIN",
+                storeId: filters.storeId,
+                role: { in: [...STORE_ADMIN_ROLES] },
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.isActive !== undefined && { isActive: filters.isActive }),
             },
@@ -47,21 +51,22 @@ exports.AdminsRepository = {
     count(filters) {
         return prisma_1.prisma.user.count({
             where: {
-                role: "ADMIN",
+                storeId: filters.storeId,
+                role: { in: [...STORE_ADMIN_ROLES] },
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.isActive !== undefined && { isActive: filters.isActive }),
             },
         });
     },
-    countAssigned() {
-        return prisma_1.prisma.user.count({ where: { role: "ADMIN", branchId: { not: null } } });
+    countAssigned(storeId) {
+        return prisma_1.prisma.user.count({ where: { storeId, role: { in: [...STORE_ADMIN_ROLES] }, branchId: { not: null } } });
     },
-    countUnassigned() {
-        return prisma_1.prisma.user.count({ where: { role: "ADMIN", branchId: null } });
+    countUnassigned(storeId) {
+        return prisma_1.prisma.user.count({ where: { storeId, role: { in: [...STORE_ADMIN_ROLES] }, branchId: null } });
     },
-    findById(id) {
+    findById(id, storeId) {
         return prisma_1.prisma.user.findFirst({
-            where: { id, role: "ADMIN" },
+            where: { id, storeId, role: { in: [...STORE_ADMIN_ROLES] } },
             select: adminSelect,
         });
     },

@@ -1,11 +1,49 @@
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { AppError } from "../../../core/errors/AppError";
+import { signAccessToken } from "../../../core/utils/auth-token";
+import { toClientRole } from "../../../core/utils/role-access";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 
-function normalizeRole(role: string) {
-    return role === "SUPER_ADMIN" ? "super_admin" : "branch_admin";
+const userProfileSelect = {
+    id: true,
+    fullName: true,
+    username: true,
+    role: true,
+    branchId: true,
+    storeId: true,
+    isActive: true,
+    store: {
+        select: {
+            id: true,
+            name: true,
+            slug: true,
+            status: true,
+            trialEndsAt: true,
+            subscription: {
+                select: {
+                    status: true,
+                    trialEndsAt: true,
+                    currentPeriodEnd: true,
+                    nextPaymentDueAt: true,
+                },
+            },
+            plan: { select: { code: true, name: true } },
+        },
+    },
+} as const;
+
+function serializeUser(user: any) {
+    return {
+        id: user.id,
+        name: user.fullName,
+        username: user.username,
+        role: toClientRole(user.role),
+        rawRole: user.role,
+        storeId: user.storeId,
+        branchId: user.branchId,
+        store: user.store,
+    };
 }
 
 export const updateProfileSchema = z.object({
@@ -31,16 +69,10 @@ export const AuthService = {
     async me(userId: string) {
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            select: { id: true, fullName: true, username: true, role: true, branchId: true, isActive: true },
+            select: userProfileSelect,
         });
         if (!user || !user.isActive) throw new AppError(401, "Unauthorized");
-        return {
-            id: user.id,
-            name: user.fullName,
-            username: user.username,
-            role: normalizeRole(user.role),
-            branchId: user.branchId,
-        };
+        return serializeUser(user);
     },
 
     async updateProfile(userId: string, data: z.infer<typeof updateProfileSchema>) {
@@ -57,16 +89,10 @@ export const AuthService = {
                 ...(data.fullName && { fullName: data.fullName }),
                 ...(data.username && { username: data.username }),
             },
-            select: { id: true, fullName: true, username: true, role: true, branchId: true, isActive: true },
+            select: userProfileSelect,
         });
 
-        return {
-            id: updated.id,
-            name: updated.fullName,
-            username: updated.username,
-            role: normalizeRole(updated.role),
-            branchId: updated.branchId,
-        };
+        return serializeUser(updated);
     },
 
     async changePassword(userId: string, data: z.infer<typeof changePasswordSchema>) {
@@ -85,6 +111,7 @@ export const AuthService = {
     async login(data: { username: string; password: string }) {
         const user = await prisma.user.findUnique({
             where: { username: data.username },
+            select: { ...userProfileSelect, password: true },
         });
 
         if (!user) {
@@ -100,21 +127,16 @@ export const AuthService = {
             throw new AppError(401, "Invalid credentials");
         }
 
-        const token = jwt.sign(
-            { id: user.id, role: user.role, branchId: user.branchId },
-            process.env.JWT_SECRET as string,
-            { expiresIn: (process.env.JWT_EXPIRES_IN ?? "7d") as jwt.SignOptions["expiresIn"] }
-        );
+        const token = signAccessToken({
+            id: user.id,
+            role: user.role,
+            storeId: user.storeId,
+            branchId: user.branchId,
+        });
 
         return {
             accessToken: token,
-            user: {
-                id: user.id,
-                name: user.fullName,
-                username: user.username,
-                role: normalizeRole(user.role),
-                branchId: user.branchId,
-            },
+            user: serializeUser(user),
         };
     },
 };

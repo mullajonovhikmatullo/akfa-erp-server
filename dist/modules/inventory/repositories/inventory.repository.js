@@ -48,6 +48,7 @@ const batchSelect = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function buildBatchWhere(filters) {
     return {
+        storeId: filters.storeId,
         ...(filters.branchId && { branchId: filters.branchId }),
         ...(filters.productId && { productId: filters.productId }),
         ...(filters.depleted === false && { remainingQty: { gt: 0 } }),
@@ -64,6 +65,7 @@ exports.InventoryRepository = {
     findAll(filters) {
         return prisma_1.prisma.inventory.findMany({
             where: {
+                storeId: filters.storeId,
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.productId && { productId: filters.productId }),
                 ...(filters.categoryId && {
@@ -81,27 +83,27 @@ exports.InventoryRepository = {
             orderBy: { updatedAt: "desc" },
         });
     },
-    findOne(branchId, productId, tx) {
+    findOne(storeId, branchId, productId, tx) {
         const client = tx ?? prisma_1.prisma;
-        return client.inventory.findUnique({
-            where: { branchId_productId: { branchId, productId } },
+        return client.inventory.findFirst({
+            where: { storeId, branchId, productId },
             select: inventorySelect,
         });
     },
     // Atomically increment or decrement the running balance.
     // delta > 0 = stock in, delta < 0 = stock out / adjustment.
-    upsertBalance(branchId, productId, delta, tx) {
+    upsertBalance(storeId, branchId, productId, delta, tx) {
         return tx.inventory.upsert({
             where: { branchId_productId: { branchId, productId } },
-            create: { branchId, productId, quantity: delta },
+            create: { storeId, branchId, productId, quantity: delta },
             update: { quantity: { increment: delta } },
             select: { quantity: true },
         });
     },
-    setBalance(branchId, productId, quantity, tx) {
+    setBalance(storeId, branchId, productId, quantity, tx) {
         return tx.inventory.upsert({
             where: { branchId_productId: { branchId, productId } },
-            create: { branchId, productId, quantity },
+            create: { storeId, branchId, productId, quantity },
             update: { quantity },
             select: { quantity: true },
         });
@@ -119,21 +121,22 @@ exports.InventoryRepository = {
     incrementBalances(rows, tx) {
         if (rows.length === 0)
             return Promise.resolve([]);
-        const values = client_1.Prisma.join(rows.map((row) => client_1.Prisma.sql `(${(0, crypto_1.randomUUID)()}, ${row.branchId}, ${row.productId}, ${row.quantity}, NOW())`));
+        const values = client_1.Prisma.join(rows.map((row) => client_1.Prisma.sql `(${(0, crypto_1.randomUUID)()}, ${row.storeId}, ${row.branchId}, ${row.productId}, ${row.quantity}, NOW())`));
         return tx.$queryRaw(client_1.Prisma.sql `
-                INSERT INTO "Inventory" ("id", "branchId", "productId", "quantity", "updatedAt")
+                INSERT INTO "Inventory" ("id", "storeId", "branchId", "productId", "quantity", "updatedAt")
                 VALUES ${values}
                 ON CONFLICT ("branchId", "productId")
                 DO UPDATE SET
                     "quantity" = "Inventory"."quantity" + EXCLUDED."quantity",
                     "updatedAt" = NOW()
-                RETURNING "branchId", "productId", "quantity"
+                RETURNING "storeId", "branchId", "productId", "quantity"
             `);
     },
     // Returns batches ordered oldest-first (FIFO) with remaining stock > 0
-    findActiveBatches(branchId, productId, tx) {
+    findActiveBatches(storeId, branchId, productId, tx) {
         return tx.stockBatch.findMany({
             where: {
+                storeId,
                 branchId,
                 productId,
                 remainingQty: { gt: 0 },
@@ -142,9 +145,9 @@ exports.InventoryRepository = {
             select: { id: true, remainingQty: true },
         });
     },
-    async sumRemainingQty(branchId, productId, tx) {
+    async sumRemainingQty(storeId, branchId, productId, tx) {
         const result = await tx.stockBatch.aggregate({
-            where: { branchId, productId },
+            where: { storeId, branchId, productId },
             _sum: { remainingQty: true },
         });
         return Number(result._sum.remainingQty ?? 0);
@@ -175,16 +178,16 @@ exports.InventoryRepository = {
     countBatches(filters) {
         return prisma_1.prisma.stockBatch.count({ where: buildBatchWhere(filters) });
     },
-    async sumBatchCostUzs(branchId) {
+    async sumBatchCostUzs(storeId, branchId) {
         const rows = await prisma_1.prisma.$queryRaw(branchId
-            ? client_1.Prisma.sql `SELECT COALESCE(SUM("initialQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "branchId" = ${branchId}`
-            : client_1.Prisma.sql `SELECT COALESCE(SUM("initialQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch"`);
+            ? client_1.Prisma.sql `SELECT COALESCE(SUM("initialQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "storeId" = ${storeId} AND "branchId" = ${branchId}`
+            : client_1.Prisma.sql `SELECT COALESCE(SUM("initialQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "storeId" = ${storeId}`);
         return Number(rows[0].total);
     },
-    async sumRemainingValueUzs(branchId) {
+    async sumRemainingValueUzs(storeId, branchId) {
         const rows = await prisma_1.prisma.$queryRaw(branchId
-            ? client_1.Prisma.sql `SELECT COALESCE(SUM("remainingQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "branchId" = ${branchId}`
-            : client_1.Prisma.sql `SELECT COALESCE(SUM("remainingQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch"`);
+            ? client_1.Prisma.sql `SELECT COALESCE(SUM("remainingQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "storeId" = ${storeId} AND "branchId" = ${branchId}`
+            : client_1.Prisma.sql `SELECT COALESCE(SUM("remainingQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "storeId" = ${storeId}`);
         return Number(rows[0].total);
     },
     // ─── StockMovement ───────────────────────────────────────────────────────
@@ -194,6 +197,7 @@ exports.InventoryRepository = {
     findMovements(filters) {
         return prisma_1.prisma.stockMovement.findMany({
             where: {
+                storeId: filters.storeId,
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.productId && { productId: filters.productId }),
                 ...(filters.type && { type: filters.type }),

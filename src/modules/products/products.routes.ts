@@ -85,7 +85,7 @@ router.use(authMiddleware);
  */
 router.post(
     "/categories",
-    roleMiddleware("SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
     validate(createCategorySchema),
     CategoriesController.create
 );
@@ -164,7 +164,7 @@ router.get("/categories/:id", CategoriesController.findById);
  */
 router.patch(
     "/categories/:id",
-    roleMiddleware("SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
     validate(updateCategorySchema),
     CategoriesController.update
 );
@@ -192,7 +192,7 @@ router.patch(
  */
 router.delete(
     "/categories/:id",
-    roleMiddleware("SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
     CategoriesController.delete
 );
 
@@ -359,7 +359,7 @@ router.delete(
  */
 router.post(
     "/",
-    roleMiddleware("SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
     validate(createProductSchema),
     ProductsController.create
 );
@@ -475,7 +475,7 @@ router.get("/:id", ProductsController.findById);
  */
 router.patch(
     "/:id",
-    roleMiddleware("SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
     validate(updateProductSchema),
     ProductsController.update
 );
@@ -501,6 +501,6 @@ router.patch(
  *       404:
  *         description: Product not found
  */
-router.delete("/:id", roleMiddleware("SUPER_ADMIN"), ProductsController.delete);
+router.delete("/:id", roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), ProductsController.delete);
 
 export default router;

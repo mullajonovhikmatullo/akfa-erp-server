@@ -1,6 +1,7 @@
 import { AppError } from "../../../core/errors/AppError";
 import { JwtPayload } from "../../../core/types/jwt.types";
-import { branchScope, resolveBranchId } from "../../../core/utils/branch-access";
+import { assertBranchInStore, branchScope, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
+import { isBranchScopedRole } from "../../../core/utils/role-access";
 import { CreateCustomerDto } from "../dto/create-customer.dto";
 import { UpdateCustomerDto } from "../dto/update-customer.dto";
 import { CustomersRepository } from "../repositories/customers.repository";
@@ -9,8 +10,10 @@ import { customerQuerySchema } from "../validations/customer.validation";
 
 export const CustomersService = {
     async create(dto: CreateCustomerDto, user: JwtPayload) {
+        const storeId = requireStoreId(user);
         const branchId = resolveBranchId(dto.branchId, user);
-        return CustomersRepository.create({ ...dto, branchId });
+        await assertBranchInStore(branchId, storeId);
+        return CustomersRepository.create({ ...dto, storeId, branchId });
     },
 
     async findAll(query: z.infer<typeof customerQuerySchema>, user: JwtPayload) {
@@ -24,23 +27,25 @@ export const CustomersService = {
     },
 
     async findById(id: string, user: JwtPayload) {
-        const customer = await CustomersRepository.findById(id);
+        const storeId = requireStoreId(user);
+        const customer = await CustomersRepository.findById(id, storeId);
         if (!customer) throw new AppError(404, "Customer not found");
 
         // Branch isolation: ADMIN can only view customers in their branch
-        if (user.role === "ADMIN" && customer.branchId !== user.branchId) {
+        if (isBranchScopedRole(user.role) && customer.branchId !== user.branchId) {
             throw new AppError(403, "Forbidden");
         }
 
-        const recentSales = await CustomersRepository.recentSales(id);
+        const recentSales = await CustomersRepository.recentSales(id, storeId);
         return { ...customer, recentSales };
     },
 
     async update(id: string, dto: UpdateCustomerDto, user: JwtPayload) {
-        const customer = await CustomersRepository.findById(id);
+        const storeId = requireStoreId(user);
+        const customer = await CustomersRepository.findById(id, storeId);
         if (!customer) throw new AppError(404, "Customer not found");
 
-        if (user.role === "ADMIN" && customer.branchId !== user.branchId) {
+        if (isBranchScopedRole(user.role) && customer.branchId !== user.branchId) {
             throw new AppError(403, "Forbidden");
         }
 
@@ -48,10 +53,11 @@ export const CustomersService = {
     },
 
     async delete(id: string, user: JwtPayload) {
-        const customer = await CustomersRepository.findById(id);
+        const storeId = requireStoreId(user);
+        const customer = await CustomersRepository.findById(id, storeId);
         if (!customer) throw new AppError(404, "Customer not found");
 
-        if (user.role === "ADMIN" && customer.branchId !== user.branchId) {
+        if (isBranchScopedRole(user.role) && customer.branchId !== user.branchId) {
             throw new AppError(403, "Forbidden");
         }
 

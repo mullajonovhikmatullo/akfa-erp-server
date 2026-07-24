@@ -32,5 +32,5 @@ router.get("/me", auth_middleware_1.authMiddleware, users_controller_1.UsersCont
  *       200:
  *         description: Success
  */
-router.get("/super-admin", auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("SUPER_ADMIN"), users_controller_1.UsersController.superAdminData);
+router.get("/super-admin", auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "SUPER_ADMIN"), users_controller_1.UsersController.superAdminData);
 exports.default = router;

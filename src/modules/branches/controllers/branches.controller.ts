@@ -1,47 +1,47 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 
 import { BranchesService } from "../services/branches.service";
 
 export class BranchesController {
-    static async create(req: Request, res: Response) {
+    static async create(req: Request, res: Response, next: NextFunction) {
         try {
-            const branch = await BranchesService.create(req.body);
+            const branch = await BranchesService.create(req.body, req.user!);
             return res.status(201).json(branch);
         } catch (error) {
-            return res.status(500).json({ message: "Failed to create branch" });
+            return next(error);
         }
     }
 
-    static async findAll(req: Request, res: Response) {
+    static async findAll(req: Request, res: Response, next: NextFunction) {
         try {
             if (req.query.page !== undefined) {
                 const page = Math.max(1, Number(req.query.page) || 1);
                 const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
-                const result = await BranchesService.findPaginated({ page, pageSize });
+                const result = await BranchesService.findPaginated({ page, pageSize, user: req.user! });
                 return res.json(result);
             }
-            const branches = await BranchesService.findAll();
+            const branches = await BranchesService.findAll(req.user!);
             return res.json(branches);
         } catch (error) {
-            return res.status(500).json({ message: "Failed to fetch branches" });
+            return next(error);
         }
     }
 
-    static async update(req: Request, res: Response) {
+    static async update(req: Request, res: Response, next: NextFunction) {
         try {
-            const branch = await BranchesService.update(req.params.id as string, req.body);
+            const branch = await BranchesService.update(req.params.id as string, req.body, req.user!);
             return res.json(branch);
         } catch (error) {
-            return res.status(500).json({ message: "Failed to update branch" });
+            return next(error);
         }
     }
 
-    static async delete(req: Request, res: Response) {
+    static async delete(req: Request, res: Response, next: NextFunction) {
         try {
-            await BranchesService.delete(req.params.id as string);
+            await BranchesService.delete(req.params.id as string, req.user!);
             return res.json({ message: "Branch deleted" });
         } catch (error) {
-            return res.status(500).json({ message: "Delete failed" });
+            return next(error);
         }
     }
 }

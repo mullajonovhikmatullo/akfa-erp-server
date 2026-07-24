@@ -7,7 +7,7 @@ import { AdminsController } from "./controllers/admins.controller";
 
 const router = Router();
 
-router.use(authMiddleware, roleMiddleware("SUPER_ADMIN"));
+router.use(authMiddleware, roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"));
 
 /**
  * @swagger
@@ -31,6 +31,7 @@ router.use(authMiddleware, roleMiddleware("SUPER_ADMIN"));
  *         branchId:
  *           type: string
  *           format: uuid
+ *           nullable: true
  *         branch:
  *           type: object
  *           properties:
@@ -69,6 +70,7 @@ router.use(authMiddleware, roleMiddleware("SUPER_ADMIN"));
  *         branchId:
  *           type: string
  *           format: uuid
+ *           nullable: true
  *         isActive:
  *           type: boolean
  */

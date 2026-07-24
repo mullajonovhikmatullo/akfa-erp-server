@@ -28,7 +28,7 @@ export const AnalyticsService = {
     // ─── Dashboard KPIs ───────────────────────────────────────────────────────
 
     async dashboard(query: AnalyticsQuery, user: JwtPayload) {
-        const { branchId } = branchScope(user, query.branchId);
+        const { storeId, branchId } = branchScope(user, query.branchId);
         const { start, end } = resolveRange(query.from, query.to);
         const lowStockThreshold = query.lowStockThreshold;
         const lowStockThresholdSql = lowStockThreshold
@@ -39,16 +39,19 @@ export const AnalyticsService = {
             : Prisma.sql`p."lowStockThreshold" IS NOT NULL AND`;
 
         const saleWhere: Prisma.SaleWhereInput = {
+            storeId,
             ...(branchId && { branchId }),
             createdAt: { gte: start, lte: end },
         };
 
         const expenseWhere: Prisma.ExpenseWhereInput = {
+            storeId,
             ...(branchId && { branchId }),
             expenseDate: { gte: start, lte: end },
         };
 
         const transferWhere: Prisma.TransferWhereInput = {
+            storeId,
             status: "PENDING",
             ...(branchId && {
                 OR: [{ fromBranchId: branchId }, { toBranchId: branchId }],
@@ -67,7 +70,7 @@ export const AnalyticsService = {
                     _sum: { amount: true },
                 }),
                 prisma.customer.aggregate({
-                    where: { ...(branchId && { branchId }), balance: { gt: 0 } },
+                    where: { storeId, ...(branchId && { branchId }), balance: { gt: 0 } },
                     _sum: { balance: true },
                     _count: { id: true },
                 }),
@@ -77,6 +80,7 @@ export const AnalyticsService = {
                     FROM "Inventory" inv
                     JOIN "Product" p ON p.id = inv."productId"
                     WHERE ${lowStockThresholdRequiredSql}
+                      inv."storeId" = ${storeId}
                       p."isActive" = true
                       AND inv.quantity <= ${lowStockThresholdSql}
                       ${branchId ? Prisma.sql`AND inv."branchId" = ${branchId}` : Prisma.empty}
@@ -85,6 +89,7 @@ export const AnalyticsService = {
                     SELECT COALESCE(SUM(sb."remainingQty" * sb."costPriceUzs"), 0)::text AS value
                     FROM "StockBatch" sb
                     WHERE sb."remainingQty" > 0
+                      AND sb."storeId" = ${storeId}
                       ${branchId ? Prisma.sql`AND sb."branchId" = ${branchId}` : Prisma.empty}
                 `,
             ]);
@@ -124,10 +129,11 @@ export const AnalyticsService = {
     // ─── Sales Report ─────────────────────────────────────────────────────────
 
     async salesReport(query: AnalyticsQuery, user: JwtPayload) {
-        const { branchId } = branchScope(user, query.branchId);
+        const { storeId, branchId } = branchScope(user, query.branchId);
         const { start, end } = resolveRange(query.from, query.to);
 
         const saleWhere: Prisma.SaleWhereInput = {
+            storeId,
             ...(branchId && { branchId }),
             createdAt: { gte: start, lte: end },
         };
@@ -135,10 +141,12 @@ export const AnalyticsService = {
         const branchCond = branchId
             ? Prisma.sql`AND s."branchId" = ${branchId}`
             : Prisma.empty;
+        const saleStoreCond = Prisma.sql`AND s."storeId" = ${storeId}`;
 
         const saleBranchCond = branchId
             ? Prisma.sql`AND "branchId" = ${branchId}`
             : Prisma.empty;
+        const saleTableStoreCond = Prisma.sql`AND "storeId" = ${storeId}`;
 
         const periodTrunc = Prisma.raw(`DATE_TRUNC('${query.period}', "createdAt")`);
         const expensePeriodTrunc = Prisma.raw(`DATE_TRUNC('${query.period}', "expenseDate")`);
@@ -163,6 +171,7 @@ export const AnalyticsService = {
                     SUM("paidAmountUzs")::text AS paid_amount
                 FROM "Sale"
                 WHERE "createdAt" >= ${start} AND "createdAt" <= ${end}
+                  ${saleTableStoreCond}
                   ${saleBranchCond}
                 GROUP BY 1
                 ORDER BY 1
@@ -187,6 +196,7 @@ export const AnalyticsService = {
                 FROM "SalePayment" sp
                 JOIN "Sale" s ON s.id = sp."saleId"
                 WHERE s."createdAt" >= ${start} AND s."createdAt" <= ${end}
+                  ${saleStoreCond}
                   AND sp."paymentMethod"::text <> 'CREDIT'
                   ${branchCond}
                 GROUP BY sp."paymentMethod"
@@ -217,6 +227,7 @@ export const AnalyticsService = {
                 JOIN "Sale" s ON s.id = si."saleId"
                 JOIN "Product" p ON p.id = si."productId"
                 WHERE s."createdAt" >= ${start} AND s."createdAt" <= ${end}
+                  ${saleStoreCond}
                   ${branchCond}
                 GROUP BY p.id, p.name, p.sku, p.unit
                 ORDER BY SUM(si."totalPrice") DESC
@@ -273,7 +284,7 @@ export const AnalyticsService = {
     // ─── Inventory Report ─────────────────────────────────────────────────────
 
     async inventoryReport(query: AnalyticsQuery, user: JwtPayload) {
-        const { branchId } = branchScope(user, query.branchId);
+        const { storeId, branchId } = branchScope(user, query.branchId);
         const { start, end } = resolveRange(query.from, query.to);
         const lowStockThreshold = query.lowStockThreshold;
         const lowStockThresholdSql = lowStockThreshold
@@ -297,7 +308,7 @@ export const AnalyticsService = {
                     COUNT(DISTINCT inv."productId")::bigint AS product_count,
                     COALESCE(SUM(inv.quantity * COALESCE(batch_cost.unit_cost, p."costPriceUzs", 0)), 0)::text AS stock_value_uzs,
                     COALESCE(SUM(inv.quantity), 0)::text AS total_quantity
-                FROM "Inventory" inv
+                    FROM "Inventory" inv
                 JOIN "Branch" b ON b.id = inv."branchId"
                 JOIN "Product" p ON p.id = inv."productId"
                 LEFT JOIN (
@@ -310,6 +321,7 @@ export const AnalyticsService = {
                     GROUP BY sb."branchId", sb."productId"
                 ) batch_cost ON batch_cost."branchId" = inv."branchId" AND batch_cost."productId" = inv."productId"
                 WHERE inv.quantity > 0
+                  AND inv."storeId" = ${storeId}
                   AND p."isActive" = true
                   ${branchId ? Prisma.sql`AND inv."branchId" = ${branchId}` : Prisma.empty}
                 GROUP BY b.id, b.name
@@ -339,6 +351,7 @@ export const AnalyticsService = {
                 JOIN "Product" p ON p.id = inv."productId"
                 JOIN "Branch" b ON b.id = inv."branchId"
                 WHERE ${lowStockThresholdRequiredSql}
+                  inv."storeId" = ${storeId}
                   p."isActive" = true
                   AND inv.quantity <= ${lowStockThresholdSql}
                   ${branchId ? Prisma.sql`AND inv."branchId" = ${branchId}` : Prisma.empty}
@@ -349,6 +362,7 @@ export const AnalyticsService = {
             prisma.stockMovement.groupBy({
                 by: ["type"],
                 where: {
+                    storeId,
                     ...(branchId && { branchId }),
                     createdAt: { gte: start, lte: end },
                 },
@@ -387,10 +401,11 @@ export const AnalyticsService = {
     // ─── Expense Report ───────────────────────────────────────────────────────
 
     async expenseReport(query: AnalyticsQuery, user: JwtPayload) {
-        const { branchId } = branchScope(user, query.branchId);
+        const { storeId, branchId } = branchScope(user, query.branchId);
         const { start, end } = resolveRange(query.from, query.to);
 
         const expenseWhere: Prisma.ExpenseWhereInput = {
+            storeId,
             ...(branchId && { branchId }),
             expenseDate: { gte: start, lte: end },
         };
@@ -399,6 +414,8 @@ export const AnalyticsService = {
         const branchCond = branchId
             ? Prisma.sql`AND "branchId" = ${branchId}`
             : Prisma.empty;
+        const expenseTableStoreCond = Prisma.sql`AND "storeId" = ${storeId}`;
+        const expenseAliasStoreCond = Prisma.sql`AND e."storeId" = ${storeId}`;
 
         const [summary, byCategory, byPeriod] = await Promise.all([
             prisma.expense.aggregate({
@@ -421,6 +438,7 @@ export const AnalyticsService = {
                 FROM "Expense" e
                 JOIN "ExpenseCategory" ec ON ec.id = e."categoryId"
                 WHERE e."expenseDate" >= ${start} AND e."expenseDate" <= ${end}
+                  ${expenseAliasStoreCond}
                   ${branchCond}
                 GROUP BY ec.id, ec.name
                 ORDER BY SUM(e.amount) DESC
@@ -433,6 +451,7 @@ export const AnalyticsService = {
                     COUNT(id)::bigint AS count
                 FROM "Expense"
                 WHERE "expenseDate" >= ${start} AND "expenseDate" <= ${end}
+                  ${expenseTableStoreCond}
                   ${branchCond}
                 GROUP BY 1
                 ORDER BY 1
@@ -462,15 +481,17 @@ export const AnalyticsService = {
     // ─── Customer Debt ────────────────────────────────────────────────────────
 
     async customerDebt(query: AnalyticsQuery, user: JwtPayload) {
-        const { branchId } = branchScope(user, query.branchId);
+        const { storeId, branchId } = branchScope(user, query.branchId);
 
         const where: Prisma.CustomerWhereInput = {
+            storeId,
             ...(branchId && { branchId }),
             balance: { gt: 0 },
             isActive: true,
         };
 
         const overdueWhere: Prisma.SaleWhereInput = {
+            storeId,
             ...(branchId && { branchId }),
             debtAmountUzs: { gt: 0 },
             debtDueDate: { lt: new Date(), not: null },

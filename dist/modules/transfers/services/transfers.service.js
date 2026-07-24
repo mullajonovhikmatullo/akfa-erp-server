@@ -4,6 +4,7 @@ exports.TransfersService = void 0;
 const client_1 = require("@prisma/client");
 const AppError_1 = require("../../../core/errors/AppError");
 const branch_access_1 = require("../../../core/utils/branch-access");
+const role_access_1 = require("../../../core/utils/role-access");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const socket_1 = require("../../../infrastructure/socket");
 const inventory_service_1 = require("../../inventory/services/inventory.service");
@@ -11,14 +12,15 @@ const transfers_repository_1 = require("../repositories/transfers.repository");
 exports.TransfersService = {
     // ─── Create (PENDING) ─────────────────────────────────────────────────────
     async create(dto, user) {
+        const storeId = (0, branch_access_1.requireStoreId)(user);
         const fromBranchId = (0, branch_access_1.resolveBranchId)(dto.fromBranchId, user);
         if (fromBranchId === dto.toBranchId) {
             throw new AppError_1.AppError(400, "Source and destination branch must be different");
         }
         // Validate both branches exist
         const [fromBranch, toBranch] = await Promise.all([
-            prisma_1.prisma.branch.findUnique({ where: { id: fromBranchId }, select: { id: true, name: true } }),
-            prisma_1.prisma.branch.findUnique({ where: { id: dto.toBranchId }, select: { id: true, name: true } }),
+            prisma_1.prisma.branch.findFirst({ where: { id: fromBranchId, storeId }, select: { id: true, name: true } }),
+            prisma_1.prisma.branch.findFirst({ where: { id: dto.toBranchId, storeId }, select: { id: true, name: true } }),
         ]);
         if (!fromBranch)
             throw new AppError_1.AppError(404, "Source branch not found");
@@ -27,7 +29,7 @@ exports.TransfersService = {
         // Load all products in one query
         const productIds = dto.items.map((i) => i.productId);
         const products = await prisma_1.prisma.product.findMany({
-            where: { id: { in: productIds } },
+            where: { id: { in: productIds }, storeId },
             select: { id: true, name: true, isActive: true, wholesalePriceUzs: true, wholesalePriceUsd: true },
         });
         if (products.length !== productIds.length) {
@@ -53,6 +55,7 @@ exports.TransfersService = {
             };
         });
         const created = await transfers_repository_1.TransfersRepository.create({
+            storeId,
             fromBranchId,
             toBranchId: dto.toBranchId,
             note: dto.note,
@@ -60,6 +63,7 @@ exports.TransfersService = {
             items,
         });
         (0, socket_1.emitTransferChanged)({
+            storeId,
             transferId: created.id,
             status: created.status,
             fromBranchId: created.fromBranch.id,
@@ -74,13 +78,14 @@ exports.TransfersService = {
     //   • Transfer status → COMPLETED
     // NOT counted in sales figures — uses TRANSFER_OUT / TRANSFER_IN movement types.
     async complete(id, user) {
-        const transfer = await transfers_repository_1.TransfersRepository.findById(id);
+        const storeId = (0, branch_access_1.requireStoreId)(user);
+        const transfer = await transfers_repository_1.TransfersRepository.findById(id, storeId);
         if (!transfer)
             throw new AppError_1.AppError(404, "Transfer not found");
         if (transfer.status !== "PENDING") {
             throw new AppError_1.AppError(409, `Transfer is already ${transfer.status.toLowerCase()}`);
         }
-        if (user.role !== "ADMIN") {
+        if (!(0, role_access_1.isBranchScopedRole)(user.role)) {
             throw new AppError_1.AppError(403, "Only the receiving branch can confirm this transfer");
         }
         if (transfer.toBranch.id !== user.branchId) {
@@ -91,13 +96,14 @@ exports.TransfersService = {
                 const qty = Number(item.quantity);
                 const cost = Number(item.unitCostUzs);
                 // 1. Deduct from source branch (TRANSFER_OUT + FIFO)
-                await inventory_service_1.InventoryService.deductStock(transfer.fromBranch.id, item.product.id, qty, user.id, `Transfer ${id} → ${transfer.toBranch.name}`, tx, client_1.StockMovementType.TRANSFER_OUT);
+                await inventory_service_1.InventoryService.deductStock(storeId, transfer.fromBranch.id, item.product.id, qty, user.id, `Transfer ${id} → ${transfer.toBranch.name}`, tx, client_1.StockMovementType.TRANSFER_OUT);
                 // 2. Add to destination branch (TRANSFER_IN + new batch)
-                await inventory_service_1.InventoryService.transferIn(transfer.toBranch.id, item.product.id, qty, cost, transfer.fromBranch.name, user.id, tx);
+                await inventory_service_1.InventoryService.transferIn(storeId, transfer.toBranch.id, item.product.id, qty, cost, transfer.fromBranch.name, user.id, tx);
             }
             return transfers_repository_1.TransfersRepository.updateStatus(id, "COMPLETED", user.id, tx);
         }, prisma_1.transactionOptions);
         (0, socket_1.emitTransferChanged)({
+            storeId,
             transferId: completed.id,
             status: completed.status,
             fromBranchId: completed.fromBranch.id,
@@ -107,19 +113,21 @@ exports.TransfersService = {
     },
     // ─── Cancel ───────────────────────────────────────────────────────────────
     async cancel(id, user) {
-        const transfer = await transfers_repository_1.TransfersRepository.findById(id);
+        const storeId = (0, branch_access_1.requireStoreId)(user);
+        const transfer = await transfers_repository_1.TransfersRepository.findById(id, storeId);
         if (!transfer)
             throw new AppError_1.AppError(404, "Transfer not found");
         if (transfer.status !== "PENDING") {
             throw new AppError_1.AppError(409, `Only PENDING transfers can be cancelled`);
         }
         // ADMIN can cancel their own initiated transfers; SUPER_ADMIN can cancel any
-        if (user.role === "ADMIN" &&
+        if ((0, role_access_1.isBranchScopedRole)(user.role) &&
             transfer.initiatedBy.id !== user.id) {
             throw new AppError_1.AppError(403, "You can only cancel transfers you initiated");
         }
         const cancelled = await prisma_1.prisma.$transaction((tx) => transfers_repository_1.TransfersRepository.updateStatus(id, "CANCELLED", null, tx), prisma_1.transactionOptions);
         (0, socket_1.emitTransferChanged)({
+            storeId,
             transferId: cancelled.id,
             status: cancelled.status,
             fromBranchId: cancelled.fromBranch.id,
@@ -129,12 +137,10 @@ exports.TransfersService = {
     },
     // ─── Queries ──────────────────────────────────────────────────────────────
     async findAll(query, user) {
-        // ADMIN sees transfers involving their branch (as source or destination)
-        const branchId = user.role === "ADMIN"
-            ? (user.branchId ?? undefined)
-            : query.branchId;
+        const scope = (0, branch_access_1.branchScope)(user, query.branchId);
         return transfers_repository_1.TransfersRepository.findAll({
-            branchId,
+            storeId: scope.storeId,
+            branchId: scope.branchId,
             status: query.status,
             from: query.from,
             to: query.to,
@@ -142,10 +148,11 @@ exports.TransfersService = {
         });
     },
     async findById(id, user) {
-        const transfer = await transfers_repository_1.TransfersRepository.findById(id);
+        const storeId = (0, branch_access_1.requireStoreId)(user);
+        const transfer = await transfers_repository_1.TransfersRepository.findById(id, storeId);
         if (!transfer)
             throw new AppError_1.AppError(404, "Transfer not found");
-        if (user.role === "ADMIN" &&
+        if ((0, role_access_1.isBranchScopedRole)(user.role) &&
             transfer.fromBranch.id !== user.branchId &&
             transfer.toBranch.id !== user.branchId) {
             throw new AppError_1.AppError(403, "Forbidden");

@@ -22,18 +22,39 @@ const router = Router();
  *           example: secret123
  *     LoginResponse:
  *       type: object
+ *       required:
+ *         - accessToken
+ *         - user
  *       properties:
- *         token:
+ *         accessToken:
  *           type: string
  *         user:
  *           type: object
+ *           required:
+ *             - id
+ *             - name
+ *             - username
+ *             - role
+ *             - rawRole
+ *             - storeId
+ *             - branchId
  *           properties:
  *             id:
+ *               type: string
+ *             name:
  *               type: string
  *             username:
  *               type: string
  *             role:
  *               type: string
+ *             rawRole:
+ *               type: string
+ *             storeId:
+ *               type: string
+ *               nullable: true
+ *             branchId:
+ *               type: string
+ *               nullable: true
  *   securitySchemes:
  *     bearerAuth:
  *       type: http

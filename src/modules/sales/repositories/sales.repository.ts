@@ -5,6 +5,7 @@ import { prisma } from "../../../infrastructure/prisma/prisma";
 
 const saleListSelect = {
     id: true,
+    storeId: true,
     saleType: true,
     totalAmountUzs: true,
     paidAmountUzs: true,
@@ -47,6 +48,7 @@ const saleDetailSelect = {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type SaleFilters = {
+    storeId: string;
     branchId?: string;
     customerId?: string;
     saleType?: SaleType;
@@ -58,6 +60,7 @@ type SaleFilters = {
 };
 
 type CreateSaleData = {
+    storeId: string;
     branchId: string;
     customerId?: string;
     soldById: string;
@@ -87,6 +90,7 @@ type CreateSaleData = {
 
 function buildWhere(filters: Omit<SaleFilters, 'limit'>) {
     return {
+        storeId: filters.storeId,
         ...(filters.branchId && { branchId: filters.branchId }),
         ...(filters.customerId && { customerId: filters.customerId }),
         ...(filters.saleType && { saleType: filters.saleType }),
@@ -110,6 +114,7 @@ export const SalesRepository = {
     create(data: CreateSaleData, tx: Prisma.TransactionClient) {
         return tx.sale.create({
             data: {
+                storeId: data.storeId,
                 branchId: data.branchId,
                 customerId: data.customerId,
                 soldById: data.soldById,
@@ -162,22 +167,23 @@ export const SalesRepository = {
         return prisma.sale.count({ where: buildWhere(filters) });
     },
 
-    countWithDebt(branchId?: string) {
+    countWithDebt(storeId: string, branchId?: string) {
         return prisma.sale.count({
             where: {
+                storeId,
                 ...(branchId && { branchId }),
                 debtAmountUzs: { gt: 0 },
             },
         });
     },
 
-    findById(id: string) {
-        return prisma.sale.findUnique({ where: { id }, select: saleDetailSelect });
+    findById(id: string, storeId: string) {
+        return prisma.sale.findFirst({ where: { id, storeId }, select: saleDetailSelect });
     },
 
-    findByIdInBranch(id: string, branchId: string) {
+    findByIdInBranch(id: string, branchId: string, storeId: string) {
         return prisma.sale.findFirst({
-            where: { id, branchId },
+            where: { id, branchId, storeId },
             select: saleDetailSelect,
         });
     },

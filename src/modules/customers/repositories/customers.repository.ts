@@ -5,6 +5,7 @@ import { UpdateCustomerDto } from "../dto/update-customer.dto";
 
 const customerSelect = {
     id: true,
+    storeId: true,
     fullName: true,
     phone: true,
     address: true,
@@ -17,6 +18,7 @@ const customerSelect = {
 } as const;
 
 type CustomerFilters = {
+    storeId: string;
     branchId?: string;
     search?: string;
     isActive?: boolean;
@@ -24,13 +26,14 @@ type CustomerFilters = {
 };
 
 export const CustomersRepository = {
-    create(data: Omit<CreateCustomerDto, "branchId"> & { branchId: string }) {
+    create(data: Omit<CreateCustomerDto, "branchId"> & { storeId: string; branchId: string }) {
         return prisma.customer.create({ data, select: customerSelect });
     },
 
     findAll(filters: CustomerFilters) {
         return prisma.customer.findMany({
             where: {
+                storeId: filters.storeId,
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.isActive !== undefined && { isActive: filters.isActive }),
                 ...(filters.hasDebt && { balance: { gt: 0 } }),
@@ -46,13 +49,13 @@ export const CustomersRepository = {
         });
     },
 
-    findById(id: string) {
-        return prisma.customer.findUnique({ where: { id }, select: customerSelect });
+    findById(id: string, storeId: string) {
+        return prisma.customer.findFirst({ where: { id, storeId }, select: customerSelect });
     },
 
-    findByIdInBranch(id: string, branchId: string) {
+    findByIdInBranch(id: string, branchId: string, storeId: string) {
         return prisma.customer.findFirst({
-            where: { id, branchId },
+            where: { id, branchId, storeId },
             select: customerSelect,
         });
     },
@@ -69,9 +72,9 @@ export const CustomersRepository = {
         });
     },
 
-    recentSales(id: string, limit = 10) {
+    recentSales(id: string, storeId: string, limit = 10) {
         return prisma.sale.findMany({
-            where: { customerId: id },
+            where: { customerId: id, storeId },
             select: {
                 id: true,
                 saleType: true,

@@ -10,8 +10,55 @@ datasource db {
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
 enum UserRole {
+  PLATFORM_OWNER
+  STORE_OWNER
+  STORE_ADMIN
+  BRANCH_ADMIN
+  CASHIER
   SUPER_ADMIN
   ADMIN
+}
+
+enum StoreStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
+enum PlanCode {
+  START
+  BUSINESS
+  NETWORK
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  SUSPENDED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PaymentCurrency {
+  UZS
+  USD
+}
+
+enum AuditAction {
+  STORE_REGISTERED
+  STORE_STATUS_CHANGED
+  PAYMENT_CREATED
+  PAYMENT_APPROVED
+  PAYMENT_REJECTED
+  SUBSCRIPTION_EXTENDED
 }
 
 enum ProductUnit {
@@ -52,10 +99,134 @@ enum ExpenseCurrency {
   USD
 }
 
+// ─── Platform / Tenant Billing ───────────────────────────────────────────────
+
+model Plan {
+  id              String         @id @default(uuid())
+  code            PlanCode       @unique
+  name            String
+  monthlyPriceUzs Decimal        @default(0) @db.Decimal(18, 2)
+  maxBranches     Int?
+  maxUsers        Int?
+  maxProducts     Int?
+  isActive        Boolean        @default(true)
+  stores          Store[]
+  subscriptions   Subscription[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([isActive])
+}
+
+model Store {
+  id                String            @id @default(uuid())
+  name              String
+  slug              String            @unique
+  ownerName         String?
+  phone             String?
+  email             String?
+  status            StoreStatus       @default(TRIALING)
+  planId            String?
+  plan              Plan?             @relation(fields: [planId], references: [id])
+  trialStartedAt    DateTime          @default(now())
+  trialEndsAt       DateTime
+  activatedAt       DateTime?
+  suspendedAt       DateTime?
+  subscription      Subscription?
+  users             User[]
+  branches          Branch[]
+  productCategories ProductCategory[]
+  products          Product[]
+  inventories       Inventory[]
+  stockBatches      StockBatch[]
+  stockMovements    StockMovement[]
+  customers         Customer[]
+  sales             Sale[]
+  expenses          Expense[]
+  expenseCategories ExpenseCategory[]
+  transfers         Transfer[]
+  payments          Payment[]
+  auditLogs         AuditLog[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([status])
+  @@index([planId])
+  @@index([trialEndsAt])
+  @@index([createdAt])
+}
+
+model Subscription {
+  id                 String             @id @default(uuid())
+  storeId            String             @unique
+  store              Store              @relation(fields: [storeId], references: [id])
+  planId             String
+  plan               Plan               @relation(fields: [planId], references: [id])
+  status             SubscriptionStatus @default(TRIALING)
+  trialStartedAt     DateTime           @default(now())
+  trialEndsAt        DateTime
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  nextPaymentDueAt   DateTime?
+  lastPaymentAt      DateTime?
+  payments           Payment[]
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([planId])
+  @@index([status])
+  @@index([trialEndsAt])
+  @@index([currentPeriodEnd])
+}
+
+model Payment {
+  id             String          @id @default(uuid())
+  storeId        String
+  store          Store           @relation(fields: [storeId], references: [id])
+  subscriptionId String?
+  subscription   Subscription?   @relation(fields: [subscriptionId], references: [id])
+  amount         Decimal         @db.Decimal(18, 2)
+  currency       PaymentCurrency @default(UZS)
+  status         PaymentStatus   @default(PENDING)
+  periodStart    DateTime?
+  periodEnd      DateTime?
+  paidAt         DateTime?
+  approvedAt     DateTime?
+  rejectedAt     DateTime?
+  approvedById   String?
+  approvedBy     User?           @relation("PaymentsApproved", fields: [approvedById], references: [id])
+  note           String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([storeId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id        String      @id @default(uuid())
+  storeId   String?
+  store     Store?      @relation(fields: [storeId], references: [id])
+  actorId   String?
+  actor     User?       @relation("AuditLogActor", fields: [actorId], references: [id])
+  action    AuditAction
+  metadata  Json?
+  createdAt DateTime    @default(now())
+
+  @@index([storeId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
 // ─── Branch ───────────────────────────────────────────────────────────────────
 
 model Branch {
   id             String          @id @default(uuid())
+  storeId        String
+  store          Store           @relation(fields: [storeId], references: [id])
   name           String
   address        String?
   phone          String?
@@ -70,12 +241,17 @@ model Branch {
   transfersTo    Transfer[]      @relation("TransfersTo")
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+
+  @@unique([storeId, name])
+  @@index([storeId])
 }
 
 // ─── User ─────────────────────────────────────────────────────────────────────
 
 model User {
   id                 String          @id @default(uuid())
+  storeId            String?
+  store              Store?          @relation(fields: [storeId], references: [id])
   fullName           String
   username           String          @unique
   password           String
@@ -87,6 +263,8 @@ model User {
   stockMovements     StockMovement[]
   sales              Sale[]
   salePayments       SalePayment[]
+  approvedPayments   Payment[]       @relation("PaymentsApproved")
+  auditLogs          AuditLog[]      @relation("AuditLogActor")
   expenses           Expense[]
   initiatedTransfers Transfer[]      @relation("TransfersInitiated")
   completedTransfers Transfer[]      @relation("TransfersCompleted")
@@ -94,6 +272,7 @@ model User {
   updatedAt          DateTime        @updatedAt
 
   @@index([branchId])
+  @@index([storeId])
   @@index([role])
 }
 
@@ -101,40 +280,49 @@ model User {
 
 model ProductCategory {
   id          String    @id @default(uuid())
-  name        String    @unique
+  storeId     String
+  store       Store     @relation(fields: [storeId], references: [id])
+  name        String
   description String?
   isActive    Boolean   @default(true)
   products    Product[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@unique([storeId, name])
+  @@index([storeId])
 }
 
 // ─── Product ──────────────────────────────────────────────────────────────────
 
 model Product {
-  id                String          @id @default(uuid())
+  id                String           @id @default(uuid())
+  storeId           String
+  store             Store            @relation(fields: [storeId], references: [id])
   name              String
   description       String?
-  sku               String?         @unique
+  sku               String?
   unit              ProductUnit
   categoryId        String?
   category          ProductCategory? @relation(fields: [categoryId], references: [id])
-  costPriceUzs      Decimal         @default(0) @db.Decimal(18, 2)
-  retailPriceUzs    Decimal         @db.Decimal(18, 2)
-  wholesalePriceUzs Decimal         @db.Decimal(18, 2)
-  costPriceUsd      Decimal?        @db.Decimal(10, 4)
-  retailPriceUsd    Decimal?        @db.Decimal(10, 4)
-  wholesalePriceUsd Decimal?        @db.Decimal(10, 4)
-  lowStockThreshold Decimal?        @db.Decimal(18, 4)
-  isActive          Boolean         @default(true)
+  costPriceUzs      Decimal          @default(0) @db.Decimal(18, 2)
+  retailPriceUzs    Decimal          @db.Decimal(18, 2)
+  wholesalePriceUzs Decimal          @db.Decimal(18, 2)
+  costPriceUsd      Decimal?         @db.Decimal(10, 4)
+  retailPriceUsd    Decimal?         @db.Decimal(10, 4)
+  wholesalePriceUsd Decimal?         @db.Decimal(10, 4)
+  lowStockThreshold Decimal?         @db.Decimal(18, 4)
+  isActive          Boolean          @default(true)
   inventories       Inventory[]
   stockBatches      StockBatch[]
   stockMovements    StockMovement[]
   saleItems         SaleItem[]
   transferItems     TransferItem[]
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
+  @@unique([storeId, sku])
+  @@index([storeId])
   @@index([categoryId])
   @@index([isActive])
   @@index([sku])
@@ -144,6 +332,8 @@ model Product {
 
 model Inventory {
   id        String   @id @default(uuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id])
   branchId  String
   branch    Branch   @relation(fields: [branchId], references: [id])
   productId String
@@ -152,6 +342,7 @@ model Inventory {
   updatedAt DateTime @updatedAt
 
   @@unique([branchId, productId])
+  @@index([storeId])
   @@index([branchId])
   @@index([productId])
 }
@@ -160,6 +351,8 @@ model Inventory {
 
 model StockBatch {
   id           String   @id @default(uuid())
+  storeId      String
+  store        Store    @relation(fields: [storeId], references: [id])
   branchId     String
   branch       Branch   @relation(fields: [branchId], references: [id])
   productId    String
@@ -175,6 +368,7 @@ model StockBatch {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  @@index([storeId])
   @@index([branchId, productId])
   @@index([remainingQty])
   @@index([receivedAt])
@@ -184,6 +378,8 @@ model StockBatch {
 
 model StockMovement {
   id           String            @id @default(uuid())
+  storeId      String
+  store        Store             @relation(fields: [storeId], references: [id])
   branchId     String
   branch       Branch            @relation(fields: [branchId], references: [id])
   productId    String
@@ -196,6 +392,7 @@ model StockMovement {
   createdBy    User              @relation(fields: [createdById], references: [id])
   createdAt    DateTime          @default(now())
 
+  @@index([storeId])
   @@index([branchId, productId])
   @@index([branchId])
   @@index([type])
@@ -206,6 +403,8 @@ model StockMovement {
 
 model Customer {
   id        String   @id @default(uuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id])
   fullName  String
   phone     String?
   address   String?
@@ -217,6 +416,7 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([storeId])
   @@index([branchId])
   @@index([phone])
 }
@@ -225,6 +425,8 @@ model Customer {
 
 model Sale {
   id             String        @id @default(uuid())
+  storeId        String
+  store          Store         @relation(fields: [storeId], references: [id])
   branchId       String
   branch         Branch        @relation(fields: [branchId], references: [id])
   customerId     String?
@@ -242,6 +444,7 @@ model Sale {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
+  @@index([storeId])
   @@index([branchId])
   @@index([customerId])
   @@index([soldById])
@@ -287,31 +490,39 @@ model SalePayment {
 
 model ExpenseCategory {
   id          String    @id @default(uuid())
-  name        String    @unique
+  storeId     String
+  store       Store     @relation(fields: [storeId], references: [id])
+  name        String
   description String?
   isActive    Boolean   @default(true)
   expenses    Expense[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@unique([storeId, name])
+  @@index([storeId])
 }
 
 model Expense {
-  id          String          @id @default(uuid())
-  branchId    String
-  branch      Branch          @relation(fields: [branchId], references: [id])
-  categoryId  String
-  category    ExpenseCategory @relation(fields: [categoryId], references: [id])
-  amount      Decimal         @db.Decimal(18, 2)
-  currency    ExpenseCurrency @default(UZS)
-  amountUsd   Decimal         @default(0) @db.Decimal(10, 4)
-  usdToUzsRate Decimal?       @db.Decimal(18, 2)
-  description String?
-  expenseDate DateTime
-  createdById String
-  createdBy   User            @relation(fields: [createdById], references: [id])
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id           String          @id @default(uuid())
+  storeId      String
+  store        Store           @relation(fields: [storeId], references: [id])
+  branchId     String
+  branch       Branch          @relation(fields: [branchId], references: [id])
+  categoryId   String
+  category     ExpenseCategory @relation(fields: [categoryId], references: [id])
+  amount       Decimal         @db.Decimal(18, 2)
+  currency     ExpenseCurrency @default(UZS)
+  amountUsd    Decimal         @default(0) @db.Decimal(10, 4)
+  usdToUzsRate Decimal?        @db.Decimal(18, 2)
+  description  String?
+  expenseDate  DateTime
+  createdById  String
+  createdBy    User            @relation(fields: [createdById], references: [id])
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
+  @@index([storeId])
   @@index([branchId])
   @@index([expenseDate])
   @@index([categoryId])
@@ -322,6 +533,8 @@ model Expense {
 
 model Transfer {
   id            String         @id @default(uuid())
+  storeId       String
+  store         Store          @relation(fields: [storeId], references: [id])
   fromBranchId  String
   fromBranch    Branch         @relation("TransfersFrom", fields: [fromBranchId], references: [id])
   toBranchId    String
@@ -337,6 +550,7 @@ model Transfer {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
+  @@index([storeId])
   @@index([fromBranchId])
   @@index([toBranchId])
   @@index([status])

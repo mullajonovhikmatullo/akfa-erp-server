@@ -3,38 +3,38 @@ import { CreateCategoryDto } from "../dto/create-category.dto";
 import { UpdateCategoryDto } from "../dto/update-category.dto";
 
 export const CategoriesRepository = {
-    create(data: CreateCategoryDto) {
+    create(data: CreateCategoryDto & { storeId: string }) {
         return prisma.productCategory.create({ data });
     },
 
-    findAll(isActive?: boolean) {
+    findAll(storeId: string, isActive?: boolean) {
         return prisma.productCategory.findMany({
-            where: isActive !== undefined ? { isActive } : undefined,
+            where: { storeId, ...(isActive !== undefined && { isActive }) },
             orderBy: [{ createdAt: "desc" }, { id: "asc" }],
         });
     },
 
-    findPaginated({ page, pageSize, isActive }: { page: number; pageSize: number; isActive?: boolean }) {
+    findPaginated({ storeId, page, pageSize, isActive }: { storeId: string; page: number; pageSize: number; isActive?: boolean }) {
         return prisma.productCategory.findMany({
-            where: isActive !== undefined ? { isActive } : undefined,
+            where: { storeId, ...(isActive !== undefined && { isActive }) },
             orderBy: [{ createdAt: "desc" }, { id: "asc" }],
             skip: (page - 1) * pageSize,
             take: pageSize,
         });
     },
 
-    count(isActive?: boolean) {
+    count(storeId: string, isActive?: boolean) {
         return prisma.productCategory.count({
-            where: isActive !== undefined ? { isActive } : undefined,
+            where: { storeId, ...(isActive !== undefined && { isActive }) },
         });
     },
 
-    findById(id: string) {
-        return prisma.productCategory.findUnique({ where: { id } });
+    findById(id: string, storeId: string) {
+        return prisma.productCategory.findFirst({ where: { id, storeId } });
     },
 
-    findByName(name: string) {
-        return prisma.productCategory.findUnique({ where: { name } });
+    findByName(name: string, storeId: string) {
+        return prisma.productCategory.findFirst({ where: { name, storeId } });
     },
 
     update(id: string, data: UpdateCategoryDto) {
@@ -45,7 +45,7 @@ export const CategoriesRepository = {
         return prisma.productCategory.delete({ where: { id } });
     },
 
-    countProducts(id: string) {
-        return prisma.product.count({ where: { categoryId: id } });
+    countProducts(id: string, storeId: string) {
+        return prisma.product.count({ where: { categoryId: id, storeId } });
     },
 };

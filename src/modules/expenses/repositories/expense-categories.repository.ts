@@ -3,6 +3,7 @@ import { CreateExpenseCategoryDto, UpdateExpenseCategoryDto } from "../dto/creat
 
 const categorySelect = {
     id: true,
+    storeId: true,
     name: true,
     description: true,
     isActive: true,
@@ -12,30 +13,30 @@ const categorySelect = {
 } as const;
 
 export const ExpenseCategoriesRepository = {
-    create(data: CreateExpenseCategoryDto) {
+    create(data: CreateExpenseCategoryDto & { storeId: string }) {
         return prisma.expenseCategory.create({
             data,
             select: categorySelect,
         });
     },
 
-    findAll(includeInactive = false) {
+    findAll(storeId: string, includeInactive = false) {
         return prisma.expenseCategory.findMany({
-            where: includeInactive ? undefined : { isActive: true },
+            where: { storeId, ...(includeInactive ? {} : { isActive: true }) },
             select: categorySelect,
             orderBy: { name: "asc" },
         });
     },
 
-    findById(id: string) {
-        return prisma.expenseCategory.findUnique({
-            where: { id },
+    findById(id: string, storeId: string) {
+        return prisma.expenseCategory.findFirst({
+            where: { id, storeId },
             select: categorySelect,
         });
     },
 
-    findByName(name: string) {
-        return prisma.expenseCategory.findUnique({ where: { name } });
+    findByName(name: string, storeId: string) {
+        return prisma.expenseCategory.findFirst({ where: { name, storeId } });
     },
 
     update(id: string, data: UpdateExpenseCategoryDto) {
@@ -50,7 +51,7 @@ export const ExpenseCategoriesRepository = {
         return prisma.expenseCategory.delete({ where: { id } });
     },
 
-    countExpenses(id: string) {
-        return prisma.expense.count({ where: { categoryId: id } });
+    countExpenses(id: string, storeId: string) {
+        return prisma.expense.count({ where: { categoryId: id, storeId } });
     },
 };

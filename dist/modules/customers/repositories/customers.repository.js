@@ -4,6 +4,7 @@ exports.CustomersRepository = void 0;
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const customerSelect = {
     id: true,
+    storeId: true,
     fullName: true,
     phone: true,
     address: true,
@@ -21,6 +22,7 @@ exports.CustomersRepository = {
     findAll(filters) {
         return prisma_1.prisma.customer.findMany({
             where: {
+                storeId: filters.storeId,
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.isActive !== undefined && { isActive: filters.isActive }),
                 ...(filters.hasDebt && { balance: { gt: 0 } }),
@@ -35,12 +37,12 @@ exports.CustomersRepository = {
             orderBy: { createdAt: "desc" },
         });
     },
-    findById(id) {
-        return prisma_1.prisma.customer.findUnique({ where: { id }, select: customerSelect });
+    findById(id, storeId) {
+        return prisma_1.prisma.customer.findFirst({ where: { id, storeId }, select: customerSelect });
     },
-    findByIdInBranch(id, branchId) {
+    findByIdInBranch(id, branchId, storeId) {
         return prisma_1.prisma.customer.findFirst({
-            where: { id, branchId },
+            where: { id, branchId, storeId },
             select: customerSelect,
         });
     },
@@ -54,9 +56,9 @@ exports.CustomersRepository = {
             select: { id: true, balance: true },
         });
     },
-    recentSales(id, limit = 10) {
+    recentSales(id, storeId, limit = 10) {
         return prisma_1.prisma.sale.findMany({
-            where: { customerId: id },
+            where: { customerId: id, storeId },
             select: {
                 id: true,
                 saleType: true,

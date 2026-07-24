@@ -55,6 +55,20 @@ router.use(auth_middleware_1.authMiddleware);
  *         address:
  *           type: string
  *           example: "Tashkent, Chilanzar 5"
+ *         balance:
+ *           type: number
+ *           example: 50000
+ *     UpdateCustomerRequest:
+ *       type: object
+ *       properties:
+ *         fullName:
+ *           type: string
+ *         phone:
+ *           type: string
+ *         address:
+ *           type: string
+ *         isActive:
+ *           type: boolean
  */
 /**
  * @swagger
@@ -153,16 +167,7 @@ router.get("/:id", customers_controller_1.CustomersController.findById);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               fullName:
- *                 type: string
- *               phone:
- *                 type: string
- *               address:
- *                 type: string
- *               isActive:
- *                 type: boolean
+ *             $ref: '#/components/schemas/UpdateCustomerRequest'
  *     responses:
  *       200:
  *         description: Customer updated

@@ -12,6 +12,8 @@ import { seedSuperAdmin } from "./bootstrap/seed-super-admin";
 import { initSocketServer } from "./infrastructure/socket";
 
 import authRoutes from "./modules/auth/auth.routes";
+import onboardingRoutes from "./modules/onboarding/onboarding.routes";
+import platformRoutes from "./modules/platform/platform.routes";
 import usersRoutes from "./modules/users/users.routes";
 import branchesRoutes from "./modules/branches/branches.routes";
 import adminsRoutes from "./modules/admins/admins.routes";
@@ -59,8 +61,13 @@ app.use((req, res, next) => {
 app.use(morgan("dev"));
 
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.get("/openapi.json", (_req, res) => {
+    res.json(swaggerSpec);
+});
 
+app.use("/public", onboardingRoutes);
 app.use("/auth", authRoutes);
+app.use("/platform", platformRoutes);
 app.use("/users", usersRoutes);
 app.use("/branches", branchesRoutes);
 app.use("/admins", adminsRoutes);
@@ -73,7 +80,7 @@ app.use("/transfers", transfersRoutes);
 app.use("/analytics", analyticsRoutes);
 
 app.get("/", (_, res) => {
-    res.json({ message: "Retail ERP API Running" });
+    res.json({ message: "Store Management API Running" });
 });
 
 // Must be last — global error handler

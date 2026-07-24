@@ -4,6 +4,7 @@ exports.ProductsRepository = void 0;
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const productSelect = {
     id: true,
+    storeId: true,
     name: true,
     description: true,
     sku: true,
@@ -31,6 +32,7 @@ function buildWhere(filters) {
         wholesalePriceUsd: { gt: 0 },
     };
     return {
+        storeId: filters.storeId,
         ...(filters.categoryId && { categoryId: filters.categoryId }),
         ...(filters.unit && { unit: filters.unit }),
         ...(filters.isActive !== undefined && { isActive: filters.isActive }),
@@ -57,6 +59,7 @@ exports.ProductsRepository = {
             if (branchId) {
                 await tx.inventory.create({
                     data: {
+                        storeId: data.storeId,
                         branchId,
                         productId: product.id,
                         quantity: 0,
@@ -85,15 +88,15 @@ exports.ProductsRepository = {
     count(filters) {
         return prisma_1.prisma.product.count({ where: buildWhere(filters) });
     },
-    findById(id) {
-        return prisma_1.prisma.product.findUnique({
-            where: { id },
+    findById(id, storeId) {
+        return prisma_1.prisma.product.findFirst({
+            where: { id, storeId },
             select: productSelect,
         });
     },
-    findBySku(sku) {
-        return prisma_1.prisma.product.findUnique({
-            where: { sku },
+    findBySku(sku, storeId) {
+        return prisma_1.prisma.product.findFirst({
+            where: { sku, storeId },
             select: productSelect,
         });
     },
@@ -104,7 +107,7 @@ exports.ProductsRepository = {
             select: productSelect,
         });
     },
-    async delete(id) {
+    async delete(id, storeId) {
         return prisma_1.prisma.$transaction(async (tx) => {
             const [stockBatches, stockMovements, saleItems, transferItems] = await Promise.all([
                 tx.stockBatch.count({ where: { productId: id } }),
@@ -120,7 +123,7 @@ exports.ProductsRepository = {
                     select: productSelect,
                 });
             }
-            await tx.inventory.deleteMany({ where: { productId: id } });
+            await tx.inventory.deleteMany({ where: { productId: id, storeId } });
             return tx.product.delete({ where: { id }, select: productSelect });
         }, prisma_1.transactionOptions);
     },

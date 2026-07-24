@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { AppError } from "../../../core/errors/AppError";
 import { JwtPayload } from "../../../core/types/jwt.types";
-import { branchScope } from "../../../core/utils/branch-access";
+import { assertBranchInStore, branchScope, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
+import { isBranchScopedRole } from "../../../core/utils/role-access";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 import { CreateExpenseDto } from "../dto/create-expense.dto";
 import { ExpensesRepository } from "../repositories/expenses.repository";
@@ -12,13 +13,12 @@ import {
 
 export const ExpensesService = {
     async create(dto: CreateExpenseDto, user: JwtPayload) {
-        if (!user.branchId) {
-            throw new AppError(403, "Your account is not assigned to any branch");
-        }
-        const branchId = user.branchId;
+        const storeId = requireStoreId(user);
+        const branchId = resolveBranchId(dto.branchId, user);
+        await assertBranchInStore(branchId, storeId);
 
-        const category = await prisma.expenseCategory.findUnique({
-            where: { id: dto.categoryId },
+        const category = await prisma.expenseCategory.findFirst({
+            where: { id: dto.categoryId, storeId },
         });
         if (!category) throw new AppError(404, "Expense category not found");
         if (!category.isActive) throw new AppError(409, "Expense category is inactive");
@@ -28,7 +28,7 @@ export const ExpensesService = {
                 ? Number((dto.amountUsd * (dto.usdToUzsRate ?? 0)).toFixed(2))
                 : dto.amount;
 
-        return ExpensesRepository.create({ ...dto, amount, branchId, createdById: user.id });
+        return ExpensesRepository.create({ ...dto, amount, storeId, branchId, createdById: user.id });
     },
 
     async findAll(query: z.infer<typeof expenseQuerySchema>, user: JwtPayload) {
@@ -91,10 +91,11 @@ export const ExpensesService = {
     },
 
     async findById(id: string, user: JwtPayload) {
-        const expense = await ExpensesRepository.findById(id);
+        const storeId = requireStoreId(user);
+        const expense = await ExpensesRepository.findById(id, storeId);
         if (!expense) throw new AppError(404, "Expense not found");
 
-        if (user.role === "ADMIN" && expense.branch.id !== user.branchId) {
+        if (isBranchScopedRole(user.role) && expense.branch.id !== user.branchId) {
             throw new AppError(403, "Forbidden");
         }
 
@@ -102,10 +103,11 @@ export const ExpensesService = {
     },
 
     async delete(id: string, user: JwtPayload) {
-        const expense = await ExpensesRepository.findById(id);
+        const storeId = requireStoreId(user);
+        const expense = await ExpensesRepository.findById(id, storeId);
         if (!expense) throw new AppError(404, "Expense not found");
 
-        if (user.role === "ADMIN") {
+        if (isBranchScopedRole(user.role)) {
             if (expense.branch.id !== user.branchId) {
                 throw new AppError(403, "Forbidden");
             }
@@ -114,7 +116,7 @@ export const ExpensesService = {
             if (ageHours > 24) {
                 throw new AppError(
                     403,
-                    "Expenses older than 24 hours can only be deleted by SUPER_ADMIN"
+                    "Expenses older than 24 hours can only be deleted by store owner"
                 );
             }
         }

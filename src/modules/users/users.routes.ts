@@ -47,7 +47,7 @@ router.get(
 
     authMiddleware,
 
-    roleMiddleware("SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "SUPER_ADMIN"),
 
     UsersController.superAdminData
 );

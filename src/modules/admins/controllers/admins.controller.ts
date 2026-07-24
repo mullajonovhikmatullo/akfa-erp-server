@@ -6,7 +6,7 @@ import { AdminsService } from "../services/admins.service";
 export const AdminsController = {
     async create(req: Request, res: Response, next: NextFunction) {
         try {
-            const admin = await AdminsService.create(req.body);
+            const admin = await AdminsService.create(req.body, req.user!);
             return ApiResponse.created(res, admin, "Admin created successfully");
         } catch (error) {
             next(error);
@@ -19,10 +19,10 @@ export const AdminsController = {
             if (req.query.page !== undefined) {
                 const page = Math.max(1, Number(req.query.page) || 1);
                 const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
-                const result = await AdminsService.findPaginated({ ...filters, page, pageSize });
+                const result = await AdminsService.findPaginated({ ...filters, page, pageSize }, req.user!);
                 return ApiResponse.success(res, result);
             }
-            const admins = await AdminsService.findAll(filters);
+            const admins = await AdminsService.findAll(filters, req.user!);
             return ApiResponse.success(res, admins);
         } catch (error) {
             next(error);
@@ -31,7 +31,7 @@ export const AdminsController = {
 
     async findById(req: Request, res: Response, next: NextFunction) {
         try {
-            const admin = await AdminsService.findById(req.params.id as string);
+            const admin = await AdminsService.findById(req.params.id as string, req.user!);
             return ApiResponse.success(res, admin);
         } catch (error) {
             next(error);
@@ -40,7 +40,7 @@ export const AdminsController = {
 
     async update(req: Request, res: Response, next: NextFunction) {
         try {
-            const admin = await AdminsService.update(req.params.id as string, req.body);
+            const admin = await AdminsService.update(req.params.id as string, req.body, req.user!);
             return ApiResponse.success(res, admin, "Admin updated successfully");
         } catch (error) {
             next(error);
@@ -49,7 +49,7 @@ export const AdminsController = {
 
     async disable(req: Request, res: Response, next: NextFunction) {
         try {
-            const admin = await AdminsService.disable(req.params.id as string);
+            const admin = await AdminsService.disable(req.params.id as string, req.user!);
             return ApiResponse.success(res, admin, "Admin disabled");
         } catch (error) {
             next(error);
@@ -58,7 +58,7 @@ export const AdminsController = {
 
     async enable(req: Request, res: Response, next: NextFunction) {
         try {
-            const admin = await AdminsService.enable(req.params.id as string);
+            const admin = await AdminsService.enable(req.params.id as string, req.user!);
             return ApiResponse.success(res, admin, "Admin enabled");
         } catch (error) {
             next(error);
@@ -67,7 +67,7 @@ export const AdminsController = {
 
     async delete(req: Request, res: Response, next: NextFunction) {
         try {
-            await AdminsService.delete(req.params.id as string);
+            await AdminsService.delete(req.params.id as string, req.user!);
             return ApiResponse.noContent(res);
         } catch (error) {
             next(error);

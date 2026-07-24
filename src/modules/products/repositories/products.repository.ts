@@ -3,6 +3,7 @@ import { CreateProductDto } from "../dto/create-product.dto";
 import { UpdateProductDto } from "../dto/update-product.dto";
 
 type ProductFilters = {
+    storeId: string;
     categoryId?: string;
     unit?: string;
     isActive?: boolean;
@@ -12,6 +13,7 @@ type ProductFilters = {
 
 const productSelect = {
     id: true,
+    storeId: true,
     name: true,
     description: true,
     sku: true,
@@ -41,6 +43,7 @@ function buildWhere(filters: ProductFilters) {
     };
 
     return {
+        storeId: filters.storeId,
         ...(filters.categoryId && { categoryId: filters.categoryId }),
         ...(filters.unit && { unit: filters.unit as any }),
         ...(filters.isActive !== undefined && { isActive: filters.isActive }),
@@ -59,7 +62,7 @@ function buildWhere(filters: ProductFilters) {
 }
 
 export const ProductsRepository = {
-    create(data: Omit<CreateProductDto, "branchId">, branchId?: string) {
+    create(data: Omit<CreateProductDto, "branchId"> & { storeId: string }, branchId?: string) {
         return prisma.$transaction(async (tx) => {
             const product = await tx.product.create({
                 data,
@@ -69,6 +72,7 @@ export const ProductsRepository = {
             if (branchId) {
                 await tx.inventory.create({
                     data: {
+                        storeId: data.storeId,
                         branchId,
                         productId: product.id,
                         quantity: 0,
@@ -102,16 +106,16 @@ export const ProductsRepository = {
         return prisma.product.count({ where: buildWhere(filters) });
     },
 
-    findById(id: string) {
-        return prisma.product.findUnique({
-            where: { id },
+    findById(id: string, storeId: string) {
+        return prisma.product.findFirst({
+            where: { id, storeId },
             select: productSelect,
         });
     },
 
-    findBySku(sku: string) {
-        return prisma.product.findUnique({
-            where: { sku },
+    findBySku(sku: string, storeId: string) {
+        return prisma.product.findFirst({
+            where: { sku, storeId },
             select: productSelect,
         });
     },
@@ -124,7 +128,7 @@ export const ProductsRepository = {
         });
     },
 
-    async delete(id: string) {
+    async delete(id: string, storeId: string) {
         return prisma.$transaction(async (tx) => {
             const [stockBatches, stockMovements, saleItems, transferItems] = await Promise.all([
                 tx.stockBatch.count({ where: { productId: id } }),
@@ -143,7 +147,7 @@ export const ProductsRepository = {
                 });
             }
 
-            await tx.inventory.deleteMany({ where: { productId: id } });
+            await tx.inventory.deleteMany({ where: { productId: id, storeId } });
             return tx.product.delete({ where: { id }, select: productSelect });
         }, transactionOptions);
     },

@@ -4,6 +4,7 @@ import { CreateExpenseDto } from "../dto/create-expense.dto";
 
 const expenseSelect = {
     id: true,
+    storeId: true,
     category: { select: { id: true, name: true, description: true } },
     amount: true,
     currency: true,
@@ -17,6 +18,7 @@ const expenseSelect = {
 } as const;
 
 type ExpenseFilters = {
+    storeId: string;
     branchId?: string;
     categoryId?: string;
     from?: string;
@@ -27,9 +29,10 @@ type ExpenseFilters = {
 type ExpenseCategorySummaryFilters = Omit<ExpenseFilters, "limit">;
 
 export const ExpensesRepository = {
-    create(data: Omit<CreateExpenseDto, "branchId"> & { branchId: string; createdById: string }) {
+    create(data: Omit<CreateExpenseDto, "branchId"> & { storeId: string; branchId: string; createdById: string }) {
         return prisma.expense.create({
             data: {
+                storeId: data.storeId,
                 branchId: data.branchId,
                 categoryId: data.categoryId,
                 amount: data.amount,
@@ -47,6 +50,7 @@ export const ExpensesRepository = {
     findAll(filters: ExpenseFilters) {
         return prisma.expense.findMany({
             where: {
+                storeId: filters.storeId,
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.categoryId && { categoryId: filters.categoryId }),
                 ...((filters.from || filters.to) && {
@@ -66,6 +70,7 @@ export const ExpensesRepository = {
         const branchCond = filters.branchId
             ? Prisma.sql`AND e."branchId" = ${filters.branchId}`
             : Prisma.empty;
+        const storeCond = Prisma.sql`AND e."storeId" = ${filters.storeId}`;
         const categoryCond = filters.categoryId
             ? Prisma.sql`AND e."categoryId" = ${filters.categoryId}`
             : Prisma.empty;
@@ -90,6 +95,7 @@ export const ExpensesRepository = {
             FROM "Expense" e
             JOIN "ExpenseCategory" ec ON ec.id = e."categoryId"
             WHERE 1 = 1
+              ${storeCond}
               ${branchCond}
               ${categoryCond}
               ${fromCond}
@@ -99,17 +105,18 @@ export const ExpensesRepository = {
         `;
     },
 
-    findById(id: string) {
-        return prisma.expense.findUnique({ where: { id }, select: expenseSelect });
+    findById(id: string, storeId: string) {
+        return prisma.expense.findFirst({ where: { id, storeId }, select: expenseSelect });
     },
 
     delete(id: string) {
         return prisma.expense.delete({ where: { id } });
     },
 
-    sumByBranchAndPeriod(branchId: string, from: Date, to: Date) {
+    sumByBranchAndPeriod(storeId: string, branchId: string, from: Date, to: Date) {
         return prisma.expense.aggregate({
             where: {
+                storeId,
                 branchId,
                 expenseDate: { gte: from, lte: to },
             },

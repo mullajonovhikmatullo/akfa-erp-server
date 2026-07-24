@@ -2,7 +2,7 @@ import { Prisma, StockMovementType } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { AppError } from "../../../core/errors/AppError";
 import { JwtPayload } from "../../../core/types/jwt.types";
-import { branchScope, resolveBranchId } from "../../../core/utils/branch-access";
+import { assertBranchesInStore, assertProductsInStore, branchScope, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { AdjustmentDto } from "../dto/adjustment.dto";
 import { StockInBatchDto, StockInDto } from "../dto/stock-in.dto";
@@ -16,6 +16,7 @@ import { z } from "zod";
 
 type ResolvedStockIn = {
     dto: StockInDto;
+    storeId: string;
     branchId: string;
 };
 
@@ -23,28 +24,28 @@ function stockInKey(branchId: string, productId: string) {
     return `${branchId}:${productId}`;
 }
 
-async function assertActiveActor(userId: string) {
+async function assertActiveActor(userId: string, storeId: string) {
     const actor = await prisma.user.findUnique({
         where: { id: userId },
-        select: { id: true, isActive: true },
+        select: { id: true, storeId: true, isActive: true },
     });
 
-    if (!actor || !actor.isActive) {
+    if (!actor || !actor.isActive || actor.storeId !== storeId) {
         throw new AppError(401, "Unauthorized");
     }
 }
 
-async function assertStockInTargets(items: ResolvedStockIn[]) {
+async function assertStockInTargets(items: ResolvedStockIn[], storeId: string) {
     const branchIds = [...new Set(items.map((item) => item.branchId))];
     const productIds = [...new Set(items.map((item) => item.dto.productId))];
 
     const [branches, products] = await Promise.all([
         prisma.branch.findMany({
-            where: { id: { in: branchIds } },
+            where: { id: { in: branchIds }, storeId },
             select: { id: true },
         }),
         prisma.product.findMany({
-            where: { id: { in: productIds } },
+            where: { id: { in: productIds }, storeId },
             select: { id: true, isActive: true },
         }),
     ]);
@@ -75,6 +76,7 @@ async function createStockInEntry(
     const batch = await InventoryRepository.createBatch(
         {
             branchId: item.branchId,
+            storeId: item.storeId,
             productId: item.dto.productId,
             initialQty: item.dto.quantity,
             remainingQty: item.dto.quantity,
@@ -87,11 +89,13 @@ async function createStockInEntry(
     );
 
     const availableQty = await InventoryRepository.sumRemainingQty(
+        item.storeId,
         item.branchId,
         item.dto.productId,
         tx
     );
     const updatedInventory = await InventoryRepository.setBalance(
+        item.storeId,
         item.branchId,
         item.dto.productId,
         availableQty,
@@ -101,6 +105,7 @@ async function createStockInEntry(
     await InventoryRepository.createMovement(
         {
             branchId: item.branchId,
+            storeId: item.storeId,
             productId: item.dto.productId,
             type: StockMovementType.STOCK_IN,
             quantity: item.dto.quantity,
@@ -118,12 +123,13 @@ export const InventoryService = {
     // ─── Stock In ─────────────────────────────────────────────────────────────
 
     async stockIn(dto: StockInDto, user: JwtPayload) {
+        const storeId = requireStoreId(user);
         const branchId = resolveBranchId(dto.branchId, user);
-        const item = { dto, branchId };
+        const item = { dto, storeId, branchId };
 
         await Promise.all([
-            assertActiveActor(user.id),
-            assertStockInTargets([item]),
+            assertActiveActor(user.id, storeId),
+            assertStockInTargets([item], storeId),
         ]);
 
         return prisma.$transaction(async (tx) => {
@@ -132,19 +138,21 @@ export const InventoryService = {
     },
 
     async stockInBatch(dtos: StockInBatchDto, user: JwtPayload) {
+        const storeId = requireStoreId(user);
         const items = dtos.map((dto) => ({
             dto,
+            storeId,
             branchId: resolveBranchId(dto.branchId, user),
         }));
 
         await Promise.all([
-            assertActiveActor(user.id),
-            assertStockInTargets(items),
+            assertActiveActor(user.id, storeId),
+            assertStockInTargets(items, storeId),
         ]);
 
         return prisma.$transaction(async (tx) => {
             const batchIds = items.map(() => randomUUID());
-            const balanceIncrements = new Map<string, { branchId: string; productId: string; quantity: number }>();
+            const balanceIncrements = new Map<string, { storeId: string; branchId: string; productId: string; quantity: number }>();
 
             items.forEach((item) => {
                 const key = stockInKey(item.branchId, item.dto.productId);
@@ -153,6 +161,7 @@ export const InventoryService = {
                     current.quantity = Number((current.quantity + item.dto.quantity).toFixed(4));
                 } else {
                     balanceIncrements.set(key, {
+                        storeId: item.storeId,
                         branchId: item.branchId,
                         productId: item.dto.productId,
                         quantity: item.dto.quantity,
@@ -163,6 +172,7 @@ export const InventoryService = {
             await tx.stockBatch.createMany({
                 data: items.map((item, index) => ({
                     id: batchIds[index],
+                    storeId: item.storeId,
                     branchId: item.branchId,
                     productId: item.dto.productId,
                     initialQty: item.dto.quantity,
@@ -195,6 +205,7 @@ export const InventoryService = {
                 const balanceAfter = Number((finalBalance - laterQuantity).toFixed(4));
 
                 movements[index] = {
+                    storeId: item.storeId,
                     branchId: item.branchId,
                     productId: item.dto.productId,
                     type: StockMovementType.STOCK_IN,
@@ -223,9 +234,14 @@ export const InventoryService = {
     // ─── Manual Adjustment ───────────────────────────────────────────────────
 
     async adjust(dto: AdjustmentDto, user: JwtPayload) {
+        const storeId = requireStoreId(user);
         const branchId = resolveBranchId(dto.branchId, user);
+        await Promise.all([
+            assertBranchesInStore([branchId], storeId),
+            assertProductsInStore([dto.productId], storeId),
+        ]);
 
-        const current = await InventoryRepository.findOne(branchId, dto.productId);
+        const current = await InventoryRepository.findOne(storeId, branchId, dto.productId);
         const currentQty = current ? Number(current.quantity) : 0;
         const delta = dto.newQuantity - currentQty;
 
@@ -235,6 +251,7 @@ export const InventoryService = {
 
         return prisma.$transaction(async (tx) => {
             const updatedInventory = await InventoryRepository.upsertBalance(
+                storeId,
                 branchId,
                 dto.productId,
                 delta,
@@ -243,6 +260,7 @@ export const InventoryService = {
 
             const movement = await InventoryRepository.createMovement(
                 {
+                    storeId,
                     branchId,
                     productId: dto.productId,
                     type: StockMovementType.ADJUSTMENT,
@@ -311,10 +329,10 @@ export const InventoryService = {
     async findBatchesSummary(user: JwtPayload) {
         const scope = branchScope(user);
         const [totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs] = await Promise.all([
-            InventoryRepository.countBatches({ branchId: scope.branchId }),
-            InventoryRepository.countBatches({ branchId: scope.branchId, depleted: false }),
-            InventoryRepository.sumBatchCostUzs(scope.branchId),
-            InventoryRepository.sumRemainingValueUzs(scope.branchId),
+            InventoryRepository.countBatches({ storeId: scope.storeId, branchId: scope.branchId }),
+            InventoryRepository.countBatches({ storeId: scope.storeId, branchId: scope.branchId, depleted: false }),
+            InventoryRepository.sumBatchCostUzs(scope.storeId, scope.branchId),
+            InventoryRepository.sumRemainingValueUzs(scope.storeId, scope.branchId),
         ]);
 
         return { totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs };
@@ -337,10 +355,10 @@ export const InventoryService = {
         const [items, total, totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs] = await Promise.all([
             InventoryRepository.findBatchesPaginated(filters, page, pageSize),
             InventoryRepository.countBatches(filters),
-            InventoryRepository.countBatches({ branchId: scope.branchId }),
-            InventoryRepository.countBatches({ branchId: scope.branchId, depleted: false }),
-            InventoryRepository.sumBatchCostUzs(scope.branchId),
-            InventoryRepository.sumRemainingValueUzs(scope.branchId),
+            InventoryRepository.countBatches({ storeId: scope.storeId, branchId: scope.branchId }),
+            InventoryRepository.countBatches({ storeId: scope.storeId, branchId: scope.branchId, depleted: false }),
+            InventoryRepository.sumBatchCostUzs(scope.storeId, scope.branchId),
+            InventoryRepository.sumRemainingValueUzs(scope.storeId, scope.branchId),
         ]);
         return { items, total, totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs };
     },
@@ -350,6 +368,7 @@ export const InventoryService = {
     // movementType lets the caller control what gets logged in StockMovement.
 
     async deductStock(
+        storeId: string,
         branchId: string,
         productId: string,
         quantity: number,
@@ -358,12 +377,12 @@ export const InventoryService = {
         tx: Prisma.TransactionClient,
         movementType: StockMovementType = StockMovementType.STOCK_OUT
     ) {
-        const batches = await InventoryRepository.findActiveBatches(branchId, productId, tx);
+        const batches = await InventoryRepository.findActiveBatches(storeId, branchId, productId, tx);
         const currentQty = batches.reduce((sum, batch) => sum + Number(batch.remainingQty), 0);
 
         if (currentQty < quantity) {
-            const productRecord = await tx.product.findUnique({
-                where: { id: productId },
+            const productRecord = await tx.product.findFirst({
+                where: { id: productId, storeId },
                 select: { name: true },
             });
             throw new AppError(
@@ -383,10 +402,11 @@ export const InventoryService = {
         }
 
         const nextQty = Number(Math.max(0, currentQty - quantity).toFixed(4));
-        const updated = await InventoryRepository.setBalance(branchId, productId, nextQty, tx);
+        const updated = await InventoryRepository.setBalance(storeId, branchId, productId, nextQty, tx);
 
         await InventoryRepository.createMovement(
             {
+                storeId,
                 branchId,
                 productId,
                 type: movementType,
@@ -406,6 +426,7 @@ export const InventoryService = {
     // is preserved for future FIFO deductions and COGS calculations.
 
     async transferIn(
+        storeId: string,
         branchId: string,
         productId: string,
         quantity: number,
@@ -416,6 +437,7 @@ export const InventoryService = {
     ) {
         await InventoryRepository.createBatch(
             {
+                storeId,
                 branchId,
                 productId,
                 initialQty: quantity,
@@ -427,11 +449,12 @@ export const InventoryService = {
             tx
         );
 
-        const availableQty = await InventoryRepository.sumRemainingQty(branchId, productId, tx);
-        const updated = await InventoryRepository.setBalance(branchId, productId, availableQty, tx);
+        const availableQty = await InventoryRepository.sumRemainingQty(storeId, branchId, productId, tx);
+        const updated = await InventoryRepository.setBalance(storeId, branchId, productId, availableQty, tx);
 
         await InventoryRepository.createMovement(
             {
+                storeId,
                 branchId,
                 productId,
                 type: StockMovementType.TRANSFER_IN,

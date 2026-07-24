@@ -5,6 +5,7 @@ const prisma_1 = require("../../../infrastructure/prisma/prisma");
 // ─── Select shapes ────────────────────────────────────────────────────────────
 const saleListSelect = {
     id: true,
+    storeId: true,
     saleType: true,
     totalAmountUzs: true,
     paidAmountUzs: true,
@@ -45,6 +46,7 @@ const saleDetailSelect = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function buildWhere(filters) {
     return {
+        storeId: filters.storeId,
         ...(filters.branchId && { branchId: filters.branchId }),
         ...(filters.customerId && { customerId: filters.customerId }),
         ...(filters.saleType && { saleType: filters.saleType }),
@@ -66,6 +68,7 @@ exports.SalesRepository = {
     create(data, tx) {
         return tx.sale.create({
             data: {
+                storeId: data.storeId,
                 branchId: data.branchId,
                 customerId: data.customerId,
                 soldById: data.soldById,
@@ -114,20 +117,21 @@ exports.SalesRepository = {
     count(filters) {
         return prisma_1.prisma.sale.count({ where: buildWhere(filters) });
     },
-    countWithDebt(branchId) {
+    countWithDebt(storeId, branchId) {
         return prisma_1.prisma.sale.count({
             where: {
+                storeId,
                 ...(branchId && { branchId }),
                 debtAmountUzs: { gt: 0 },
             },
         });
     },
-    findById(id) {
-        return prisma_1.prisma.sale.findUnique({ where: { id }, select: saleDetailSelect });
+    findById(id, storeId) {
+        return prisma_1.prisma.sale.findFirst({ where: { id, storeId }, select: saleDetailSelect });
     },
-    findByIdInBranch(id, branchId) {
+    findByIdInBranch(id, branchId, storeId) {
         return prisma_1.prisma.sale.findFirst({
-            where: { id, branchId },
+            where: { id, branchId, storeId },
             select: saleDetailSelect,
         });
     },

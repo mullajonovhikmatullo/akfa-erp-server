@@ -4,6 +4,7 @@ exports.ExpenseCategoriesRepository = void 0;
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const categorySelect = {
     id: true,
+    storeId: true,
     name: true,
     description: true,
     isActive: true,
@@ -18,21 +19,21 @@ exports.ExpenseCategoriesRepository = {
             select: categorySelect,
         });
     },
-    findAll(includeInactive = false) {
+    findAll(storeId, includeInactive = false) {
         return prisma_1.prisma.expenseCategory.findMany({
-            where: includeInactive ? undefined : { isActive: true },
+            where: { storeId, ...(includeInactive ? {} : { isActive: true }) },
             select: categorySelect,
             orderBy: { name: "asc" },
         });
     },
-    findById(id) {
-        return prisma_1.prisma.expenseCategory.findUnique({
-            where: { id },
+    findById(id, storeId) {
+        return prisma_1.prisma.expenseCategory.findFirst({
+            where: { id, storeId },
             select: categorySelect,
         });
     },
-    findByName(name) {
-        return prisma_1.prisma.expenseCategory.findUnique({ where: { name } });
+    findByName(name, storeId) {
+        return prisma_1.prisma.expenseCategory.findFirst({ where: { name, storeId } });
     },
     update(id, data) {
         return prisma_1.prisma.expenseCategory.update({
@@ -44,7 +45,7 @@ exports.ExpenseCategoriesRepository = {
     delete(id) {
         return prisma_1.prisma.expenseCategory.delete({ where: { id } });
     },
-    countExpenses(id) {
-        return prisma_1.prisma.expense.count({ where: { categoryId: id } });
+    countExpenses(id, storeId) {
+        return prisma_1.prisma.expense.count({ where: { categoryId: id, storeId } });
     },
 };

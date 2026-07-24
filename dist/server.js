@@ -15,6 +15,8 @@ const errorHandler_1 = require("./core/errors/errorHandler");
 const seed_super_admin_1 = require("./bootstrap/seed-super-admin");
 const socket_1 = require("./infrastructure/socket");
 const auth_routes_1 = __importDefault(require("./modules/auth/auth.routes"));
+const onboarding_routes_1 = __importDefault(require("./modules/onboarding/onboarding.routes"));
+const platform_routes_1 = __importDefault(require("./modules/platform/platform.routes"));
 const users_routes_1 = __importDefault(require("./modules/users/users.routes"));
 const branches_routes_1 = __importDefault(require("./modules/branches/branches.routes"));
 const admins_routes_1 = __importDefault(require("./modules/admins/admins.routes"));
@@ -60,7 +62,12 @@ app.use((req, res, next) => {
 });
 app.use((0, morgan_1.default)("dev"));
 app.use("/docs", swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swagger_1.swaggerSpec));
+app.get("/openapi.json", (_req, res) => {
+    res.json(swagger_1.swaggerSpec);
+});
+app.use("/public", onboarding_routes_1.default);
 app.use("/auth", auth_routes_1.default);
+app.use("/platform", platform_routes_1.default);
 app.use("/users", users_routes_1.default);
 app.use("/branches", branches_routes_1.default);
 app.use("/admins", admins_routes_1.default);
@@ -72,7 +79,7 @@ app.use("/expenses", expenses_routes_1.default);
 app.use("/transfers", transfers_routes_1.default);
 app.use("/analytics", analytics_routes_1.default);
 app.get("/", (_, res) => {
-    res.json({ message: "Retail ERP API Running" });
+    res.json({ message: "Store Management API Running" });
 });
 // Must be last — global error handler
 app.use(errorHandler_1.errorHandler);

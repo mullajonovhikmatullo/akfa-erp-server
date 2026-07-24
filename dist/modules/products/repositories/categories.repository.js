@@ -6,30 +6,30 @@ exports.CategoriesRepository = {
     create(data) {
         return prisma_1.prisma.productCategory.create({ data });
     },
-    findAll(isActive) {
+    findAll(storeId, isActive) {
         return prisma_1.prisma.productCategory.findMany({
-            where: isActive !== undefined ? { isActive } : undefined,
+            where: { storeId, ...(isActive !== undefined && { isActive }) },
             orderBy: [{ createdAt: "desc" }, { id: "asc" }],
         });
     },
-    findPaginated({ page, pageSize, isActive }) {
+    findPaginated({ storeId, page, pageSize, isActive }) {
         return prisma_1.prisma.productCategory.findMany({
-            where: isActive !== undefined ? { isActive } : undefined,
+            where: { storeId, ...(isActive !== undefined && { isActive }) },
             orderBy: [{ createdAt: "desc" }, { id: "asc" }],
             skip: (page - 1) * pageSize,
             take: pageSize,
         });
     },
-    count(isActive) {
+    count(storeId, isActive) {
         return prisma_1.prisma.productCategory.count({
-            where: isActive !== undefined ? { isActive } : undefined,
+            where: { storeId, ...(isActive !== undefined && { isActive }) },
         });
     },
-    findById(id) {
-        return prisma_1.prisma.productCategory.findUnique({ where: { id } });
+    findById(id, storeId) {
+        return prisma_1.prisma.productCategory.findFirst({ where: { id, storeId } });
     },
-    findByName(name) {
-        return prisma_1.prisma.productCategory.findUnique({ where: { name } });
+    findByName(name, storeId) {
+        return prisma_1.prisma.productCategory.findFirst({ where: { name, storeId } });
     },
     update(id, data) {
         return prisma_1.prisma.productCategory.update({ where: { id }, data });
@@ -37,7 +37,7 @@ exports.CategoriesRepository = {
     delete(id) {
         return prisma_1.prisma.productCategory.delete({ where: { id } });
     },
-    countProducts(id) {
-        return prisma_1.prisma.product.count({ where: { categoryId: id } });
+    countProducts(id, storeId) {
+        return prisma_1.prisma.product.count({ where: { categoryId: id, storeId } });
     },
 };

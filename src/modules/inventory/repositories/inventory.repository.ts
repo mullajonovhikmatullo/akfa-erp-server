@@ -52,6 +52,7 @@ const batchSelect = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildBatchWhere(filters: {
+    storeId: string;
     branchId?: string;
     productId?: string;
     depleted?: boolean;
@@ -59,6 +60,7 @@ function buildBatchWhere(filters: {
     to?: string;
 }) {
     return {
+        storeId: filters.storeId,
         ...(filters.branchId && { branchId: filters.branchId }),
         ...(filters.productId && { productId: filters.productId }),
         ...(filters.depleted === false && { remainingQty: { gt: 0 } }),
@@ -75,6 +77,7 @@ function buildBatchWhere(filters: {
 // ─── Inventory ────────────────────────────────────────────────────────────────
 
 type InventoryFilters = {
+    storeId: string;
     branchId?: string;
     productId?: string;
     categoryId?: string;
@@ -85,6 +88,7 @@ export const InventoryRepository = {
     findAll(filters: InventoryFilters) {
         return prisma.inventory.findMany({
             where: {
+                storeId: filters.storeId,
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.productId && { productId: filters.productId }),
                 ...(filters.categoryId && {
@@ -103,29 +107,29 @@ export const InventoryRepository = {
         });
     },
 
-    findOne(branchId: string, productId: string, tx?: Tx) {
+    findOne(storeId: string, branchId: string, productId: string, tx?: Tx) {
         const client = tx ?? prisma;
-        return client.inventory.findUnique({
-            where: { branchId_productId: { branchId, productId } },
+        return client.inventory.findFirst({
+            where: { storeId, branchId, productId },
             select: inventorySelect,
         });
     },
 
     // Atomically increment or decrement the running balance.
     // delta > 0 = stock in, delta < 0 = stock out / adjustment.
-    upsertBalance(branchId: string, productId: string, delta: number, tx: Tx) {
+    upsertBalance(storeId: string, branchId: string, productId: string, delta: number, tx: Tx) {
         return tx.inventory.upsert({
             where: { branchId_productId: { branchId, productId } },
-            create: { branchId, productId, quantity: delta },
+            create: { storeId, branchId, productId, quantity: delta },
             update: { quantity: { increment: delta } },
             select: { quantity: true },
         });
     },
 
-    setBalance(branchId: string, productId: string, quantity: number, tx: Tx) {
+    setBalance(storeId: string, branchId: string, productId: string, quantity: number, tx: Tx) {
         return tx.inventory.upsert({
             where: { branchId_productId: { branchId, productId } },
-            create: { branchId, productId, quantity },
+            create: { storeId, branchId, productId, quantity },
             update: { quantity },
             select: { quantity: true },
         });
@@ -136,6 +140,7 @@ export const InventoryRepository = {
     createBatch(
         data: {
             branchId: string;
+            storeId: string;
             productId: string;
             initialQty: number;
             remainingQty: number;
@@ -157,34 +162,35 @@ export const InventoryRepository = {
     },
 
     incrementBalances(
-        rows: Array<{ branchId: string; productId: string; quantity: number }>,
+        rows: Array<{ storeId: string; branchId: string; productId: string; quantity: number }>,
         tx: Tx
     ) {
         if (rows.length === 0) return Promise.resolve([]);
 
         const values = Prisma.join(
             rows.map((row) =>
-                Prisma.sql`(${randomUUID()}, ${row.branchId}, ${row.productId}, ${row.quantity}, NOW())`
+                Prisma.sql`(${randomUUID()}, ${row.storeId}, ${row.branchId}, ${row.productId}, ${row.quantity}, NOW())`
             )
         );
 
-        return tx.$queryRaw<Array<{ branchId: string; productId: string; quantity: unknown }>>(
+        return tx.$queryRaw<Array<{ storeId: string; branchId: string; productId: string; quantity: unknown }>>(
             Prisma.sql`
-                INSERT INTO "Inventory" ("id", "branchId", "productId", "quantity", "updatedAt")
+                INSERT INTO "Inventory" ("id", "storeId", "branchId", "productId", "quantity", "updatedAt")
                 VALUES ${values}
                 ON CONFLICT ("branchId", "productId")
                 DO UPDATE SET
                     "quantity" = "Inventory"."quantity" + EXCLUDED."quantity",
                     "updatedAt" = NOW()
-                RETURNING "branchId", "productId", "quantity"
+                RETURNING "storeId", "branchId", "productId", "quantity"
             `
         );
     },
 
     // Returns batches ordered oldest-first (FIFO) with remaining stock > 0
-    findActiveBatches(branchId: string, productId: string, tx: Tx) {
+    findActiveBatches(storeId: string, branchId: string, productId: string, tx: Tx) {
         return tx.stockBatch.findMany({
             where: {
+                storeId,
                 branchId,
                 productId,
                 remainingQty: { gt: 0 },
@@ -194,9 +200,9 @@ export const InventoryRepository = {
         });
     },
 
-    async sumRemainingQty(branchId: string, productId: string, tx: Tx) {
+    async sumRemainingQty(storeId: string, branchId: string, productId: string, tx: Tx) {
         const result = await tx.stockBatch.aggregate({
-            where: { branchId, productId },
+            where: { storeId, branchId, productId },
             _sum: { remainingQty: true },
         });
         return Number(result._sum.remainingQty ?? 0);
@@ -210,7 +216,7 @@ export const InventoryRepository = {
     },
 
     findBatches(
-        filters: { branchId?: string; productId?: string; depleted?: boolean; from?: string; to?: string },
+        filters: { storeId: string; branchId?: string; productId?: string; depleted?: boolean; from?: string; to?: string },
         tx?: Tx
     ) {
         const client = tx ?? prisma;
@@ -222,7 +228,7 @@ export const InventoryRepository = {
     },
 
     findBatchesPaginated(
-        filters: { branchId?: string; productId?: string; depleted?: boolean; from?: string; to?: string },
+        filters: { storeId: string; branchId?: string; productId?: string; depleted?: boolean; from?: string; to?: string },
         page: number,
         pageSize: number
     ) {
@@ -235,24 +241,24 @@ export const InventoryRepository = {
         });
     },
 
-    countBatches(filters: { branchId?: string; productId?: string; depleted?: boolean; from?: string; to?: string }) {
+    countBatches(filters: { storeId: string; branchId?: string; productId?: string; depleted?: boolean; from?: string; to?: string }) {
         return prisma.stockBatch.count({ where: buildBatchWhere(filters) });
     },
 
-    async sumBatchCostUzs(branchId?: string): Promise<number> {
+    async sumBatchCostUzs(storeId: string, branchId?: string): Promise<number> {
         const rows = await prisma.$queryRaw<[{ total: unknown }]>(
             branchId
-                ? Prisma.sql`SELECT COALESCE(SUM("initialQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "branchId" = ${branchId}`
-                : Prisma.sql`SELECT COALESCE(SUM("initialQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch"`
+                ? Prisma.sql`SELECT COALESCE(SUM("initialQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "storeId" = ${storeId} AND "branchId" = ${branchId}`
+                : Prisma.sql`SELECT COALESCE(SUM("initialQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "storeId" = ${storeId}`
         );
         return Number(rows[0].total);
     },
 
-    async sumRemainingValueUzs(branchId?: string): Promise<number> {
+    async sumRemainingValueUzs(storeId: string, branchId?: string): Promise<number> {
         const rows = await prisma.$queryRaw<[{ total: unknown }]>(
             branchId
-                ? Prisma.sql`SELECT COALESCE(SUM("remainingQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "branchId" = ${branchId}`
-                : Prisma.sql`SELECT COALESCE(SUM("remainingQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch"`
+                ? Prisma.sql`SELECT COALESCE(SUM("remainingQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "storeId" = ${storeId} AND "branchId" = ${branchId}`
+                : Prisma.sql`SELECT COALESCE(SUM("remainingQty" * "costPriceUzs"), 0)::float8 as total FROM "StockBatch" WHERE "storeId" = ${storeId}`
         );
         return Number(rows[0].total);
     },
@@ -262,6 +268,7 @@ export const InventoryRepository = {
     createMovement(
         data: {
             branchId: string;
+            storeId: string;
             productId: string;
             type: StockMovementType;
             quantity: number;
@@ -275,6 +282,7 @@ export const InventoryRepository = {
     },
 
     findMovements(filters: {
+        storeId: string;
         branchId?: string;
         productId?: string;
         type?: StockMovementType;
@@ -284,6 +292,7 @@ export const InventoryRepository = {
     }) {
         return prisma.stockMovement.findMany({
             where: {
+                storeId: filters.storeId,
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.productId && { productId: filters.productId }),
                 ...(filters.type && { type: filters.type }),

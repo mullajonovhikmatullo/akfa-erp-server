@@ -3,18 +3,22 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SalesService = void 0;
 const AppError_1 = require("../../../core/errors/AppError");
 const branch_access_1 = require("../../../core/utils/branch-access");
+const role_access_1 = require("../../../core/utils/role-access");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const inventory_service_1 = require("../../inventory/services/inventory.service");
 const customers_repository_1 = require("../../customers/repositories/customers.repository");
 const sales_repository_1 = require("../repositories/sales.repository");
 function resolveSaleBranchId(requestedBranchId, user) {
-    if (user.role === "SUPER_ADMIN" && requestedBranchId) {
-        return requestedBranchId;
-    }
-    if (user.branchId) {
+    if ((0, role_access_1.isBranchScopedRole)(user.role)) {
+        if (!user.branchId) {
+            throw new AppError_1.AppError(403, "Your account is not assigned to any branch");
+        }
         return user.branchId;
     }
-    throw new AppError_1.AppError(403, "Your account is not assigned to any branch");
+    if (!requestedBranchId) {
+        throw new AppError_1.AppError(400, "branchId is required");
+    }
+    return requestedBranchId;
 }
 function resolveUnitPriceUzs(priceUzs, priceUsd, usdToUzsRate) {
     const uzs = Number(priceUzs ?? 0);
@@ -30,17 +34,18 @@ function resolveUnitPriceUzs(priceUzs, priceUsd, usdToUzsRate) {
 exports.SalesService = {
     // ─── Create Sale ──────────────────────────────────────────────────────────
     async create(dto, user) {
+        const storeId = (0, branch_access_1.requireStoreId)(user);
         const branchId = resolveSaleBranchId(dto.branchId, user);
         // ── Validate branch ──────────────────────────────────────────────────
-        const branch = await prisma_1.prisma.branch.findUnique({
-            where: { id: branchId },
+        const branch = await prisma_1.prisma.branch.findFirst({
+            where: { id: branchId, storeId },
             select: { id: true },
         });
         if (!branch)
             throw new AppError_1.AppError(404, "Branch not found");
         // ── Validate customer (if provided) ──────────────────────────────────
         if (dto.customerId) {
-            const customer = await customers_repository_1.CustomersRepository.findByIdInBranch(dto.customerId, branchId);
+            const customer = await customers_repository_1.CustomersRepository.findByIdInBranch(dto.customerId, branchId, storeId);
             if (!customer)
                 throw new AppError_1.AppError(404, "Customer not found in this branch");
             if (!customer.isActive)
@@ -49,7 +54,7 @@ exports.SalesService = {
         // ── Load all products in one query (avoid N+1) ───────────────────────
         const productIds = dto.items.map((i) => i.productId);
         const products = await prisma_1.prisma.product.findMany({
-            where: { id: { in: productIds } },
+            where: { id: { in: productIds }, storeId },
             select: {
                 id: true,
                 name: true,
@@ -101,6 +106,7 @@ exports.SalesService = {
             // 1. Create sale + items + initial payment
             const sale = await sales_repository_1.SalesRepository.create({
                 branchId,
+                storeId,
                 customerId: dto.customerId,
                 soldById: user.id,
                 saleType: dto.saleType,
@@ -123,7 +129,7 @@ exports.SalesService = {
             }, tx);
             // 2. FIFO inventory deduction for each line item
             for (const item of saleItems) {
-                await inventory_service_1.InventoryService.deductStock(branchId, item.productId, item.quantity, user.id, `Sale ${sale.id}`, tx);
+                await inventory_service_1.InventoryService.deductStock(storeId, branchId, item.productId, item.quantity, user.id, `Sale ${sale.id}`, tx);
             }
             // 3. Update customer balance if debt exists
             if (dto.customerId && debtAmountUzs > 0) {
@@ -134,11 +140,12 @@ exports.SalesService = {
     },
     // ─── Add Payment to Existing Sale ─────────────────────────────────────────
     async addPayment(saleId, dto, user) {
-        const sale = await sales_repository_1.SalesRepository.findById(saleId);
+        const storeId = (0, branch_access_1.requireStoreId)(user);
+        const sale = await sales_repository_1.SalesRepository.findById(saleId, storeId);
         if (!sale)
             throw new AppError_1.AppError(404, "Sale not found");
         // Branch isolation check
-        if (user.role === "ADMIN" && sale.branch.id !== user.branchId) {
+        if ((0, role_access_1.isBranchScopedRole)(user.role) && sale.branch.id !== user.branchId) {
             throw new AppError_1.AppError(403, "Forbidden");
         }
         const currentDebt = Number(sale.debtAmountUzs);
@@ -196,15 +203,16 @@ exports.SalesService = {
         const [items, total, totalWithDebt] = await Promise.all([
             sales_repository_1.SalesRepository.findPaginated(filters, page, pageSize),
             sales_repository_1.SalesRepository.count(filters),
-            sales_repository_1.SalesRepository.countWithDebt(scope.branchId),
+            sales_repository_1.SalesRepository.countWithDebt(scope.storeId, scope.branchId),
         ]);
         return { items, total, totalWithDebt };
     },
     async setDebtDeadline(saleId, debtDueDate, user) {
-        const sale = await sales_repository_1.SalesRepository.findById(saleId);
+        const storeId = (0, branch_access_1.requireStoreId)(user);
+        const sale = await sales_repository_1.SalesRepository.findById(saleId, storeId);
         if (!sale)
             throw new AppError_1.AppError(404, "Sale not found");
-        if (user.role === "ADMIN" && sale.branch.id !== user.branchId) {
+        if ((0, role_access_1.isBranchScopedRole)(user.role) && sale.branch.id !== user.branchId) {
             throw new AppError_1.AppError(403, "Forbidden");
         }
         if (debtDueDate !== null && Number(sale.debtAmountUzs) <= 0) {
@@ -213,10 +221,11 @@ exports.SalesService = {
         return sales_repository_1.SalesRepository.setDeadline(saleId, debtDueDate);
     },
     async findById(id, user) {
-        const sale = await sales_repository_1.SalesRepository.findById(id);
+        const storeId = (0, branch_access_1.requireStoreId)(user);
+        const sale = await sales_repository_1.SalesRepository.findById(id, storeId);
         if (!sale)
             throw new AppError_1.AppError(404, "Sale not found");
-        if (user.role === "ADMIN" && sale.branch.id !== user.branchId) {
+        if ((0, role_access_1.isBranchScopedRole)(user.role) && sale.branch.id !== user.branchId) {
             throw new AppError_1.AppError(403, "Forbidden");
         }
         return sale;

@@ -4,6 +4,7 @@ import { UpdateAdminDto } from "../dto/update-admin.dto";
 
 const adminSelect = {
     id: true,
+    storeId: true,
     fullName: true,
     username: true,
     role: true,
@@ -14,18 +15,23 @@ const adminSelect = {
     updatedAt: true,
 } as const;
 
+const STORE_ADMIN_ROLES = ["ADMIN", "BRANCH_ADMIN", "STORE_ADMIN", "CASHIER"] as const;
+
+type AdminFilters = { storeId: string; branchId?: string; isActive?: boolean };
+
 export const AdminsRepository = {
-    create(data: Omit<CreateAdminDto, "password"> & { password: string }) {
+    create(data: Omit<CreateAdminDto, "password"> & { password: string; storeId: string }) {
         return prisma.user.create({
-            data: { ...data, role: "ADMIN" },
+            data: { ...data, role: "BRANCH_ADMIN" },
             select: adminSelect,
         });
     },
 
-    findAll(filters: { branchId?: string; isActive?: boolean }) {
+    findAll(filters: AdminFilters) {
         return prisma.user.findMany({
             where: {
-                role: "ADMIN",
+                storeId: filters.storeId,
+                role: { in: [...STORE_ADMIN_ROLES] },
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.isActive !== undefined && { isActive: filters.isActive }),
             },
@@ -34,10 +40,11 @@ export const AdminsRepository = {
         });
     },
 
-    findPaginated(filters: { branchId?: string; isActive?: boolean }, page: number, pageSize: number) {
+    findPaginated(filters: AdminFilters, page: number, pageSize: number) {
         return prisma.user.findMany({
             where: {
-                role: "ADMIN",
+                storeId: filters.storeId,
+                role: { in: [...STORE_ADMIN_ROLES] },
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.isActive !== undefined && { isActive: filters.isActive }),
             },
@@ -48,27 +55,28 @@ export const AdminsRepository = {
         });
     },
 
-    count(filters: { branchId?: string; isActive?: boolean }) {
+    count(filters: AdminFilters) {
         return prisma.user.count({
             where: {
-                role: "ADMIN",
+                storeId: filters.storeId,
+                role: { in: [...STORE_ADMIN_ROLES] },
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.isActive !== undefined && { isActive: filters.isActive }),
             },
         });
     },
 
-    countAssigned() {
-        return prisma.user.count({ where: { role: "ADMIN", branchId: { not: null } } });
+    countAssigned(storeId: string) {
+        return prisma.user.count({ where: { storeId, role: { in: [...STORE_ADMIN_ROLES] }, branchId: { not: null } } });
     },
 
-    countUnassigned() {
-        return prisma.user.count({ where: { role: "ADMIN", branchId: null } });
+    countUnassigned(storeId: string) {
+        return prisma.user.count({ where: { storeId, role: { in: [...STORE_ADMIN_ROLES] }, branchId: null } });
     },
 
-    findById(id: string) {
+    findById(id: string, storeId: string) {
         return prisma.user.findFirst({
-            where: { id, role: "ADMIN" },
+            where: { id, storeId, role: { in: [...STORE_ADMIN_ROLES] } },
             select: adminSelect,
         });
     },

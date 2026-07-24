@@ -7,7 +7,7 @@ const validate_1 = require("../../core/middleware/validate");
 const admin_validation_1 = require("./validations/admin.validation");
 const admins_controller_1 = require("./controllers/admins.controller");
 const router = (0, express_1.Router)();
-router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("SUPER_ADMIN"));
+router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"));
 /**
  * @swagger
  * components:
@@ -30,6 +30,7 @@ router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddlewar
  *         branchId:
  *           type: string
  *           format: uuid
+ *           nullable: true
  *         branch:
  *           type: object
  *           properties:
@@ -68,6 +69,7 @@ router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddlewar
  *         branchId:
  *           type: string
  *           format: uuid
+ *           nullable: true
  *         isActive:
  *           type: boolean
  */

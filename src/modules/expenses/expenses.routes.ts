@@ -84,7 +84,7 @@ router.use(authMiddleware);
  */
 router.post(
     "/categories",
-    requireRole("SUPER_ADMIN"),
+    requireRole("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
     validate(createExpenseCategorySchema),
     ExpenseCategoriesController.create
 );
@@ -163,7 +163,7 @@ router.get("/categories/:id", ExpenseCategoriesController.findById);
  */
 router.patch(
     "/categories/:id",
-    requireRole("SUPER_ADMIN"),
+    requireRole("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
     validate(updateExpenseCategorySchema),
     ExpenseCategoriesController.update
 );
@@ -191,7 +191,7 @@ router.patch(
  */
 router.delete(
     "/categories/:id",
-    requireRole("SUPER_ADMIN"),
+    requireRole("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
     ExpenseCategoriesController.delete
 );
 

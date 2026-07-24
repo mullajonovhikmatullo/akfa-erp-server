@@ -8,7 +8,8 @@ exports.emitTransferChanged = emitTransferChanged;
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const socket_io_1 = require("socket.io");
 let io = null;
-const superAdminsRoom = "role:SUPER_ADMIN";
+const platformOwnersRoom = "role:PLATFORM_OWNER";
+const storeRoom = (storeId) => `store:${storeId}`;
 const branchRoom = (branchId) => `branch:${branchId}`;
 function initSocketServer(server, isOriginAllowed) {
     io = new socket_io_1.Server(server, {
@@ -36,8 +37,11 @@ function initSocketServer(server, isOriginAllowed) {
     });
     io.on("connection", (socket) => {
         const user = socket.data.user;
-        if (user?.role === "SUPER_ADMIN") {
-            socket.join(superAdminsRoom);
+        if (user?.role === "PLATFORM_OWNER") {
+            socket.join(platformOwnersRoom);
+        }
+        if (user?.storeId) {
+            socket.join(storeRoom(user.storeId));
         }
         if (user?.branchId) {
             socket.join(branchRoom(user.branchId));
@@ -48,7 +52,8 @@ function initSocketServer(server, isOriginAllowed) {
 }
 function emitTransferChanged(payload) {
     io
-        ?.to(superAdminsRoom)
+        ?.to(platformOwnersRoom)
+        .to(storeRoom(payload.storeId))
         .to(branchRoom(payload.fromBranchId))
         .to(branchRoom(payload.toBranchId))
         .emit("transfer:changed", payload);

@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import { JwtPayload } from "../core/types/jwt.types";
 
 type TransferChangedPayload = {
+    storeId: string;
     transferId: string;
     status: "PENDING" | "COMPLETED" | "CANCELLED";
     fromBranchId: string;
@@ -12,7 +13,8 @@ type TransferChangedPayload = {
 
 let io: Server | null = null;
 
-const superAdminsRoom = "role:SUPER_ADMIN";
+const platformOwnersRoom = "role:PLATFORM_OWNER";
+const storeRoom = (storeId: string) => `store:${storeId}`;
 const branchRoom = (branchId: string) => `branch:${branchId}`;
 
 export function initSocketServer(
@@ -47,8 +49,11 @@ export function initSocketServer(
 
     io.on("connection", (socket) => {
         const user = socket.data.user as JwtPayload | undefined;
-        if (user?.role === "SUPER_ADMIN") {
-            socket.join(superAdminsRoom);
+        if (user?.role === "PLATFORM_OWNER") {
+            socket.join(platformOwnersRoom);
+        }
+        if (user?.storeId) {
+            socket.join(storeRoom(user.storeId));
         }
         if (user?.branchId) {
             socket.join(branchRoom(user.branchId));
@@ -62,7 +67,8 @@ export function initSocketServer(
 
 export function emitTransferChanged(payload: TransferChangedPayload) {
     io
-        ?.to(superAdminsRoom)
+        ?.to(platformOwnersRoom)
+        .to(storeRoom(payload.storeId))
         .to(branchRoom(payload.fromBranchId))
         .to(branchRoom(payload.toBranchId))
         .emit("transfer:changed", payload);

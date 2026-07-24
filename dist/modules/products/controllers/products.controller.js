@@ -7,7 +7,7 @@ const products_service_1 = require("../services/products.service");
 exports.ProductsController = {
     async create(req, res, next) {
         try {
-            const product = await products_service_1.ProductsService.create(req.body);
+            const product = await products_service_1.ProductsService.create(req.body, req.user);
             return ApiResponse_1.ApiResponse.created(res, product, "Product created successfully");
         }
         catch (error) {
@@ -20,19 +20,19 @@ exports.ProductsController = {
             if (req.query.page !== undefined) {
                 const page = Math.max(1, Number(req.query.page) || 1);
                 const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
-                const result = await products_service_1.ProductsService.findPaginated({ ...filters, page, pageSize });
+                const result = await products_service_1.ProductsService.findPaginated({ ...filters, page, pageSize }, req.user);
                 return ApiResponse_1.ApiResponse.success(res, result);
             }
-            const products = await products_service_1.ProductsService.findAll(filters);
+            const products = await products_service_1.ProductsService.findAll(filters, req.user);
             return ApiResponse_1.ApiResponse.success(res, products);
         }
         catch (error) {
             next(error);
         }
     },
-    async summary(_req, res, next) {
+    async summary(req, res, next) {
         try {
-            const summary = await products_service_1.ProductsService.summary();
+            const summary = await products_service_1.ProductsService.summary(req.user);
             return ApiResponse_1.ApiResponse.success(res, summary);
         }
         catch (error) {
@@ -41,7 +41,7 @@ exports.ProductsController = {
     },
     async findById(req, res, next) {
         try {
-            const product = await products_service_1.ProductsService.findById(req.params.id);
+            const product = await products_service_1.ProductsService.findById(req.params.id, req.user);
             return ApiResponse_1.ApiResponse.success(res, product);
         }
         catch (error) {
@@ -50,7 +50,7 @@ exports.ProductsController = {
     },
     async findBySku(req, res, next) {
         try {
-            const product = await products_service_1.ProductsService.findBySku(req.params.sku);
+            const product = await products_service_1.ProductsService.findBySku(req.params.sku, req.user);
             return ApiResponse_1.ApiResponse.success(res, product);
         }
         catch (error) {
@@ -59,7 +59,7 @@ exports.ProductsController = {
     },
     async update(req, res, next) {
         try {
-            const product = await products_service_1.ProductsService.update(req.params.id, req.body);
+            const product = await products_service_1.ProductsService.update(req.params.id, req.body, req.user);
             return ApiResponse_1.ApiResponse.success(res, product, "Product updated successfully");
         }
         catch (error) {
@@ -68,7 +68,7 @@ exports.ProductsController = {
     },
     async delete(req, res, next) {
         try {
-            await products_service_1.ProductsService.delete(req.params.id);
+            await products_service_1.ProductsService.delete(req.params.id, req.user);
             return ApiResponse_1.ApiResponse.noContent(res);
         }
         catch (error) {

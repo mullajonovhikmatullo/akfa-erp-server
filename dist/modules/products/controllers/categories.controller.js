@@ -6,7 +6,7 @@ const categories_service_1 = require("../services/categories.service");
 exports.CategoriesController = {
     async create(req, res, next) {
         try {
-            const category = await categories_service_1.CategoriesService.create(req.body);
+            const category = await categories_service_1.CategoriesService.create(req.body, req.user);
             return ApiResponse_1.ApiResponse.created(res, category, "Category created successfully");
         }
         catch (error) {
@@ -19,19 +19,19 @@ exports.CategoriesController = {
             if (req.query.page !== undefined) {
                 const page = Math.max(1, Number(req.query.page) || 1);
                 const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
-                const result = await categories_service_1.CategoriesService.findPaginated({ page, pageSize, isActive });
+                const result = await categories_service_1.CategoriesService.findPaginated({ page, pageSize, isActive, user: req.user });
                 return ApiResponse_1.ApiResponse.success(res, result);
             }
-            const categories = await categories_service_1.CategoriesService.findAll(isActive);
+            const categories = await categories_service_1.CategoriesService.findAll(isActive, req.user);
             return ApiResponse_1.ApiResponse.success(res, categories);
         }
         catch (error) {
             next(error);
         }
     },
-    async summary(_req, res, next) {
+    async summary(req, res, next) {
         try {
-            const summary = await categories_service_1.CategoriesService.summary();
+            const summary = await categories_service_1.CategoriesService.summary(req.user);
             return ApiResponse_1.ApiResponse.success(res, summary);
         }
         catch (error) {
@@ -40,7 +40,7 @@ exports.CategoriesController = {
     },
     async findById(req, res, next) {
         try {
-            const category = await categories_service_1.CategoriesService.findById(req.params.id);
+            const category = await categories_service_1.CategoriesService.findById(req.params.id, req.user);
             return ApiResponse_1.ApiResponse.success(res, category);
         }
         catch (error) {
@@ -49,7 +49,7 @@ exports.CategoriesController = {
     },
     async update(req, res, next) {
         try {
-            const category = await categories_service_1.CategoriesService.update(req.params.id, req.body);
+            const category = await categories_service_1.CategoriesService.update(req.params.id, req.body, req.user);
             return ApiResponse_1.ApiResponse.success(res, category, "Category updated successfully");
         }
         catch (error) {
@@ -58,7 +58,7 @@ exports.CategoriesController = {
     },
     async delete(req, res, next) {
         try {
-            await categories_service_1.CategoriesService.delete(req.params.id);
+            await categories_service_1.CategoriesService.delete(req.params.id, req.user);
             return ApiResponse_1.ApiResponse.noContent(res);
         }
         catch (error) {

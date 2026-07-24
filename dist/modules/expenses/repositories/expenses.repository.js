@@ -5,6 +5,7 @@ const client_1 = require("@prisma/client");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const expenseSelect = {
     id: true,
+    storeId: true,
     category: { select: { id: true, name: true, description: true } },
     amount: true,
     currency: true,
@@ -20,6 +21,7 @@ exports.ExpensesRepository = {
     create(data) {
         return prisma_1.prisma.expense.create({
             data: {
+                storeId: data.storeId,
                 branchId: data.branchId,
                 categoryId: data.categoryId,
                 amount: data.amount,
@@ -36,6 +38,7 @@ exports.ExpensesRepository = {
     findAll(filters) {
         return prisma_1.prisma.expense.findMany({
             where: {
+                storeId: filters.storeId,
                 ...(filters.branchId && { branchId: filters.branchId }),
                 ...(filters.categoryId && { categoryId: filters.categoryId }),
                 ...((filters.from || filters.to) && {
@@ -54,6 +57,7 @@ exports.ExpensesRepository = {
         const branchCond = filters.branchId
             ? client_1.Prisma.sql `AND e."branchId" = ${filters.branchId}`
             : client_1.Prisma.empty;
+        const storeCond = client_1.Prisma.sql `AND e."storeId" = ${filters.storeId}`;
         const categoryCond = filters.categoryId
             ? client_1.Prisma.sql `AND e."categoryId" = ${filters.categoryId}`
             : client_1.Prisma.empty;
@@ -72,6 +76,7 @@ exports.ExpensesRepository = {
             FROM "Expense" e
             JOIN "ExpenseCategory" ec ON ec.id = e."categoryId"
             WHERE 1 = 1
+              ${storeCond}
               ${branchCond}
               ${categoryCond}
               ${fromCond}
@@ -80,15 +85,16 @@ exports.ExpensesRepository = {
             ORDER BY SUM(e.amount) DESC
         `;
     },
-    findById(id) {
-        return prisma_1.prisma.expense.findUnique({ where: { id }, select: expenseSelect });
+    findById(id, storeId) {
+        return prisma_1.prisma.expense.findFirst({ where: { id, storeId }, select: expenseSelect });
     },
     delete(id) {
         return prisma_1.prisma.expense.delete({ where: { id } });
     },
-    sumByBranchAndPeriod(branchId, from, to) {
+    sumByBranchAndPeriod(storeId, branchId, from, to) {
         return prisma_1.prisma.expense.aggregate({
             where: {
+                storeId,
                 branchId,
                 expenseDate: { gte: from, lte: to },
             },

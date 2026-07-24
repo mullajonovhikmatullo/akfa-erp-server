@@ -56,6 +56,20 @@ router.use(authMiddleware);
  *         address:
  *           type: string
  *           example: "Tashkent, Chilanzar 5"
+ *         balance:
+ *           type: number
+ *           example: 50000
+ *     UpdateCustomerRequest:
+ *       type: object
+ *       properties:
+ *         fullName:
+ *           type: string
+ *         phone:
+ *           type: string
+ *         address:
+ *           type: string
+ *         isActive:
+ *           type: boolean
  */
 
 /**
@@ -158,16 +172,7 @@ router.get("/:id", CustomersController.findById);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             properties:
- *               fullName:
- *                 type: string
- *               phone:
- *                 type: string
- *               address:
- *                 type: string
- *               isActive:
- *                 type: boolean
+ *             $ref: '#/components/schemas/UpdateCustomerRequest'
  *     responses:
  *       200:
  *         description: Customer updated

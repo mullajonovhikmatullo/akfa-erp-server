@@ -74,7 +74,7 @@ router.use(auth_middleware_1.authMiddleware);
  *       422:
  *         description: Validation error
  */
-router.post("/categories", (0, role_middleware_1.roleMiddleware)("SUPER_ADMIN"), (0, validate_1.validate)(category_validation_1.createCategorySchema), categories_controller_1.CategoriesController.create);
+router.post("/categories", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(category_validation_1.createCategorySchema), categories_controller_1.CategoriesController.create);
 /**
  * @swagger
  * /products/categories:
@@ -144,7 +144,7 @@ router.get("/categories/:id", categories_controller_1.CategoriesController.findB
  *       409:
  *         description: Name already in use
  */
-router.patch("/categories/:id", (0, role_middleware_1.roleMiddleware)("SUPER_ADMIN"), (0, validate_1.validate)(category_validation_1.updateCategorySchema), categories_controller_1.CategoriesController.update);
+router.patch("/categories/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(category_validation_1.updateCategorySchema), categories_controller_1.CategoriesController.update);
 /**
  * @swagger
  * /products/categories/{id}:
@@ -166,7 +166,7 @@ router.patch("/categories/:id", (0, role_middleware_1.roleMiddleware)("SUPER_ADM
  *       409:
  *         description: Category has assigned products
  */
-router.delete("/categories/:id", (0, role_middleware_1.roleMiddleware)("SUPER_ADMIN"), categories_controller_1.CategoriesController.delete);
+router.delete("/categories/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), categories_controller_1.CategoriesController.delete);
 // ─── Product Routes ────────────────────────────────────────────────────────────
 /**
  * @swagger
@@ -326,7 +326,7 @@ router.delete("/categories/:id", (0, role_middleware_1.roleMiddleware)("SUPER_AD
  *       422:
  *         description: Validation error
  */
-router.post("/", (0, role_middleware_1.roleMiddleware)("SUPER_ADMIN"), (0, validate_1.validate)(product_validation_1.createProductSchema), products_controller_1.ProductsController.create);
+router.post("/", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(product_validation_1.createProductSchema), products_controller_1.ProductsController.create);
 /**
  * @swagger
  * /products:
@@ -432,7 +432,7 @@ router.get("/:id", products_controller_1.ProductsController.findById);
  *       409:
  *         description: SKU already in use
  */
-router.patch("/:id", (0, role_middleware_1.roleMiddleware)("SUPER_ADMIN"), (0, validate_1.validate)(product_validation_1.updateProductSchema), products_controller_1.ProductsController.update);
+router.patch("/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(product_validation_1.updateProductSchema), products_controller_1.ProductsController.update);
 /**
  * @swagger
  * /products/{id}:
@@ -454,5 +454,5 @@ router.patch("/:id", (0, role_middleware_1.roleMiddleware)("SUPER_ADMIN"), (0, v
  *       404:
  *         description: Product not found
  */
-router.delete("/:id", (0, role_middleware_1.roleMiddleware)("SUPER_ADMIN"), products_controller_1.ProductsController.delete);
+router.delete("/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), products_controller_1.ProductsController.delete);
 exports.default = router;

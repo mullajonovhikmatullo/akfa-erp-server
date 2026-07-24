@@ -11,6 +11,7 @@ const transferItemSelect = {
 };
 const transferSelect = {
     id: true,
+    storeId: true,
     status: true,
     note: true,
     completedAt: true,
@@ -26,6 +27,7 @@ exports.TransfersRepository = {
     create(data) {
         return prisma_1.prisma.transfer.create({
             data: {
+                storeId: data.storeId,
                 fromBranchId: data.fromBranchId,
                 toBranchId: data.toBranchId,
                 note: data.note,
@@ -40,6 +42,7 @@ exports.TransfersRepository = {
     findAll(filters) {
         return prisma_1.prisma.transfer.findMany({
             where: {
+                storeId: filters.storeId,
                 ...(filters.branchId && {
                     OR: [
                         { fromBranchId: filters.branchId },
@@ -59,9 +62,9 @@ exports.TransfersRepository = {
             take: filters.limit,
         });
     },
-    findById(id, tx) {
+    findById(id, storeId, tx) {
         const client = tx ?? prisma_1.prisma;
-        return client.transfer.findUnique({ where: { id }, select: transferSelect });
+        return client.transfer.findFirst({ where: { id, storeId }, select: transferSelect });
     },
     updateStatus(id, status, completedById, tx) {
         return tx.transfer.update({

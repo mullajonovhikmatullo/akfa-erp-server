@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { AppError } from "../../../core/errors/AppError";
 import { JwtPayload } from "../../../core/types/jwt.types";
-import { branchScope } from "../../../core/utils/branch-access";
+import { branchScope, requireStoreId } from "../../../core/utils/branch-access";
+import { isBranchScopedRole } from "../../../core/utils/role-access";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { InventoryService } from "../../inventory/services/inventory.service";
 import { CustomersRepository } from "../../customers/repositories/customers.repository";
@@ -11,15 +12,18 @@ import { SalesRepository } from "../repositories/sales.repository";
 import { saleQuerySchema } from "../validations/sale.validation";
 
 function resolveSaleBranchId(requestedBranchId: string | undefined, user: JwtPayload): string {
-    if (user.role === "SUPER_ADMIN" && requestedBranchId) {
-        return requestedBranchId;
-    }
-
-    if (user.branchId) {
+    if (isBranchScopedRole(user.role)) {
+        if (!user.branchId) {
+            throw new AppError(403, "Your account is not assigned to any branch");
+        }
         return user.branchId;
     }
 
-    throw new AppError(403, "Your account is not assigned to any branch");
+    if (!requestedBranchId) {
+        throw new AppError(400, "branchId is required");
+    }
+
+    return requestedBranchId;
 }
 
 function resolveUnitPriceUzs(priceUzs: unknown, priceUsd: unknown, usdToUzsRate?: number): number {
@@ -41,11 +45,12 @@ export const SalesService = {
     // ─── Create Sale ──────────────────────────────────────────────────────────
 
     async create(dto: CreateSaleDto, user: JwtPayload) {
+        const storeId = requireStoreId(user);
         const branchId = resolveSaleBranchId(dto.branchId, user);
 
         // ── Validate branch ──────────────────────────────────────────────────
-        const branch = await prisma.branch.findUnique({
-            where: { id: branchId },
+        const branch = await prisma.branch.findFirst({
+            where: { id: branchId, storeId },
             select: { id: true },
         });
         if (!branch) throw new AppError(404, "Branch not found");
@@ -54,7 +59,8 @@ export const SalesService = {
         if (dto.customerId) {
             const customer = await CustomersRepository.findByIdInBranch(
                 dto.customerId,
-                branchId
+                branchId,
+                storeId
             );
             if (!customer) throw new AppError(404, "Customer not found in this branch");
             if (!customer.isActive) throw new AppError(409, "Customer account is inactive");
@@ -63,7 +69,7 @@ export const SalesService = {
         // ── Load all products in one query (avoid N+1) ───────────────────────
         const productIds = dto.items.map((i) => i.productId);
         const products = await prisma.product.findMany({
-            where: { id: { in: productIds } },
+            where: { id: { in: productIds }, storeId },
             select: {
                 id: true,
                 name: true,
@@ -137,6 +143,7 @@ export const SalesService = {
             const sale = await SalesRepository.create(
                 {
                     branchId,
+                    storeId,
                     customerId: dto.customerId,
                     soldById: user.id,
                     saleType: dto.saleType,
@@ -163,6 +170,7 @@ export const SalesService = {
             // 2. FIFO inventory deduction for each line item
             for (const item of saleItems) {
                 await InventoryService.deductStock(
+                    storeId,
                     branchId,
                     item.productId,
                     item.quantity,
@@ -184,11 +192,12 @@ export const SalesService = {
     // ─── Add Payment to Existing Sale ─────────────────────────────────────────
 
     async addPayment(saleId: string, dto: AddPaymentDto, user: JwtPayload) {
-        const sale = await SalesRepository.findById(saleId);
+        const storeId = requireStoreId(user);
+        const sale = await SalesRepository.findById(saleId, storeId);
         if (!sale) throw new AppError(404, "Sale not found");
 
         // Branch isolation check
-        if (user.role === "ADMIN" && sale.branch.id !== user.branchId) {
+        if (isBranchScopedRole(user.role) && sale.branch.id !== user.branchId) {
             throw new AppError(403, "Forbidden");
         }
 
@@ -268,16 +277,17 @@ export const SalesService = {
         const [items, total, totalWithDebt] = await Promise.all([
             SalesRepository.findPaginated(filters, page, pageSize),
             SalesRepository.count(filters),
-            SalesRepository.countWithDebt(scope.branchId),
+            SalesRepository.countWithDebt(scope.storeId, scope.branchId),
         ]);
         return { items, total, totalWithDebt };
     },
 
     async setDebtDeadline(saleId: string, debtDueDate: Date | null, user: JwtPayload) {
-        const sale = await SalesRepository.findById(saleId);
+        const storeId = requireStoreId(user);
+        const sale = await SalesRepository.findById(saleId, storeId);
         if (!sale) throw new AppError(404, "Sale not found");
 
-        if (user.role === "ADMIN" && sale.branch.id !== user.branchId) {
+        if (isBranchScopedRole(user.role) && sale.branch.id !== user.branchId) {
             throw new AppError(403, "Forbidden");
         }
 
@@ -289,10 +299,11 @@ export const SalesService = {
     },
 
     async findById(id: string, user: JwtPayload) {
-        const sale = await SalesRepository.findById(id);
+        const storeId = requireStoreId(user);
+        const sale = await SalesRepository.findById(id, storeId);
         if (!sale) throw new AppError(404, "Sale not found");
 
-        if (user.role === "ADMIN" && sale.branch.id !== user.branchId) {
+        if (isBranchScopedRole(user.role) && sale.branch.id !== user.branchId) {
             throw new AppError(403, "Forbidden");
         }
 

@@ -2,7 +2,7 @@ services:
   - type: web
     name: store-management-server
     runtime: node
-    buildCommand: npm run build
+    buildCommand: npm run build && npm run deploy
     startCommand: npm start
     envVars:
       - key: NODE_ENV
@@ -10,6 +10,12 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
+        sync: false
+      - key: PLATFORM_OWNER_USERNAME
+        sync: false
+      - key: PLATFORM_OWNER_PASSWORD
+        sync: false
+      - key: PLATFORM_OWNER_FULL_NAME
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false

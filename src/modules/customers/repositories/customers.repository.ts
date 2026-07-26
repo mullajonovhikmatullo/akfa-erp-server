@@ -25,9 +25,14 @@ type CustomerFilters = {
     hasDebt?: boolean;
 };
 
+type DbClient = typeof prisma | Prisma.TransactionClient;
+
 export const CustomersRepository = {
-    create(data: Omit<CreateCustomerDto, "branchId"> & { storeId: string; branchId: string }) {
-        return prisma.customer.create({ data, select: customerSelect });
+    create(
+        data: Omit<CreateCustomerDto, "branchId"> & { storeId: string; branchId: string },
+        client: DbClient = prisma
+    ) {
+        return client.customer.create({ data, select: customerSelect });
     },
 
     findAll(filters: CustomerFilters) {
@@ -49,8 +54,8 @@ export const CustomersRepository = {
         });
     },
 
-    findById(id: string, storeId: string) {
-        return prisma.customer.findFirst({ where: { id, storeId }, select: customerSelect });
+    findById(id: string, storeId: string, client: DbClient = prisma) {
+        return client.customer.findFirst({ where: { id, storeId }, select: customerSelect });
     },
 
     findByIdInBranch(id: string, branchId: string, storeId: string) {
@@ -60,13 +65,13 @@ export const CustomersRepository = {
         });
     },
 
-    update(id: string, data: UpdateCustomerDto) {
-        return prisma.customer.update({ where: { id }, data, select: customerSelect });
+    update(id: string, storeId: string, data: UpdateCustomerDto, client: DbClient = prisma) {
+        return client.customer.update({ where: { id, storeId }, data, select: customerSelect });
     },
 
-    adjustBalance(id: string, delta: number, tx: Prisma.TransactionClient) {
+    adjustBalance(id: string, storeId: string, delta: number, tx: Prisma.TransactionClient) {
         return tx.customer.update({
-            where: { id },
+            where: { id, storeId },
             data: { balance: { increment: delta } },
             select: { id: true, balance: true },
         });

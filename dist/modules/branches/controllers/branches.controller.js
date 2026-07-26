@@ -5,7 +5,12 @@ const branches_service_1 = require("../services/branches.service");
 class BranchesController {
     static async create(req, res, next) {
         try {
-            const branch = await branches_service_1.BranchesService.create(req.body, req.user);
+            const data = {
+                name: req.body.name,
+                address: req.body.address,
+                phone: req.body.phone,
+            };
+            const branch = await branches_service_1.BranchesService.create(data, req.user);
             return res.status(201).json(branch);
         }
         catch (error) {
@@ -29,7 +34,12 @@ class BranchesController {
     }
     static async update(req, res, next) {
         try {
-            const branch = await branches_service_1.BranchesService.update(req.params.id, req.body, req.user);
+            const data = {
+                name: req.body.name,
+                address: req.body.address,
+                phone: req.body.phone,
+            };
+            const branch = await branches_service_1.BranchesService.update(req.params.id, data, req.user);
             return res.json(branch);
         }
         catch (error) {

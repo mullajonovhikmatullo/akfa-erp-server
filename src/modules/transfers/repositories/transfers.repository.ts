@@ -50,8 +50,8 @@ type TransferFilters = {
 };
 
 export const TransfersRepository = {
-    create(data: CreateTransferData) {
-        return prisma.transfer.create({
+    create(data: CreateTransferData, tx: Tx) {
+        return tx.transfer.create({
             data: {
                 storeId: data.storeId,
                 fromBranchId: data.fromBranchId,

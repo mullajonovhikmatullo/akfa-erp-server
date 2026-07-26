@@ -18,6 +18,10 @@ function isAuthSelfServicePath(path: string): boolean {
     );
 }
 
+function isBillingRecoveryPath(req: Request): boolean {
+    return req.method === "POST" && /^\/billing\/payments\/?$/.test(req.originalUrl.split("?")[0] ?? "");
+}
+
 export async function authMiddleware(
     req: Request,
     res: Response,
@@ -38,11 +42,23 @@ export async function authMiddleware(
 
         const user = await prisma.user.findUnique({
             where: { id: decoded.id },
-            select: { id: true, role: true, branchId: true, storeId: true, isActive: true },
+            select: {
+                id: true,
+                role: true,
+                branchId: true,
+                storeId: true,
+                isActive: true,
+                mustChangePassword: true,
+                authVersion: true,
+            },
         });
 
-        if (!user || !user.isActive) {
+        if (!user || !user.isActive || decoded.authVersion !== user.authVersion) {
             throw new AppError(401, "Unauthorized");
+        }
+
+        if (user.mustChangePassword && !isAuthSelfServicePath(req.path)) {
+            throw new AppError(403, "Password change is required");
         }
 
         if (!isPlatformRole(user.role) && !user.storeId) {
@@ -53,7 +69,11 @@ export async function authMiddleware(
             const billingState = await refreshStoreBillingState(user.storeId);
             assertStoreReadable(billingState);
 
-            if (!READ_METHODS.has(req.method) && !isAuthSelfServicePath(req.path)) {
+            if (
+                !READ_METHODS.has(req.method) &&
+                !isAuthSelfServicePath(req.path) &&
+                !isBillingRecoveryPath(req)
+            ) {
                 assertStoreWritable(billingState);
             }
         }
@@ -63,6 +83,7 @@ export async function authMiddleware(
             role: user.role,
             storeId: user.storeId,
             branchId: user.branchId,
+            authVersion: user.authVersion,
         };
         next();
     } catch (error) {

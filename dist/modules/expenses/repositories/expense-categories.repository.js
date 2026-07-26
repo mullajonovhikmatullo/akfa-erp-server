@@ -13,8 +13,8 @@ const categorySelect = {
     _count: { select: { expenses: true } },
 };
 exports.ExpenseCategoriesRepository = {
-    create(data) {
-        return prisma_1.prisma.expenseCategory.create({
+    create(data, client = prisma_1.prisma) {
+        return client.expenseCategory.create({
             data,
             select: categorySelect,
         });
@@ -26,26 +26,26 @@ exports.ExpenseCategoriesRepository = {
             orderBy: { name: "asc" },
         });
     },
-    findById(id, storeId) {
-        return prisma_1.prisma.expenseCategory.findFirst({
+    findById(id, storeId, client = prisma_1.prisma) {
+        return client.expenseCategory.findFirst({
             where: { id, storeId },
             select: categorySelect,
         });
     },
-    findByName(name, storeId) {
-        return prisma_1.prisma.expenseCategory.findFirst({ where: { name, storeId } });
+    findByName(name, storeId, client = prisma_1.prisma) {
+        return client.expenseCategory.findFirst({ where: { name, storeId } });
     },
-    update(id, data) {
-        return prisma_1.prisma.expenseCategory.update({
-            where: { id },
+    update(id, storeId, data, client = prisma_1.prisma) {
+        return client.expenseCategory.update({
+            where: { id, storeId },
             data,
             select: categorySelect,
         });
     },
-    delete(id) {
-        return prisma_1.prisma.expenseCategory.delete({ where: { id } });
+    delete(id, storeId, client = prisma_1.prisma) {
+        return client.expenseCategory.delete({ where: { id, storeId } });
     },
-    countExpenses(id, storeId) {
-        return prisma_1.prisma.expense.count({ where: { categoryId: id, storeId } });
+    countExpenses(id, storeId, client = prisma_1.prisma) {
+        return client.expense.count({ where: { categoryId: id, storeId } });
     },
 };

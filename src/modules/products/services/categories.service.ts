@@ -1,18 +1,23 @@
 import { AppError } from "../../../core/errors/AppError";
+import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
 import { JwtPayload } from "../../../core/types/jwt.types";
 import { requireStoreId } from "../../../core/utils/branch-access";
 import { CreateCategoryDto } from "../dto/create-category.dto";
 import { UpdateCategoryDto } from "../dto/update-category.dto";
 import { CategoriesRepository } from "../repositories/categories.repository";
+import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 
 export const CategoriesService = {
     async create(dto: CreateCategoryDto, user: JwtPayload) {
         const storeId = requireStoreId(user);
-        const existing = await CategoriesRepository.findByName(dto.name, storeId);
-        if (existing) {
-            throw new AppError(409, `Category "${dto.name}" already exists`);
-        }
-        return CategoriesRepository.create({ ...dto, storeId });
+        return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
+            const existing = await CategoriesRepository.findByName(dto.name, storeId, tx);
+            if (existing) {
+                throw new AppError(409, `Category "${dto.name}" already exists`);
+            }
+            return CategoriesRepository.create({ ...dto, storeId }, tx);
+        }, transactionOptions);
     },
 
     async findAll(isActive: boolean | undefined, user: JwtPayload) {
@@ -49,30 +54,38 @@ export const CategoriesService = {
 
     async update(id: string, dto: UpdateCategoryDto, user: JwtPayload) {
         const storeId = requireStoreId(user);
-        await CategoriesService.findById(id, user);
+        return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
+            const category = await CategoriesRepository.findById(id, storeId, tx);
+            if (!category) throw new AppError(404, "Category not found");
 
-        if (dto.name) {
-            const existing = await CategoriesRepository.findByName(dto.name, storeId);
-            if (existing && existing.id !== id) {
-                throw new AppError(409, `Category "${dto.name}" already exists`);
+            if (dto.name) {
+                const existing = await CategoriesRepository.findByName(dto.name, storeId, tx);
+                if (existing && existing.id !== id) {
+                    throw new AppError(409, `Category "${dto.name}" already exists`);
+                }
             }
-        }
 
-        return CategoriesRepository.update(id, dto);
+            return CategoriesRepository.update(id, storeId, dto, tx);
+        }, transactionOptions);
     },
 
     async delete(id: string, user: JwtPayload) {
         const storeId = requireStoreId(user);
-        await CategoriesService.findById(id, user);
+        return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
+            const category = await CategoriesRepository.findById(id, storeId, tx);
+            if (!category) throw new AppError(404, "Category not found");
 
-        const productCount = await CategoriesRepository.countProducts(id, storeId);
-        if (productCount > 0) {
-            throw new AppError(
-                409,
-                `Cannot delete category: ${productCount} product(s) are assigned to it`
-            );
-        }
+            const productCount = await CategoriesRepository.countProducts(id, storeId, tx);
+            if (productCount > 0) {
+                throw new AppError(
+                    409,
+                    `Cannot delete category: ${productCount} product(s) are assigned to it`
+                );
+            }
 
-        return CategoriesRepository.delete(id);
+            return CategoriesRepository.delete(id, storeId, tx);
+        }, transactionOptions);
     },
 };

@@ -56,8 +56,8 @@ router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddlewar
  *           example: john_admin
  *         password:
  *           type: string
- *           minLength: 6
- *           example: secret123
+ *           minLength: 10
+ *           example: secret12345
  *         branchId:
  *           type: string
  *           format: uuid
@@ -101,7 +101,7 @@ router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddlewar
  *       422:
  *         description: Validation error
  */
-router.post("/", (0, validate_1.validate)(admin_validation_1.createAdminSchema), admins_controller_1.AdminsController.create);
+router.post("/", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "SUPER_ADMIN"), (0, validate_1.validate)(admin_validation_1.createAdminSchema), admins_controller_1.AdminsController.create);
 /**
  * @swagger
  * /admins:
@@ -173,7 +173,7 @@ router.get("/:id", admins_controller_1.AdminsController.findById);
  *       404:
  *         description: Admin or branch not found
  */
-router.patch("/:id", (0, validate_1.validate)(admin_validation_1.updateAdminSchema), admins_controller_1.AdminsController.update);
+router.patch("/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "SUPER_ADMIN"), (0, validate_1.validate)(admin_validation_1.updateAdminSchema), admins_controller_1.AdminsController.update);
 /**
  * @swagger
  * /admins/{id}/disable:
@@ -193,7 +193,7 @@ router.patch("/:id", (0, validate_1.validate)(admin_validation_1.updateAdminSche
  *       200:
  *         description: Admin disabled
  */
-router.patch("/:id/disable", admins_controller_1.AdminsController.disable);
+router.patch("/:id/disable", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "SUPER_ADMIN"), admins_controller_1.AdminsController.disable);
 /**
  * @swagger
  * /admins/{id}/enable:
@@ -213,7 +213,7 @@ router.patch("/:id/disable", admins_controller_1.AdminsController.disable);
  *       200:
  *         description: Admin enabled
  */
-router.patch("/:id/enable", admins_controller_1.AdminsController.enable);
+router.patch("/:id/enable", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "SUPER_ADMIN"), admins_controller_1.AdminsController.enable);
 /**
  * @swagger
  * /admins/{id}:
@@ -235,5 +235,5 @@ router.patch("/:id/enable", admins_controller_1.AdminsController.enable);
  *       404:
  *         description: Admin not found
  */
-router.delete("/:id", admins_controller_1.AdminsController.delete);
+router.delete("/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "SUPER_ADMIN"), admins_controller_1.AdminsController.delete);
 exports.default = router;

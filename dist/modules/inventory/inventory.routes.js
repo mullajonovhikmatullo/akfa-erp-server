@@ -5,6 +5,7 @@ const auth_middleware_1 = require("../auth/middleware/auth.middleware");
 const validate_1 = require("../../core/middleware/validate");
 const inventory_validation_1 = require("./validations/inventory.validation");
 const inventory_controller_1 = require("./controllers/inventory.controller");
+const role_middleware_1 = require("../auth/middleware/role.middleware");
 const router = (0, express_1.Router)();
 router.use(auth_middleware_1.authMiddleware);
 // ─── Stock In ─────────────────────────────────────────────────────────────────
@@ -137,8 +138,8 @@ router.use(auth_middleware_1.authMiddleware);
  *       422:
  *         description: Validation error
  */
-router.post("/stock-in/batch", (0, validate_1.validate)(inventory_validation_1.stockInBatchSchema), inventory_controller_1.InventoryController.stockInBatch);
-router.post("/stock-in", (0, validate_1.validate)(inventory_validation_1.stockInSchema), inventory_controller_1.InventoryController.stockIn);
+router.post("/stock-in/batch", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"), (0, validate_1.validate)(inventory_validation_1.stockInBatchSchema), inventory_controller_1.InventoryController.stockInBatch);
+router.post("/stock-in", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"), (0, validate_1.validate)(inventory_validation_1.stockInSchema), inventory_controller_1.InventoryController.stockIn);
 // ─── Adjustment ───────────────────────────────────────────────────────────────
 /**
  * @swagger
@@ -162,7 +163,7 @@ router.post("/stock-in", (0, validate_1.validate)(inventory_validation_1.stockIn
  *       422:
  *         description: Validation error
  */
-router.post("/adjustment", (0, validate_1.validate)(inventory_validation_1.adjustmentSchema), inventory_controller_1.InventoryController.adjust);
+router.post("/adjustment", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"), (0, validate_1.validate)(inventory_validation_1.adjustmentSchema), inventory_controller_1.InventoryController.adjust);
 // ─── Current Stock ────────────────────────────────────────────────────────────
 /**
  * @swagger

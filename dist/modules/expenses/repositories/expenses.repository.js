@@ -18,8 +18,8 @@ const expenseSelect = {
     createdBy: { select: { id: true, fullName: true } },
 };
 exports.ExpensesRepository = {
-    create(data) {
-        return prisma_1.prisma.expense.create({
+    create(data, client = prisma_1.prisma) {
+        return client.expense.create({
             data: {
                 storeId: data.storeId,
                 branchId: data.branchId,
@@ -85,11 +85,11 @@ exports.ExpensesRepository = {
             ORDER BY SUM(e.amount) DESC
         `;
     },
-    findById(id, storeId) {
-        return prisma_1.prisma.expense.findFirst({ where: { id, storeId }, select: expenseSelect });
+    findById(id, storeId, client = prisma_1.prisma) {
+        return client.expense.findFirst({ where: { id, storeId }, select: expenseSelect });
     },
-    delete(id) {
-        return prisma_1.prisma.expense.delete({ where: { id } });
+    delete(id, storeId, client = prisma_1.prisma) {
+        return client.expense.delete({ where: { id, storeId } });
     },
     sumByBranchAndPeriod(storeId, branchId, from, to) {
         return prisma_1.prisma.expense.aggregate({

@@ -3,8 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CategoriesRepository = void 0;
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 exports.CategoriesRepository = {
-    create(data) {
-        return prisma_1.prisma.productCategory.create({ data });
+    create(data, client = prisma_1.prisma) {
+        return client.productCategory.create({ data });
     },
     findAll(storeId, isActive) {
         return prisma_1.prisma.productCategory.findMany({
@@ -25,19 +25,19 @@ exports.CategoriesRepository = {
             where: { storeId, ...(isActive !== undefined && { isActive }) },
         });
     },
-    findById(id, storeId) {
-        return prisma_1.prisma.productCategory.findFirst({ where: { id, storeId } });
+    findById(id, storeId, client = prisma_1.prisma) {
+        return client.productCategory.findFirst({ where: { id, storeId } });
     },
-    findByName(name, storeId) {
-        return prisma_1.prisma.productCategory.findFirst({ where: { name, storeId } });
+    findByName(name, storeId, client = prisma_1.prisma) {
+        return client.productCategory.findFirst({ where: { name, storeId } });
     },
-    update(id, data) {
-        return prisma_1.prisma.productCategory.update({ where: { id }, data });
+    update(id, storeId, data, client = prisma_1.prisma) {
+        return client.productCategory.update({ where: { id, storeId }, data });
     },
-    delete(id) {
-        return prisma_1.prisma.productCategory.delete({ where: { id } });
+    delete(id, storeId, client = prisma_1.prisma) {
+        return client.productCategory.delete({ where: { id, storeId } });
     },
-    countProducts(id, storeId) {
-        return prisma_1.prisma.product.count({ where: { categoryId: id, storeId } });
+    countProducts(id, storeId, client = prisma_1.prisma) {
+        return client.product.count({ where: { categoryId: id, storeId } });
     },
 };

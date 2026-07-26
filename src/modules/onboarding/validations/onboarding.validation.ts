@@ -10,8 +10,17 @@ export const registerStoreSchema = z.object({
         .min(3)
         .max(50)
         .regex(/^[a-zA-Z0-9_]+$/, "Username may only contain letters, numbers, and underscores"),
-    password: z.string().min(6).max(100),
-    planCode: z.enum(["START", "BUSINESS", "NETWORK"]).default("START"),
+    password: z.string().min(10).max(100),
+    confirmPassword: z.string().min(1).max(100),
+    planCode: z
+        .string()
+        .trim()
+        .toUpperCase()
+        .regex(/^[A-Z][A-Z0-9_]{1,29}$/)
+        .default("START"),
+}).strict().refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
 });
 
 export type RegisterStoreInput = z.infer<typeof registerStoreSchema>;

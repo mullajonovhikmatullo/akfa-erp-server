@@ -24,8 +24,8 @@ const transferSelect = {
     items: { select: transferItemSelect },
 };
 exports.TransfersRepository = {
-    create(data) {
-        return prisma_1.prisma.transfer.create({
+    create(data, tx) {
+        return tx.transfer.create({
             data: {
                 storeId: data.storeId,
                 fromBranchId: data.fromBranchId,

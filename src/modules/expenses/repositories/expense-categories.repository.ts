@@ -1,5 +1,8 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 import { CreateExpenseCategoryDto, UpdateExpenseCategoryDto } from "../dto/create-expense-category.dto";
+
+type DbClient = typeof prisma | Prisma.TransactionClient;
 
 const categorySelect = {
     id: true,
@@ -13,8 +16,8 @@ const categorySelect = {
 } as const;
 
 export const ExpenseCategoriesRepository = {
-    create(data: CreateExpenseCategoryDto & { storeId: string }) {
-        return prisma.expenseCategory.create({
+    create(data: CreateExpenseCategoryDto & { storeId: string }, client: DbClient = prisma) {
+        return client.expenseCategory.create({
             data,
             select: categorySelect,
         });
@@ -28,30 +31,30 @@ export const ExpenseCategoriesRepository = {
         });
     },
 
-    findById(id: string, storeId: string) {
-        return prisma.expenseCategory.findFirst({
+    findById(id: string, storeId: string, client: DbClient = prisma) {
+        return client.expenseCategory.findFirst({
             where: { id, storeId },
             select: categorySelect,
         });
     },
 
-    findByName(name: string, storeId: string) {
-        return prisma.expenseCategory.findFirst({ where: { name, storeId } });
+    findByName(name: string, storeId: string, client: DbClient = prisma) {
+        return client.expenseCategory.findFirst({ where: { name, storeId } });
     },
 
-    update(id: string, data: UpdateExpenseCategoryDto) {
-        return prisma.expenseCategory.update({
-            where: { id },
+    update(id: string, storeId: string, data: UpdateExpenseCategoryDto, client: DbClient = prisma) {
+        return client.expenseCategory.update({
+            where: { id, storeId },
             data,
             select: categorySelect,
         });
     },
 
-    delete(id: string) {
-        return prisma.expenseCategory.delete({ where: { id } });
+    delete(id: string, storeId: string, client: DbClient = prisma) {
+        return client.expenseCategory.delete({ where: { id, storeId } });
     },
 
-    countExpenses(id: string, storeId: string) {
-        return prisma.expense.count({ where: { categoryId: id, storeId } });
+    countExpenses(id: string, storeId: string, client: DbClient = prisma) {
+        return client.expense.count({ where: { categoryId: id, storeId } });
     },
 };

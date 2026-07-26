@@ -6,6 +6,8 @@ import { UpdateProductDto } from "../dto/update-product.dto";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 import { CategoriesRepository } from "../repositories/categories.repository";
 import { ProductsRepository } from "../repositories/products.repository";
+import { ProductImagesService } from "../images/services/product-images.service";
+import { serializeProductResponse } from "../presenters/product.presenter";
 
 type ProductFilters = {
     categoryId?: string;
@@ -41,7 +43,11 @@ export const ProductsService = {
         if (!branchId) throw new AppError(404, "Branch not found");
         await assertBranchInStore(branchId, storeId);
 
-        return ProductsRepository.create({ ...productData, storeId }, branchId);
+        const product = await ProductsRepository.create(
+            { ...productData, storeId },
+            branchId
+        );
+        return serializeProductResponse(product, false);
     },
 
     async findDefaultBranchId(storeId: string) {
@@ -69,7 +75,8 @@ export const ProductsService = {
 
     async findAll(filters: ProductFilters, user: JwtPayload) {
         const storeId = requireStoreId(user);
-        return ProductsRepository.findAll({ ...filters, storeId });
+        const products = await ProductsRepository.findAll({ ...filters, storeId });
+        return products.map((product) => serializeProductResponse(product, false));
     },
 
     async findPaginated(params: ProductFilters & { page: number; pageSize: number }, user: JwtPayload) {
@@ -79,7 +86,10 @@ export const ProductsService = {
             ProductsRepository.findPaginated({ ...filters, storeId }, page, pageSize),
             ProductsRepository.count({ ...filters, storeId }),
         ]);
-        return { items, total };
+        return {
+            items: items.map((product) => serializeProductResponse(product, false)),
+            total,
+        };
     },
 
     async summary(user: JwtPayload) {
@@ -97,7 +107,7 @@ export const ProductsService = {
         if (!product) {
             throw new AppError(404, "Product not found");
         }
-        return product;
+        return serializeProductResponse(product, true);
     },
 
     async findBySku(sku: string, user: JwtPayload) {
@@ -106,7 +116,7 @@ export const ProductsService = {
         if (!product) {
             throw new AppError(404, `No product found with SKU "${sku}"`);
         }
-        return product;
+        return serializeProductResponse(product, false);
     },
 
     async update(id: string, dto: UpdateProductDto, user: JwtPayload) {
@@ -130,12 +140,17 @@ export const ProductsService = {
             }
         }
 
-        return ProductsRepository.update(id, dto);
+        const product = await ProductsRepository.update(id, storeId, dto);
+        return serializeProductResponse(product, false);
     },
 
     async delete(id: string, user: JwtPayload) {
         const storeId = requireStoreId(user);
         await ProductsService.findById(id, user);
-        return ProductsRepository.delete(id, storeId);
+        const result = await ProductsRepository.delete(id, storeId);
+        if (result.permanentlyDeleted) {
+            await ProductImagesService.cleanupProductFiles(result.imageFiles);
+        }
+        return serializeProductResponse(result.product, false);
     },
 };

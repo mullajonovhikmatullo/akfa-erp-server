@@ -3,6 +3,7 @@ import { authMiddleware } from "../auth/middleware/auth.middleware";
 import { validate } from "../../core/middleware/validate";
 import { createTransferSchema } from "./validations/transfer.validation";
 import { TransfersController } from "./controllers/transfers.controller";
+import { roleMiddleware } from "../auth/middleware/role.middleware";
 
 const router = Router();
 
@@ -73,7 +74,12 @@ router.use(authMiddleware);
  *       422:
  *         description: Validation error
  */
-router.post("/", validate(createTransferSchema), TransfersController.create);
+router.post(
+    "/",
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"),
+    validate(createTransferSchema),
+    TransfersController.create
+);
 
 /**
  * @swagger
@@ -170,7 +176,11 @@ router.get("/:id", TransfersController.findById);
  *       409:
  *         description: Transfer is not in PENDING status
  */
-router.post("/:id/complete", TransfersController.complete);
+router.post(
+    "/:id/complete",
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"),
+    TransfersController.complete
+);
 
 /**
  * @swagger
@@ -198,6 +208,10 @@ router.post("/:id/complete", TransfersController.complete);
  *       409:
  *         description: Transfer is not in PENDING status
  */
-router.post("/:id/cancel", TransfersController.cancel);
+router.post(
+    "/:id/cancel",
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"),
+    TransfersController.cancel
+);
 
 export default router;

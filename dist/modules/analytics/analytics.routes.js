@@ -3,8 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_middleware_1 = require("../auth/middleware/auth.middleware");
 const analytics_controller_1 = require("./controllers/analytics.controller");
+const role_middleware_1 = require("../auth/middleware/role.middleware");
 const router = (0, express_1.Router)();
-router.use(auth_middleware_1.authMiddleware);
+router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"));
 /**
  * @swagger
  * components:

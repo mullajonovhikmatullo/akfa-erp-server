@@ -1,6 +1,7 @@
 import { Prisma, StockMovementType } from "@prisma/client";
 import { randomUUID } from "crypto";
 import { AppError } from "../../../core/errors/AppError";
+import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
 import { JwtPayload } from "../../../core/types/jwt.types";
 import { assertBranchesInStore, assertProductsInStore, branchScope, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
@@ -133,6 +134,7 @@ export const InventoryService = {
         ]);
 
         return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
             return createStockInEntry(item, user.id, tx);
         }, transactionOptions);
     },
@@ -151,6 +153,7 @@ export const InventoryService = {
         ]);
 
         return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
             const batchIds = items.map(() => randomUUID());
             const balanceIncrements = new Map<string, { storeId: string; branchId: string; productId: string; quantity: number }>();
 
@@ -250,6 +253,7 @@ export const InventoryService = {
         }
 
         return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
             const updatedInventory = await InventoryRepository.upsertBalance(
                 storeId,
                 branchId,

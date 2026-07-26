@@ -10,4 +10,5 @@ export type JwtPayload = {
         | "ADMIN";
     storeId: string | null;
     branchId: string | null;
+    authVersion: number;
 };

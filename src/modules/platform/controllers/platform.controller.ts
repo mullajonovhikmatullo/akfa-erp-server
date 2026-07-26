@@ -4,13 +4,36 @@ import { ApiResponse } from "../../../core/response/ApiResponse";
 import { PlatformService } from "../services/platform.service";
 import {
     createPaymentSchema,
+    createPlanSchema,
+    deletePlanSchema,
     listStoresQuerySchema,
     paymentStatusQuerySchema,
+    regenerateOwnerSetupSchema,
     rejectPaymentSchema,
     updateStoreStatusSchema,
+    updatePlanSchema,
 } from "../validations/platform.validation";
+import { AuthService } from "../../auth/services/auth.service";
 
 export const PlatformController = {
+    async login(req: Request, res: Response, next: NextFunction) {
+        try {
+            const data = await AuthService.loginPlatform(req.body);
+            return ApiResponse.success(res, data, "Login successful");
+        } catch (error) {
+            return next(error);
+        }
+    },
+
+    async me(req: Request, res: Response, next: NextFunction) {
+        try {
+            const data = await AuthService.me(req.user!.id);
+            return ApiResponse.success(res, data);
+        } catch (error) {
+            return next(error);
+        }
+    },
+
     async dashboard(_req: Request, res: Response, next: NextFunction) {
         try {
             const data = await PlatformService.dashboard();
@@ -25,6 +48,85 @@ export const PlatformController = {
             const query = listStoresQuerySchema.parse(req.query);
             const data = await PlatformService.listStores(query);
             return ApiResponse.success(res, data);
+        } catch (error) {
+            return next(error);
+        }
+    },
+
+    async provisionStore(req: Request, res: Response, next: NextFunction) {
+        try {
+            const data = await PlatformService.provisionStore(req.body, req.user!);
+            return ApiResponse.created(res, data, "Store tenant provisioned");
+        } catch (error) {
+            return next(error);
+        }
+    },
+
+    async regenerateOwnerSetup(req: Request, res: Response, next: NextFunction) {
+        try {
+            const input = regenerateOwnerSetupSchema.parse(req.body);
+            const data = await PlatformService.regenerateOwnerSetup(
+                req.params.id as string,
+                input,
+                req.user!
+            );
+            return ApiResponse.success(res, data, "Owner setup link regenerated");
+        } catch (error) {
+            return next(error);
+        }
+    },
+
+    async listPlans(_req: Request, res: Response, next: NextFunction) {
+        try {
+            const data = await PlatformService.listPlans();
+            return ApiResponse.success(res, data);
+        } catch (error) {
+            return next(error);
+        }
+    },
+
+    async listManagedPlans(_req: Request, res: Response, next: NextFunction) {
+        try {
+            return ApiResponse.success(res, await PlatformService.listManagedPlans());
+        } catch (error) {
+            return next(error);
+        }
+    },
+
+    async createPlan(req: Request, res: Response, next: NextFunction) {
+        try {
+            const input = createPlanSchema.parse(req.body);
+            return ApiResponse.created(
+                res,
+                await PlatformService.createPlan(input, req.user!),
+                "Plan created"
+            );
+        } catch (error) {
+            return next(error);
+        }
+    },
+
+    async updatePlan(req: Request, res: Response, next: NextFunction) {
+        try {
+            const input = updatePlanSchema.parse(req.body);
+            return ApiResponse.success(
+                res,
+                await PlatformService.updatePlan(req.params.id as string, input, req.user!),
+                "Plan updated"
+            );
+        } catch (error) {
+            return next(error);
+        }
+    },
+
+    async deletePlan(req: Request, res: Response, next: NextFunction) {
+        try {
+            const input = deletePlanSchema.parse(req.body);
+            return ApiResponse.success(
+                res,
+                await PlatformService.deletePlan(req.params.id as string, input, req.user!),
+                "Plan removed"
+            );
         } catch (error) {
             return next(error);
         }

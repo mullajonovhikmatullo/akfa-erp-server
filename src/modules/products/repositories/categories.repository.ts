@@ -1,10 +1,13 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 import { CreateCategoryDto } from "../dto/create-category.dto";
 import { UpdateCategoryDto } from "../dto/update-category.dto";
 
+type DbClient = typeof prisma | Prisma.TransactionClient;
+
 export const CategoriesRepository = {
-    create(data: CreateCategoryDto & { storeId: string }) {
-        return prisma.productCategory.create({ data });
+    create(data: CreateCategoryDto & { storeId: string }, client: DbClient = prisma) {
+        return client.productCategory.create({ data });
     },
 
     findAll(storeId: string, isActive?: boolean) {
@@ -29,23 +32,23 @@ export const CategoriesRepository = {
         });
     },
 
-    findById(id: string, storeId: string) {
-        return prisma.productCategory.findFirst({ where: { id, storeId } });
+    findById(id: string, storeId: string, client: DbClient = prisma) {
+        return client.productCategory.findFirst({ where: { id, storeId } });
     },
 
-    findByName(name: string, storeId: string) {
-        return prisma.productCategory.findFirst({ where: { name, storeId } });
+    findByName(name: string, storeId: string, client: DbClient = prisma) {
+        return client.productCategory.findFirst({ where: { name, storeId } });
     },
 
-    update(id: string, data: UpdateCategoryDto) {
-        return prisma.productCategory.update({ where: { id }, data });
+    update(id: string, storeId: string, data: UpdateCategoryDto, client: DbClient = prisma) {
+        return client.productCategory.update({ where: { id, storeId }, data });
     },
 
-    delete(id: string) {
-        return prisma.productCategory.delete({ where: { id } });
+    delete(id: string, storeId: string, client: DbClient = prisma) {
+        return client.productCategory.delete({ where: { id, storeId } });
     },
 
-    countProducts(id: string, storeId: string) {
-        return prisma.product.count({ where: { categoryId: id, storeId } });
+    countProducts(id: string, storeId: string, client: DbClient = prisma) {
+        return client.product.count({ where: { categoryId: id, storeId } });
     },
 };

@@ -8,6 +8,9 @@ const product_validation_1 = require("./validations/product.validation");
 const category_validation_1 = require("./validations/category.validation");
 const products_controller_1 = require("./controllers/products.controller");
 const categories_controller_1 = require("./controllers/categories.controller");
+const product_images_controller_1 = require("./images/controllers/product-images.controller");
+const product_image_upload_middleware_1 = require("./images/middleware/product-image-upload.middleware");
+const product_image_validation_1 = require("./images/validations/product-image.validation");
 const router = (0, express_1.Router)();
 // All product/category routes require authentication
 router.use(auth_middleware_1.authMiddleware);
@@ -175,6 +178,68 @@ router.delete("/categories/:id", (0, role_middleware_1.roleMiddleware)("STORE_OW
  *     ProductUnit:
  *       type: string
  *       enum: [KG, PIECE]
+ *     ProductImageResponse:
+ *       type: object
+ *       required:
+ *         - id
+ *         - productId
+ *         - url
+ *         - thumbnailUrl
+ *         - originalFilename
+ *         - mimeType
+ *         - fileSize
+ *         - width
+ *         - height
+ *         - isPrimary
+ *         - sortOrder
+ *         - createdAt
+ *         - updatedAt
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *         productId:
+ *           type: string
+ *           format: uuid
+ *         url:
+ *           type: string
+ *           format: uri
+ *         thumbnailUrl:
+ *           type: string
+ *           format: uri
+ *         originalFilename:
+ *           type: string
+ *         mimeType:
+ *           type: string
+ *           enum: [image/webp]
+ *         fileSize:
+ *           type: integer
+ *         width:
+ *           type: integer
+ *         height:
+ *           type: integer
+ *         isPrimary:
+ *           type: boolean
+ *         sortOrder:
+ *           type: integer
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *     ReorderProductImagesRequest:
+ *       type: object
+ *       required: [imageIds]
+ *       properties:
+ *         imageIds:
+ *           type: array
+ *           minItems: 1
+ *           maxItems: 5
+ *           uniqueItems: true
+ *           items:
+ *             type: string
+ *             format: uuid
  *     ProductResponse:
  *       type: object
  *       properties:
@@ -216,6 +281,21 @@ router.delete("/categories/:id", (0, role_middleware_1.roleMiddleware)("STORE_OW
  *           example: "16.5000"
  *         isActive:
  *           type: boolean
+ *         primaryImageUrl:
+ *           type: string
+ *           format: uri
+ *           nullable: true
+ *         primaryThumbnailUrl:
+ *           type: string
+ *           format: uri
+ *           nullable: true
+ *         imageCount:
+ *           type: integer
+ *         images:
+ *           type: array
+ *           description: Present on product detail responses.
+ *           items:
+ *             $ref: '#/components/schemas/ProductImageResponse'
  *         category:
  *           type: object
  *           properties:
@@ -360,6 +440,123 @@ router.post("/", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADM
  */
 router.get("/", products_controller_1.ProductsController.findAll);
 router.get("/summary", products_controller_1.ProductsController.summary);
+/**
+ * @swagger
+ * /products/{productId}/images:
+ *   post:
+ *     summary: Upload up to five optimized product images
+ *     tags: [Product Images]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [images]
+ *             properties:
+ *               images:
+ *                 type: array
+ *                 maxItems: 5
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       201:
+ *         description: Images uploaded
+ *       413:
+ *         description: Image exceeds 5 MB
+ *       422:
+ *         description: Invalid image or product image limit exceeded
+ *   get:
+ *     summary: List product images
+ *     tags: [Product Images]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Ordered product images
+ */
+router.post("/:productId/images", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), product_image_upload_middleware_1.productImageUpload, product_images_controller_1.ProductImagesController.upload);
+router.get("/:productId/images", product_images_controller_1.ProductImagesController.list);
+/**
+ * @swagger
+ * /products/{productId}/images/{imageId}:
+ *   put:
+ *     summary: Replace a product image while preserving its order and primary state
+ *     tags: [Product Images]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [images]
+ *             properties:
+ *               images:
+ *                 type: array
+ *                 minItems: 1
+ *                 maxItems: 1
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *   delete:
+ *     summary: Delete a product image and select a new primary when needed
+ *     tags: [Product Images]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.put("/:productId/images/:imageId", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), product_image_upload_middleware_1.productImageUpload, product_images_controller_1.ProductImagesController.replace);
+/**
+ * @swagger
+ * /products/{productId}/images/reorder:
+ *   patch:
+ *     summary: Replace the complete product image order
+ *     tags: [Product Images]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ReorderProductImagesRequest'
+ *     responses:
+ *       200:
+ *         description: Images reordered
+ */
+router.patch("/:productId/images/reorder", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(product_image_validation_1.reorderProductImagesSchema), product_images_controller_1.ProductImagesController.reorder);
+/**
+ * @swagger
+ * /products/{productId}/images/{imageId}/primary:
+ *   patch:
+ *     summary: Set the primary product image
+ *     tags: [Product Images]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Primary image updated
+ */
+router.patch("/:productId/images/:imageId/primary", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), product_images_controller_1.ProductImagesController.setPrimary);
+router.delete("/:productId/images/:imageId", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), product_images_controller_1.ProductImagesController.delete);
 /**
  * @swagger
  * /products/sku/{sku}:

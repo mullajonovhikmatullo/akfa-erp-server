@@ -16,8 +16,8 @@ const customerSelect = {
     updatedAt: true,
 };
 exports.CustomersRepository = {
-    create(data) {
-        return prisma_1.prisma.customer.create({ data, select: customerSelect });
+    create(data, client = prisma_1.prisma) {
+        return client.customer.create({ data, select: customerSelect });
     },
     findAll(filters) {
         return prisma_1.prisma.customer.findMany({
@@ -37,8 +37,8 @@ exports.CustomersRepository = {
             orderBy: { createdAt: "desc" },
         });
     },
-    findById(id, storeId) {
-        return prisma_1.prisma.customer.findFirst({ where: { id, storeId }, select: customerSelect });
+    findById(id, storeId, client = prisma_1.prisma) {
+        return client.customer.findFirst({ where: { id, storeId }, select: customerSelect });
     },
     findByIdInBranch(id, branchId, storeId) {
         return prisma_1.prisma.customer.findFirst({
@@ -46,12 +46,12 @@ exports.CustomersRepository = {
             select: customerSelect,
         });
     },
-    update(id, data) {
-        return prisma_1.prisma.customer.update({ where: { id }, data, select: customerSelect });
+    update(id, storeId, data, client = prisma_1.prisma) {
+        return client.customer.update({ where: { id, storeId }, data, select: customerSelect });
     },
-    adjustBalance(id, delta, tx) {
+    adjustBalance(id, storeId, delta, tx) {
         return tx.customer.update({
-            where: { id },
+            where: { id, storeId },
             data: { balance: { increment: delta } },
             select: { id: true, balance: true },
         });

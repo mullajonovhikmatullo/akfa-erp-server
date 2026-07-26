@@ -1,6 +1,13 @@
 import { Router } from "express";
 import { AuthController } from "./controllers/auth.controller";
 import { authMiddleware } from "./middleware/auth.middleware";
+import { validate } from "../../core/middleware/validate";
+import { handoffRateLimit, loginRateLimit } from "../../core/middleware/rateLimit";
+import {
+    completeAccountSetupSchema,
+    exchangeHandoffSchema,
+    loginSchema,
+} from "./validations/auth.validation";
 
 const router = Router();
 
@@ -85,7 +92,19 @@ const router = Router();
  *       401:
  *         description: Invalid credentials
  */
-router.post("/login", AuthController.login);
+router.post("/login", loginRateLimit, validate(loginSchema), AuthController.login);
+router.post(
+    "/handoff/exchange",
+    handoffRateLimit,
+    validate(exchangeHandoffSchema),
+    AuthController.exchangeHandoff
+);
+router.post(
+    "/setup/complete",
+    handoffRateLimit,
+    validate(completeAccountSetupSchema),
+    AuthController.completeAccountSetup
+);
 
 /**
  * @openapi

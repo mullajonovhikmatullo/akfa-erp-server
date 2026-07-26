@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TransfersService = void 0;
 const client_1 = require("@prisma/client");
 const AppError_1 = require("../../../core/errors/AppError");
+const billing_state_service_1 = require("../../../core/services/billing-state.service");
 const branch_access_1 = require("../../../core/utils/branch-access");
 const role_access_1 = require("../../../core/utils/role-access");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
@@ -54,14 +55,17 @@ exports.TransfersService = {
                 totalCostUzs: Number((item.quantity * unitCostUzs).toFixed(2)),
             };
         });
-        const created = await transfers_repository_1.TransfersRepository.create({
-            storeId,
-            fromBranchId,
-            toBranchId: dto.toBranchId,
-            note: dto.note,
-            initiatedById: user.id,
-            items,
-        });
+        const created = await prisma_1.prisma.$transaction(async (tx) => {
+            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
+            return transfers_repository_1.TransfersRepository.create({
+                storeId,
+                fromBranchId,
+                toBranchId: dto.toBranchId,
+                note: dto.note,
+                initiatedById: user.id,
+                items,
+            }, tx);
+        }, prisma_1.transactionOptions);
         (0, socket_1.emitTransferChanged)({
             storeId,
             transferId: created.id,
@@ -92,6 +96,7 @@ exports.TransfersService = {
             throw new AppError_1.AppError(403, "Only the receiving branch can confirm this transfer");
         }
         const completed = await prisma_1.prisma.$transaction(async (tx) => {
+            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
             for (const item of transfer.items) {
                 const qty = Number(item.quantity);
                 const cost = Number(item.unitCostUzs);
@@ -125,7 +130,10 @@ exports.TransfersService = {
             transfer.initiatedBy.id !== user.id) {
             throw new AppError_1.AppError(403, "You can only cancel transfers you initiated");
         }
-        const cancelled = await prisma_1.prisma.$transaction((tx) => transfers_repository_1.TransfersRepository.updateStatus(id, "CANCELLED", null, tx), prisma_1.transactionOptions);
+        const cancelled = await prisma_1.prisma.$transaction(async (tx) => {
+            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
+            return transfers_repository_1.TransfersRepository.updateStatus(id, "CANCELLED", null, tx);
+        }, prisma_1.transactionOptions);
         (0, socket_1.emitTransferChanged)({
             storeId,
             transferId: cancelled.id,

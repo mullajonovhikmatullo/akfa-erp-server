@@ -3,6 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_controller_1 = require("./controllers/auth.controller");
 const auth_middleware_1 = require("./middleware/auth.middleware");
+const validate_1 = require("../../core/middleware/validate");
+const rateLimit_1 = require("../../core/middleware/rateLimit");
+const auth_validation_1 = require("./validations/auth.validation");
 const router = (0, express_1.Router)();
 /**
  * @openapi
@@ -84,7 +87,9 @@ const router = (0, express_1.Router)();
  *       401:
  *         description: Invalid credentials
  */
-router.post("/login", auth_controller_1.AuthController.login);
+router.post("/login", rateLimit_1.loginRateLimit, (0, validate_1.validate)(auth_validation_1.loginSchema), auth_controller_1.AuthController.login);
+router.post("/handoff/exchange", rateLimit_1.handoffRateLimit, (0, validate_1.validate)(auth_validation_1.exchangeHandoffSchema), auth_controller_1.AuthController.exchangeHandoff);
+router.post("/setup/complete", rateLimit_1.handoffRateLimit, (0, validate_1.validate)(auth_validation_1.completeAccountSetupSchema), auth_controller_1.AuthController.completeAccountSetup);
 /**
  * @openapi
  * /auth/me:

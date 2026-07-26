@@ -12,6 +12,9 @@ import {
 } from "./validations/category.validation";
 import { ProductsController } from "./controllers/products.controller";
 import { CategoriesController } from "./controllers/categories.controller";
+import { ProductImagesController } from "./images/controllers/product-images.controller";
+import { productImageUpload } from "./images/middleware/product-image-upload.middleware";
+import { reorderProductImagesSchema } from "./images/validations/product-image.validation";
 
 const router = Router();
 
@@ -205,6 +208,68 @@ router.delete(
  *     ProductUnit:
  *       type: string
  *       enum: [KG, PIECE]
+ *     ProductImageResponse:
+ *       type: object
+ *       required:
+ *         - id
+ *         - productId
+ *         - url
+ *         - thumbnailUrl
+ *         - originalFilename
+ *         - mimeType
+ *         - fileSize
+ *         - width
+ *         - height
+ *         - isPrimary
+ *         - sortOrder
+ *         - createdAt
+ *         - updatedAt
+ *       properties:
+ *         id:
+ *           type: string
+ *           format: uuid
+ *         productId:
+ *           type: string
+ *           format: uuid
+ *         url:
+ *           type: string
+ *           format: uri
+ *         thumbnailUrl:
+ *           type: string
+ *           format: uri
+ *         originalFilename:
+ *           type: string
+ *         mimeType:
+ *           type: string
+ *           enum: [image/webp]
+ *         fileSize:
+ *           type: integer
+ *         width:
+ *           type: integer
+ *         height:
+ *           type: integer
+ *         isPrimary:
+ *           type: boolean
+ *         sortOrder:
+ *           type: integer
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
+ *     ReorderProductImagesRequest:
+ *       type: object
+ *       required: [imageIds]
+ *       properties:
+ *         imageIds:
+ *           type: array
+ *           minItems: 1
+ *           maxItems: 5
+ *           uniqueItems: true
+ *           items:
+ *             type: string
+ *             format: uuid
  *     ProductResponse:
  *       type: object
  *       properties:
@@ -246,6 +311,21 @@ router.delete(
  *           example: "16.5000"
  *         isActive:
  *           type: boolean
+ *         primaryImageUrl:
+ *           type: string
+ *           format: uri
+ *           nullable: true
+ *         primaryThumbnailUrl:
+ *           type: string
+ *           format: uri
+ *           nullable: true
+ *         imageCount:
+ *           type: integer
+ *         images:
+ *           type: array
+ *           description: Present on product detail responses.
+ *           items:
+ *             $ref: '#/components/schemas/ProductImageResponse'
  *         category:
  *           type: object
  *           properties:
@@ -398,6 +478,152 @@ router.post(
 router.get("/", ProductsController.findAll);
 
 router.get("/summary", ProductsController.summary);
+
+/**
+ * @swagger
+ * /products/{productId}/images:
+ *   post:
+ *     summary: Upload up to five optimized product images
+ *     tags: [Product Images]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [images]
+ *             properties:
+ *               images:
+ *                 type: array
+ *                 maxItems: 5
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       201:
+ *         description: Images uploaded
+ *       413:
+ *         description: Image exceeds 5 MB
+ *       422:
+ *         description: Invalid image or product image limit exceeded
+ *   get:
+ *     summary: List product images
+ *     tags: [Product Images]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Ordered product images
+ */
+router.post(
+    "/:productId/images",
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    productImageUpload,
+    ProductImagesController.upload
+);
+
+router.get("/:productId/images", ProductImagesController.list);
+
+/**
+ * @swagger
+ * /products/{productId}/images/{imageId}:
+ *   put:
+ *     summary: Replace a product image while preserving its order and primary state
+ *     tags: [Product Images]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [images]
+ *             properties:
+ *               images:
+ *                 type: array
+ *                 minItems: 1
+ *                 maxItems: 1
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *   delete:
+ *     summary: Delete a product image and select a new primary when needed
+ *     tags: [Product Images]
+ *     security:
+ *       - bearerAuth: []
+ */
+router.put(
+    "/:productId/images/:imageId",
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    productImageUpload,
+    ProductImagesController.replace
+);
+
+/**
+ * @swagger
+ * /products/{productId}/images/reorder:
+ *   patch:
+ *     summary: Replace the complete product image order
+ *     tags: [Product Images]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ReorderProductImagesRequest'
+ *     responses:
+ *       200:
+ *         description: Images reordered
+ */
+router.patch(
+    "/:productId/images/reorder",
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    validate(reorderProductImagesSchema),
+    ProductImagesController.reorder
+);
+
+/**
+ * @swagger
+ * /products/{productId}/images/{imageId}/primary:
+ *   patch:
+ *     summary: Set the primary product image
+ *     tags: [Product Images]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Primary image updated
+ */
+router.patch(
+    "/:productId/images/:imageId/primary",
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    ProductImagesController.setPrimary
+);
+
+router.delete(
+    "/:productId/images/:imageId",
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    ProductImagesController.delete
+);
 
 /**
  * @swagger

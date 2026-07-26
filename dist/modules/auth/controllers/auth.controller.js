@@ -14,6 +14,24 @@ exports.AuthController = {
             next(error);
         }
     },
+    async exchangeHandoff(req, res, next) {
+        try {
+            const result = await auth_service_1.AuthService.exchangeHandoff(req.body);
+            return ApiResponse_1.ApiResponse.success(res, result, "Session handoff completed");
+        }
+        catch (error) {
+            next(error);
+        }
+    },
+    async completeAccountSetup(req, res, next) {
+        try {
+            const result = await auth_service_1.AuthService.completeAccountSetup(req.body);
+            return ApiResponse_1.ApiResponse.success(res, result, "Account setup completed");
+        }
+        catch (error) {
+            next(error);
+        }
+    },
     async me(req, res, next) {
         try {
             const result = await auth_service_1.AuthService.me(req.user.id);

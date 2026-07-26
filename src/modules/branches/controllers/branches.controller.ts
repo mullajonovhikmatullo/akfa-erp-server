@@ -1,11 +1,18 @@
 import { NextFunction, Request, Response } from "express";
 
 import { BranchesService } from "../services/branches.service";
+import { CreateBranchDto } from "../dto/create-branch.dto";
+import { UpdateBranchDto } from "../dto/update-branch.dto";
 
 export class BranchesController {
     static async create(req: Request, res: Response, next: NextFunction) {
         try {
-            const branch = await BranchesService.create(req.body, req.user!);
+            const data: CreateBranchDto = {
+                name: req.body.name,
+                address: req.body.address,
+                phone: req.body.phone,
+            };
+            const branch = await BranchesService.create(data, req.user!);
             return res.status(201).json(branch);
         } catch (error) {
             return next(error);
@@ -29,7 +36,12 @@ export class BranchesController {
 
     static async update(req: Request, res: Response, next: NextFunction) {
         try {
-            const branch = await BranchesService.update(req.params.id as string, req.body, req.user!);
+            const data: UpdateBranchDto = {
+                name: req.body.name,
+                address: req.body.address,
+                phone: req.body.phone,
+            };
+            const branch = await BranchesService.update(req.params.id as string, data, req.user!);
             return res.json(branch);
         } catch (error) {
             return next(error);

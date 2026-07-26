@@ -13,6 +13,24 @@ export const AuthController = {
         }
     },
 
+    async exchangeHandoff(req: Request, res: Response, next: NextFunction) {
+        try {
+            const result = await AuthService.exchangeHandoff(req.body);
+            return ApiResponse.success(res, result, "Session handoff completed");
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    async completeAccountSetup(req: Request, res: Response, next: NextFunction) {
+        try {
+            const result = await AuthService.completeAccountSetup(req.body);
+            return ApiResponse.success(res, result, "Account setup completed");
+        } catch (error) {
+            next(error);
+        }
+    },
+
     async me(req: Request, res: Response, next: NextFunction) {
         try {
             const result = await AuthService.me(req.user!.id);

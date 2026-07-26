@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { StockMovementType } from "@prisma/client";
 import { AppError } from "../../../core/errors/AppError";
+import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
 import { JwtPayload } from "../../../core/types/jwt.types";
 import { branchScope, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
 import { isBranchScopedRole } from "../../../core/utils/role-access";
@@ -62,14 +63,17 @@ export const TransfersService = {
             };
         });
 
-        const created = await TransfersRepository.create({
-            storeId,
-            fromBranchId,
-            toBranchId: dto.toBranchId,
-            note: dto.note,
-            initiatedById: user.id,
-            items,
-        });
+        const created = await prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
+            return TransfersRepository.create({
+                storeId,
+                fromBranchId,
+                toBranchId: dto.toBranchId,
+                note: dto.note,
+                initiatedById: user.id,
+                items,
+            }, tx);
+        }, transactionOptions);
 
         emitTransferChanged({
             storeId,
@@ -107,6 +111,8 @@ export const TransfersService = {
 
         const completed = await prisma.$transaction(
             async (tx) => {
+                await assertStoreWritableInTransaction(tx, storeId);
+
                 for (const item of transfer.items) {
                     const qty = Number(item.quantity);
                     const cost = Number(item.unitCostUzs);
@@ -170,10 +176,10 @@ export const TransfersService = {
             throw new AppError(403, "You can only cancel transfers you initiated");
         }
 
-        const cancelled = await prisma.$transaction((tx) =>
-            TransfersRepository.updateStatus(id, "CANCELLED", null, tx),
-            transactionOptions
-        );
+        const cancelled = await prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
+            return TransfersRepository.updateStatus(id, "CANCELLED", null, tx);
+        }, transactionOptions);
 
         emitTransferChanged({
             storeId,

@@ -6,6 +6,8 @@ const branch_access_1 = require("../../../core/utils/branch-access");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const categories_repository_1 = require("../repositories/categories.repository");
 const products_repository_1 = require("../repositories/products.repository");
+const product_images_service_1 = require("../images/services/product-images.service");
+const product_presenter_1 = require("../presenters/product.presenter");
 exports.ProductsService = {
     async create(dto, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
@@ -29,7 +31,8 @@ exports.ProductsService = {
         if (!branchId)
             throw new AppError_1.AppError(404, "Branch not found");
         await (0, branch_access_1.assertBranchInStore)(branchId, storeId);
-        return products_repository_1.ProductsRepository.create({ ...productData, storeId }, branchId);
+        const product = await products_repository_1.ProductsRepository.create({ ...productData, storeId }, branchId);
+        return (0, product_presenter_1.serializeProductResponse)(product, false);
     },
     async findDefaultBranchId(storeId) {
         const namedMainBranch = await prisma_1.prisma.branch.findFirst({
@@ -55,7 +58,8 @@ exports.ProductsService = {
     },
     async findAll(filters, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
-        return products_repository_1.ProductsRepository.findAll({ ...filters, storeId });
+        const products = await products_repository_1.ProductsRepository.findAll({ ...filters, storeId });
+        return products.map((product) => (0, product_presenter_1.serializeProductResponse)(product, false));
     },
     async findPaginated(params, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
@@ -64,7 +68,10 @@ exports.ProductsService = {
             products_repository_1.ProductsRepository.findPaginated({ ...filters, storeId }, page, pageSize),
             products_repository_1.ProductsRepository.count({ ...filters, storeId }),
         ]);
-        return { items, total };
+        return {
+            items: items.map((product) => (0, product_presenter_1.serializeProductResponse)(product, false)),
+            total,
+        };
     },
     async summary(user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
@@ -80,7 +87,7 @@ exports.ProductsService = {
         if (!product) {
             throw new AppError_1.AppError(404, "Product not found");
         }
-        return product;
+        return (0, product_presenter_1.serializeProductResponse)(product, true);
     },
     async findBySku(sku, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
@@ -88,7 +95,7 @@ exports.ProductsService = {
         if (!product) {
             throw new AppError_1.AppError(404, `No product found with SKU "${sku}"`);
         }
-        return product;
+        return (0, product_presenter_1.serializeProductResponse)(product, false);
     },
     async update(id, dto, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
@@ -108,11 +115,16 @@ exports.ProductsService = {
                 throw new AppError_1.AppError(409, `SKU "${dto.sku}" is already in use`);
             }
         }
-        return products_repository_1.ProductsRepository.update(id, dto);
+        const product = await products_repository_1.ProductsRepository.update(id, storeId, dto);
+        return (0, product_presenter_1.serializeProductResponse)(product, false);
     },
     async delete(id, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
         await exports.ProductsService.findById(id, user);
-        return products_repository_1.ProductsRepository.delete(id, storeId);
+        const result = await products_repository_1.ProductsRepository.delete(id, storeId);
+        if (result.permanentlyDeleted) {
+            await product_images_service_1.ProductImagesService.cleanupProductFiles(result.imageFiles);
+        }
+        return (0, product_presenter_1.serializeProductResponse)(result.product, false);
     },
 };

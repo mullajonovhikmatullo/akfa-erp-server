@@ -57,8 +57,8 @@ router.use(authMiddleware, roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_A
  *           example: john_admin
  *         password:
  *           type: string
- *           minLength: 6
- *           example: secret123
+ *           minLength: 10
+ *           example: secret12345
  *         branchId:
  *           type: string
  *           format: uuid
@@ -103,7 +103,12 @@ router.use(authMiddleware, roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_A
  *       422:
  *         description: Validation error
  */
-router.post("/", validate(createAdminSchema), AdminsController.create);
+router.post(
+    "/",
+    roleMiddleware("STORE_OWNER", "SUPER_ADMIN"),
+    validate(createAdminSchema),
+    AdminsController.create
+);
 
 /**
  * @swagger
@@ -178,7 +183,12 @@ router.get("/:id", AdminsController.findById);
  *       404:
  *         description: Admin or branch not found
  */
-router.patch("/:id", validate(updateAdminSchema), AdminsController.update);
+router.patch(
+    "/:id",
+    roleMiddleware("STORE_OWNER", "SUPER_ADMIN"),
+    validate(updateAdminSchema),
+    AdminsController.update
+);
 
 /**
  * @swagger
@@ -199,7 +209,11 @@ router.patch("/:id", validate(updateAdminSchema), AdminsController.update);
  *       200:
  *         description: Admin disabled
  */
-router.patch("/:id/disable", AdminsController.disable);
+router.patch(
+    "/:id/disable",
+    roleMiddleware("STORE_OWNER", "SUPER_ADMIN"),
+    AdminsController.disable
+);
 
 /**
  * @swagger
@@ -220,7 +234,11 @@ router.patch("/:id/disable", AdminsController.disable);
  *       200:
  *         description: Admin enabled
  */
-router.patch("/:id/enable", AdminsController.enable);
+router.patch(
+    "/:id/enable",
+    roleMiddleware("STORE_OWNER", "SUPER_ADMIN"),
+    AdminsController.enable
+);
 
 /**
  * @swagger
@@ -243,6 +261,10 @@ router.patch("/:id/enable", AdminsController.enable);
  *       404:
  *         description: Admin not found
  */
-router.delete("/:id", AdminsController.delete);
+router.delete(
+    "/:id",
+    roleMiddleware("STORE_OWNER", "SUPER_ADMIN"),
+    AdminsController.delete
+);
 
 export default router;

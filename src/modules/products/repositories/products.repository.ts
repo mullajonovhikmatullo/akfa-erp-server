@@ -1,6 +1,11 @@
+import { Prisma } from "@prisma/client";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { CreateProductDto } from "../dto/create-product.dto";
 import { UpdateProductDto } from "../dto/update-product.dto";
+import { assertPlanCapacity } from "../../../core/services/plan-limit.service";
+import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
+import { AppError } from "../../../core/errors/AppError";
+import { productImageSelect } from "../images/repositories/product-images.repository";
 
 type ProductFilters = {
     storeId: string;
@@ -11,7 +16,7 @@ type ProductFilters = {
     search?: string;
 };
 
-const productSelect = {
+const productBaseSelect = {
     id: true,
     storeId: true,
     name: true,
@@ -31,6 +36,30 @@ const productSelect = {
         select: { id: true, name: true },
     },
 } as const;
+
+const productListSelect = {
+    ...productBaseSelect,
+    images: {
+        where: { isPrimary: true },
+        select: productImageSelect,
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        take: 1,
+    },
+    _count: { select: { images: true } },
+} satisfies Prisma.ProductSelect;
+
+const productDetailSelect = {
+    ...productBaseSelect,
+    images: {
+        select: productImageSelect,
+        orderBy: [
+            { sortOrder: "asc" },
+            { createdAt: "asc" },
+            { id: "asc" },
+        ],
+    },
+    _count: { select: { images: true } },
+} satisfies Prisma.ProductSelect;
 
 function buildWhere(filters: ProductFilters) {
     const usdPriceWhere = {
@@ -64,9 +93,10 @@ function buildWhere(filters: ProductFilters) {
 export const ProductsRepository = {
     create(data: Omit<CreateProductDto, "branchId"> & { storeId: string }, branchId?: string) {
         return prisma.$transaction(async (tx) => {
+            await assertPlanCapacity(tx, data.storeId, "products");
             const product = await tx.product.create({
                 data,
-                select: productSelect,
+                select: productListSelect,
             });
 
             if (branchId) {
@@ -87,7 +117,7 @@ export const ProductsRepository = {
     findAll(filters: ProductFilters) {
         return prisma.product.findMany({
             where: buildWhere(filters),
-            select: productSelect,
+            select: productListSelect,
             orderBy: { createdAt: "desc" },
         });
     },
@@ -95,7 +125,7 @@ export const ProductsRepository = {
     findPaginated(filters: ProductFilters, page: number, pageSize: number) {
         return prisma.product.findMany({
             where: buildWhere(filters),
-            select: productSelect,
+            select: productListSelect,
             orderBy: { createdAt: "desc" },
             skip: (page - 1) * pageSize,
             take: pageSize,
@@ -109,46 +139,89 @@ export const ProductsRepository = {
     findById(id: string, storeId: string) {
         return prisma.product.findFirst({
             where: { id, storeId },
-            select: productSelect,
+            select: productDetailSelect,
         });
     },
 
     findBySku(sku: string, storeId: string) {
         return prisma.product.findFirst({
             where: { sku, storeId },
-            select: productSelect,
+            select: productListSelect,
         });
     },
 
-    update(id: string, data: UpdateProductDto) {
-        return prisma.product.update({
-            where: { id },
-            data,
-            select: productSelect,
-        });
+    update(id: string, storeId: string, data: UpdateProductDto) {
+        if (data.isActive !== true) {
+            return prisma.$transaction(async (tx) => {
+                await assertStoreWritableInTransaction(tx, storeId);
+                return tx.product.update({
+                    where: { id, storeId },
+                    data,
+                    select: productListSelect,
+                });
+            }, transactionOptions);
+        }
+
+        return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
+            const current = await tx.product.findFirst({
+                where: { id, storeId },
+                select: { isActive: true },
+            });
+            if (!current) throw new AppError(404, "Product not found");
+            if (!current.isActive) {
+                await assertPlanCapacity(tx, storeId, "products");
+            }
+            return tx.product.update({
+                where: { id, storeId },
+                data,
+                select: productListSelect,
+            });
+        }, transactionOptions);
     },
 
     async delete(id: string, storeId: string) {
         return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
             const [stockBatches, stockMovements, saleItems, transferItems] = await Promise.all([
-                tx.stockBatch.count({ where: { productId: id } }),
-                tx.stockMovement.count({ where: { productId: id } }),
-                tx.saleItem.count({ where: { productId: id } }),
-                tx.transferItem.count({ where: { productId: id } }),
+                tx.stockBatch.count({ where: { productId: id, storeId } }),
+                tx.stockMovement.count({ where: { productId: id, storeId } }),
+                tx.saleItem.count({ where: { productId: id, sale: { storeId } } }),
+                tx.transferItem.count({ where: { productId: id, transfer: { storeId } } }),
             ]);
 
             const hasHistory = stockBatches + stockMovements + saleItems + transferItems > 0;
 
             if (hasHistory) {
-                return tx.product.update({
-                    where: { id },
+                const product = await tx.product.update({
+                    where: { id, storeId },
                     data: { isActive: false },
-                    select: productSelect,
+                    select: productListSelect,
                 });
+                return {
+                    product,
+                    permanentlyDeleted: false,
+                    imageFiles: [],
+                };
             }
 
+            const imageFiles = await tx.productImage.findMany({
+                where: { productId: id, storeId },
+                select: {
+                    storageKey: true,
+                    thumbnailStorageKey: true,
+                },
+            });
             await tx.inventory.deleteMany({ where: { productId: id, storeId } });
-            return tx.product.delete({ where: { id }, select: productSelect });
+            const product = await tx.product.delete({
+                where: { id, storeId },
+                select: productListSelect,
+            });
+            return {
+                product,
+                permanentlyDeleted: true,
+                imageFiles,
+            };
         }, transactionOptions);
     },
 };

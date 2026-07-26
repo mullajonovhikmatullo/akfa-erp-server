@@ -16,8 +16,8 @@ const adminSelect = {
 };
 const STORE_ADMIN_ROLES = ["ADMIN", "BRANCH_ADMIN", "STORE_ADMIN", "CASHIER"];
 exports.AdminsRepository = {
-    create(data) {
-        return prisma_1.prisma.user.create({
+    create(data, client = prisma_1.prisma) {
+        return client.user.create({
             data: { ...data, role: "BRANCH_ADMIN" },
             select: adminSelect,
         });
@@ -64,26 +64,23 @@ exports.AdminsRepository = {
     countUnassigned(storeId) {
         return prisma_1.prisma.user.count({ where: { storeId, role: { in: [...STORE_ADMIN_ROLES] }, branchId: null } });
     },
-    findById(id, storeId) {
-        return prisma_1.prisma.user.findFirst({
+    findById(id, storeId, client = prisma_1.prisma) {
+        return client.user.findFirst({
             where: { id, storeId, role: { in: [...STORE_ADMIN_ROLES] } },
             select: adminSelect,
         });
     },
-    findByUsername(username) {
-        return prisma_1.prisma.user.findUnique({
+    findByUsername(username, client = prisma_1.prisma) {
+        return client.user.findUnique({
             where: { username },
             select: { id: true },
         });
     },
-    update(id, data) {
-        return prisma_1.prisma.user.update({
-            where: { id },
+    update(id, storeId, data, client = prisma_1.prisma) {
+        return client.user.update({
+            where: { id, storeId },
             data,
             select: adminSelect,
         });
-    },
-    delete(id) {
-        return prisma_1.prisma.user.delete({ where: { id } });
     },
 };

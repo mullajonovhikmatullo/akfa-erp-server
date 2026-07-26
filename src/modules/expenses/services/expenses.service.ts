@@ -1,9 +1,10 @@
 import { z } from "zod";
 import { AppError } from "../../../core/errors/AppError";
+import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
 import { JwtPayload } from "../../../core/types/jwt.types";
 import { assertBranchInStore, branchScope, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
 import { isBranchScopedRole } from "../../../core/utils/role-access";
-import { prisma } from "../../../infrastructure/prisma/prisma";
+import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { CreateExpenseDto } from "../dto/create-expense.dto";
 import { ExpensesRepository } from "../repositories/expenses.repository";
 import {
@@ -15,20 +16,27 @@ export const ExpensesService = {
     async create(dto: CreateExpenseDto, user: JwtPayload) {
         const storeId = requireStoreId(user);
         const branchId = resolveBranchId(dto.branchId, user);
-        await assertBranchInStore(branchId, storeId);
-
-        const category = await prisma.expenseCategory.findFirst({
-            where: { id: dto.categoryId, storeId },
-        });
-        if (!category) throw new AppError(404, "Expense category not found");
-        if (!category.isActive) throw new AppError(409, "Expense category is inactive");
 
         const amount =
             dto.currency === "USD"
                 ? Number((dto.amountUsd * (dto.usdToUzsRate ?? 0)).toFixed(2))
                 : dto.amount;
 
-        return ExpensesRepository.create({ ...dto, amount, storeId, branchId, createdById: user.id });
+        return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
+            await assertBranchInStore(branchId, storeId, tx);
+
+            const category = await tx.expenseCategory.findFirst({
+                where: { id: dto.categoryId, storeId },
+            });
+            if (!category) throw new AppError(404, "Expense category not found");
+            if (!category.isActive) throw new AppError(409, "Expense category is inactive");
+
+            return ExpensesRepository.create(
+                { ...dto, amount, storeId, branchId, createdById: user.id },
+                tx
+            );
+        }, transactionOptions);
     },
 
     async findAll(query: z.infer<typeof expenseQuerySchema>, user: JwtPayload) {
@@ -104,23 +112,26 @@ export const ExpensesService = {
 
     async delete(id: string, user: JwtPayload) {
         const storeId = requireStoreId(user);
-        const expense = await ExpensesRepository.findById(id, storeId);
-        if (!expense) throw new AppError(404, "Expense not found");
+        return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
+            const expense = await ExpensesRepository.findById(id, storeId, tx);
+            if (!expense) throw new AppError(404, "Expense not found");
 
-        if (isBranchScopedRole(user.role)) {
-            if (expense.branch.id !== user.branchId) {
-                throw new AppError(403, "Forbidden");
+            if (isBranchScopedRole(user.role)) {
+                if (expense.branch.id !== user.branchId) {
+                    throw new AppError(403, "Forbidden");
+                }
+                const ageHours =
+                    (Date.now() - new Date(expense.createdAt).getTime()) / 1000 / 3600;
+                if (ageHours > 24) {
+                    throw new AppError(
+                        403,
+                        "Expenses older than 24 hours can only be deleted by store owner"
+                    );
+                }
             }
-            const ageHours =
-                (Date.now() - new Date(expense.createdAt).getTime()) / 1000 / 3600;
-            if (ageHours > 24) {
-                throw new AppError(
-                    403,
-                    "Expenses older than 24 hours can only be deleted by store owner"
-                );
-            }
-        }
 
-        return ExpensesRepository.delete(id);
+            return ExpensesRepository.delete(id, storeId, tx);
+        }, transactionOptions);
     },
 };

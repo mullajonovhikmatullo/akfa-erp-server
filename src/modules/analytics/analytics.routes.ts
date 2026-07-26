@@ -1,10 +1,14 @@
 import { Router } from "express";
 import { authMiddleware } from "../auth/middleware/auth.middleware";
 import { AnalyticsController } from "./controllers/analytics.controller";
+import { roleMiddleware } from "../auth/middleware/role.middleware";
 
 const router = Router();
 
-router.use(authMiddleware);
+router.use(
+    authMiddleware,
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN")
+);
 
 /**
  * @swagger

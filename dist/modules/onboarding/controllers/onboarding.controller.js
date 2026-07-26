@@ -4,6 +4,15 @@ exports.OnboardingController = void 0;
 const ApiResponse_1 = require("../../../core/response/ApiResponse");
 const onboarding_service_1 = require("../services/onboarding.service");
 exports.OnboardingController = {
+    async listPlans(_req, res, next) {
+        try {
+            const result = await onboarding_service_1.OnboardingService.listPublicPlans();
+            return ApiResponse_1.ApiResponse.success(res, result);
+        }
+        catch (error) {
+            return next(error);
+        }
+    },
     async registerStore(req, res, next) {
         try {
             const result = await onboarding_service_1.OnboardingService.registerStore(req.body);

@@ -13,6 +13,9 @@ const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 function isAuthSelfServicePath(path) {
     return ["/profile", "/change-password", "/me", "/auth/profile", "/auth/change-password", "/auth/me"].some((prefix) => path.startsWith(prefix));
 }
+function isBillingRecoveryPath(req) {
+    return req.method === "POST" && /^\/billing\/payments\/?$/.test(req.originalUrl.split("?")[0] ?? "");
+}
 async function authMiddleware(req, res, next) {
     try {
         const authHeader = req.headers.authorization;
@@ -23,10 +26,21 @@ async function authMiddleware(req, res, next) {
         const decoded = jsonwebtoken_1.default.verify(token, process.env.JWT_SECRET);
         const user = await prisma_1.prisma.user.findUnique({
             where: { id: decoded.id },
-            select: { id: true, role: true, branchId: true, storeId: true, isActive: true },
+            select: {
+                id: true,
+                role: true,
+                branchId: true,
+                storeId: true,
+                isActive: true,
+                mustChangePassword: true,
+                authVersion: true,
+            },
         });
-        if (!user || !user.isActive) {
+        if (!user || !user.isActive || decoded.authVersion !== user.authVersion) {
             throw new AppError_1.AppError(401, "Unauthorized");
+        }
+        if (user.mustChangePassword && !isAuthSelfServicePath(req.path)) {
+            throw new AppError_1.AppError(403, "Password change is required");
         }
         if (!(0, role_access_1.isPlatformRole)(user.role) && !user.storeId) {
             throw new AppError_1.AppError(403, "Your account is not assigned to any store");
@@ -34,7 +48,9 @@ async function authMiddleware(req, res, next) {
         if (user.storeId) {
             const billingState = await (0, billing_state_service_1.refreshStoreBillingState)(user.storeId);
             (0, billing_state_service_1.assertStoreReadable)(billingState);
-            if (!READ_METHODS.has(req.method) && !isAuthSelfServicePath(req.path)) {
+            if (!READ_METHODS.has(req.method) &&
+                !isAuthSelfServicePath(req.path) &&
+                !isBillingRecoveryPath(req)) {
                 (0, billing_state_service_1.assertStoreWritable)(billingState);
             }
         }
@@ -43,6 +59,7 @@ async function authMiddleware(req, res, next) {
             role: user.role,
             storeId: user.storeId,
             branchId: user.branchId,
+            authVersion: user.authVersion,
         };
         next();
     }

@@ -4,6 +4,7 @@ exports.InventoryService = void 0;
 const client_1 = require("@prisma/client");
 const crypto_1 = require("crypto");
 const AppError_1 = require("../../../core/errors/AppError");
+const billing_state_service_1 = require("../../../core/services/billing-state.service");
 const branch_access_1 = require("../../../core/utils/branch-access");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const inventory_repository_1 = require("../repositories/inventory.repository");
@@ -84,6 +85,7 @@ exports.InventoryService = {
             assertStockInTargets([item], storeId),
         ]);
         return prisma_1.prisma.$transaction(async (tx) => {
+            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
             return createStockInEntry(item, user.id, tx);
         }, prisma_1.transactionOptions);
     },
@@ -99,6 +101,7 @@ exports.InventoryService = {
             assertStockInTargets(items, storeId),
         ]);
         return prisma_1.prisma.$transaction(async (tx) => {
+            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
             const batchIds = items.map(() => (0, crypto_1.randomUUID)());
             const balanceIncrements = new Map();
             items.forEach((item) => {
@@ -178,6 +181,7 @@ exports.InventoryService = {
             throw new AppError_1.AppError(400, "New quantity is the same as current stock — no adjustment needed");
         }
         return prisma_1.prisma.$transaction(async (tx) => {
+            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
             const updatedInventory = await inventory_repository_1.InventoryRepository.upsertBalance(storeId, branchId, dto.productId, delta, tx);
             const movement = await inventory_repository_1.InventoryRepository.createMovement({
                 storeId,

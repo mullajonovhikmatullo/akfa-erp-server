@@ -1,6 +1,8 @@
 import { Prisma, SaleType } from "@prisma/client";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 
+type DbClient = typeof prisma | Prisma.TransactionClient;
+
 // ─── Select shapes ────────────────────────────────────────────────────────────
 
 const saleListSelect = {
@@ -177,8 +179,8 @@ export const SalesRepository = {
         });
     },
 
-    findById(id: string, storeId: string) {
-        return prisma.sale.findFirst({ where: { id, storeId }, select: saleDetailSelect });
+    findById(id: string, storeId: string, client: DbClient = prisma) {
+        return client.sale.findFirst({ where: { id, storeId }, select: saleDetailSelect });
     },
 
     findByIdInBranch(id: string, branchId: string, storeId: string) {
@@ -191,6 +193,7 @@ export const SalesRepository = {
     addPayment(
         data: {
             saleId: string;
+            storeId: string;
             amountUzs: number;
             amountUsd: number;
             usdToUzsRate?: number;
@@ -203,7 +206,7 @@ export const SalesRepository = {
         tx: Prisma.TransactionClient
     ) {
         return tx.sale.update({
-            where: { id: data.saleId },
+            where: { id: data.saleId, storeId: data.storeId },
             data: {
                 paidAmountUzs: data.newPaidAmountUzs,
                 debtAmountUzs: data.newDebtAmountUzs,
@@ -222,9 +225,14 @@ export const SalesRepository = {
         });
     },
 
-    setDeadline(id: string, debtDueDate: Date | null) {
-        return prisma.sale.update({
-            where: { id },
+    setDeadline(
+        id: string,
+        storeId: string,
+        debtDueDate: Date | null,
+        tx: Prisma.TransactionClient
+    ) {
+        return tx.sale.update({
+            where: { id, storeId },
             data: { debtDueDate },
             select: saleDetailSelect,
         });

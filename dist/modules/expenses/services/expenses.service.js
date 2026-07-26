@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ExpensesService = void 0;
 const AppError_1 = require("../../../core/errors/AppError");
+const billing_state_service_1 = require("../../../core/services/billing-state.service");
 const branch_access_1 = require("../../../core/utils/branch-access");
 const role_access_1 = require("../../../core/utils/role-access");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
@@ -10,18 +11,21 @@ exports.ExpensesService = {
     async create(dto, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
         const branchId = (0, branch_access_1.resolveBranchId)(dto.branchId, user);
-        await (0, branch_access_1.assertBranchInStore)(branchId, storeId);
-        const category = await prisma_1.prisma.expenseCategory.findFirst({
-            where: { id: dto.categoryId, storeId },
-        });
-        if (!category)
-            throw new AppError_1.AppError(404, "Expense category not found");
-        if (!category.isActive)
-            throw new AppError_1.AppError(409, "Expense category is inactive");
         const amount = dto.currency === "USD"
             ? Number((dto.amountUsd * (dto.usdToUzsRate ?? 0)).toFixed(2))
             : dto.amount;
-        return expenses_repository_1.ExpensesRepository.create({ ...dto, amount, storeId, branchId, createdById: user.id });
+        return prisma_1.prisma.$transaction(async (tx) => {
+            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
+            await (0, branch_access_1.assertBranchInStore)(branchId, storeId, tx);
+            const category = await tx.expenseCategory.findFirst({
+                where: { id: dto.categoryId, storeId },
+            });
+            if (!category)
+                throw new AppError_1.AppError(404, "Expense category not found");
+            if (!category.isActive)
+                throw new AppError_1.AppError(409, "Expense category is inactive");
+            return expenses_repository_1.ExpensesRepository.create({ ...dto, amount, storeId, branchId, createdById: user.id }, tx);
+        }, prisma_1.transactionOptions);
     },
     async findAll(query, user) {
         const scope = (0, branch_access_1.branchScope)(user, query.branchId);
@@ -79,18 +83,21 @@ exports.ExpensesService = {
     },
     async delete(id, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
-        const expense = await expenses_repository_1.ExpensesRepository.findById(id, storeId);
-        if (!expense)
-            throw new AppError_1.AppError(404, "Expense not found");
-        if ((0, role_access_1.isBranchScopedRole)(user.role)) {
-            if (expense.branch.id !== user.branchId) {
-                throw new AppError_1.AppError(403, "Forbidden");
+        return prisma_1.prisma.$transaction(async (tx) => {
+            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
+            const expense = await expenses_repository_1.ExpensesRepository.findById(id, storeId, tx);
+            if (!expense)
+                throw new AppError_1.AppError(404, "Expense not found");
+            if ((0, role_access_1.isBranchScopedRole)(user.role)) {
+                if (expense.branch.id !== user.branchId) {
+                    throw new AppError_1.AppError(403, "Forbidden");
+                }
+                const ageHours = (Date.now() - new Date(expense.createdAt).getTime()) / 1000 / 3600;
+                if (ageHours > 24) {
+                    throw new AppError_1.AppError(403, "Expenses older than 24 hours can only be deleted by store owner");
+                }
             }
-            const ageHours = (Date.now() - new Date(expense.createdAt).getTime()) / 1000 / 3600;
-            if (ageHours > 24) {
-                throw new AppError_1.AppError(403, "Expenses older than 24 hours can only be deleted by store owner");
-            }
-        }
-        return expenses_repository_1.ExpensesRepository.delete(id);
+            return expenses_repository_1.ExpensesRepository.delete(id, storeId, tx);
+        }, prisma_1.transactionOptions);
     },
 };

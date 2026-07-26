@@ -126,8 +126,8 @@ exports.SalesRepository = {
             },
         });
     },
-    findById(id, storeId) {
-        return prisma_1.prisma.sale.findFirst({ where: { id, storeId }, select: saleDetailSelect });
+    findById(id, storeId, client = prisma_1.prisma) {
+        return client.sale.findFirst({ where: { id, storeId }, select: saleDetailSelect });
     },
     findByIdInBranch(id, branchId, storeId) {
         return prisma_1.prisma.sale.findFirst({
@@ -137,7 +137,7 @@ exports.SalesRepository = {
     },
     addPayment(data, tx) {
         return tx.sale.update({
-            where: { id: data.saleId },
+            where: { id: data.saleId, storeId: data.storeId },
             data: {
                 paidAmountUzs: data.newPaidAmountUzs,
                 debtAmountUzs: data.newDebtAmountUzs,
@@ -155,9 +155,9 @@ exports.SalesRepository = {
             select: saleDetailSelect,
         });
     },
-    setDeadline(id, debtDueDate) {
-        return prisma_1.prisma.sale.update({
-            where: { id },
+    setDeadline(id, storeId, debtDueDate, tx) {
+        return tx.sale.update({
+            where: { id, storeId },
             data: { debtDueDate },
             select: saleDetailSelect,
         });

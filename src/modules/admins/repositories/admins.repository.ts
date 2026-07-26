@@ -1,6 +1,7 @@
 import { prisma } from "../../../infrastructure/prisma/prisma";
 import { CreateAdminDto } from "../dto/create-admin.dto";
 import { UpdateAdminDto } from "../dto/update-admin.dto";
+import { Prisma } from "@prisma/client";
 
 const adminSelect = {
     id: true,
@@ -18,10 +19,18 @@ const adminSelect = {
 const STORE_ADMIN_ROLES = ["ADMIN", "BRANCH_ADMIN", "STORE_ADMIN", "CASHIER"] as const;
 
 type AdminFilters = { storeId: string; branchId?: string; isActive?: boolean };
+type DbClient = typeof prisma | Prisma.TransactionClient;
+type AdminUpdateData = UpdateAdminDto & {
+    isActive?: boolean;
+    authVersion?: Prisma.IntFieldUpdateOperationsInput;
+};
 
 export const AdminsRepository = {
-    create(data: Omit<CreateAdminDto, "password"> & { password: string; storeId: string }) {
-        return prisma.user.create({
+    create(
+        data: Omit<CreateAdminDto, "password"> & { password: string; storeId: string },
+        client: DbClient = prisma
+    ) {
+        return client.user.create({
             data: { ...data, role: "BRANCH_ADMIN" },
             select: adminSelect,
         });
@@ -74,29 +83,25 @@ export const AdminsRepository = {
         return prisma.user.count({ where: { storeId, role: { in: [...STORE_ADMIN_ROLES] }, branchId: null } });
     },
 
-    findById(id: string, storeId: string) {
-        return prisma.user.findFirst({
+    findById(id: string, storeId: string, client: DbClient = prisma) {
+        return client.user.findFirst({
             where: { id, storeId, role: { in: [...STORE_ADMIN_ROLES] } },
             select: adminSelect,
         });
     },
 
-    findByUsername(username: string) {
-        return prisma.user.findUnique({
+    findByUsername(username: string, client: DbClient = prisma) {
+        return client.user.findUnique({
             where: { username },
             select: { id: true },
         });
     },
 
-    update(id: string, data: UpdateAdminDto) {
-        return prisma.user.update({
-            where: { id },
+    update(id: string, storeId: string, data: AdminUpdateData, client: DbClient = prisma) {
+        return client.user.update({
+            where: { id, storeId },
             data,
             select: adminSelect,
         });
-    },
-
-    delete(id: string) {
-        return prisma.user.delete({ where: { id } });
     },
 };

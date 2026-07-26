@@ -27,12 +27,6 @@ enum StoreStatus {
   CANCELLED
 }
 
-enum PlanCode {
-  START
-  BUSINESS
-  NETWORK
-}
-
 enum SubscriptionStatus {
   TRIALING
   ACTIVE
@@ -52,6 +46,11 @@ enum PaymentCurrency {
   USD
 }
 
+enum MediaKind {
+  PAYMENT_RECEIPT
+  PRODUCT_IMAGE
+}
+
 enum AuditAction {
   STORE_REGISTERED
   STORE_STATUS_CHANGED
@@ -59,6 +58,21 @@ enum AuditAction {
   PAYMENT_APPROVED
   PAYMENT_REJECTED
   SUBSCRIPTION_EXTENDED
+  OWNER_ACCOUNT_ACTIVATED
+  OWNER_SETUP_LINK_REGENERATED
+  PLAN_CREATED
+  PLAN_UPDATED
+  PLAN_ARCHIVED
+  PLAN_DELETED
+  ADMIN_CREATED
+  ADMIN_UPDATED
+  ADMIN_DISABLED
+  ADMIN_ENABLED
+}
+
+enum HandoffPurpose {
+  LOGIN
+  ACCOUNT_SETUP
 }
 
 enum ProductUnit {
@@ -103,19 +117,22 @@ enum ExpenseCurrency {
 
 model Plan {
   id              String         @id @default(uuid())
-  code            PlanCode       @unique
+  code            String         @unique
   name            String
   monthlyPriceUzs Decimal        @default(0) @db.Decimal(18, 2)
   maxBranches     Int?
   maxUsers        Int?
   maxProducts     Int?
   isActive        Boolean        @default(true)
+  isPublic        Boolean        @default(false)
+  version         Int            @default(0)
   stores          Store[]
   subscriptions   Subscription[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
   @@index([isActive])
+  @@index([isActive, isPublic])
 }
 
 model Store {
@@ -132,6 +149,7 @@ model Store {
   trialEndsAt       DateTime
   activatedAt       DateTime?
   suspendedAt       DateTime?
+  billingVersion    Int               @default(0)
   subscription      Subscription?
   users             User[]
   branches          Branch[]
@@ -146,6 +164,8 @@ model Store {
   expenseCategories ExpenseCategory[]
   transfers         Transfer[]
   payments          Payment[]
+  mediaObjects      MediaObject[]
+  productImages     ProductImage[]
   auditLogs         AuditLog[]
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -180,29 +200,58 @@ model Subscription {
 }
 
 model Payment {
-  id             String          @id @default(uuid())
-  storeId        String
-  store          Store           @relation(fields: [storeId], references: [id])
-  subscriptionId String?
-  subscription   Subscription?   @relation(fields: [subscriptionId], references: [id])
-  amount         Decimal         @db.Decimal(18, 2)
-  currency       PaymentCurrency @default(UZS)
-  status         PaymentStatus   @default(PENDING)
-  periodStart    DateTime?
-  periodEnd      DateTime?
-  paidAt         DateTime?
-  approvedAt     DateTime?
-  rejectedAt     DateTime?
-  approvedById   String?
-  approvedBy     User?           @relation("PaymentsApproved", fields: [approvedById], references: [id])
-  note           String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id              String          @id @default(uuid())
+  storeId         String
+  store           Store           @relation(fields: [storeId], references: [id])
+  branchId        String?
+  branch          Branch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  subscriptionId  String?
+  subscription    Subscription?   @relation(fields: [subscriptionId], references: [id])
+  submittedById   String?
+  submittedBy     User?           @relation("PaymentsSubmitted", fields: [submittedById], references: [id], onDelete: SetNull)
+  receiptMediaId  String?         @unique
+  receiptMedia    MediaObject?    @relation("PaymentReceipt", fields: [receiptMediaId], references: [id], onDelete: Restrict)
+  amount          Decimal         @db.Decimal(18, 2)
+  currency        PaymentCurrency @default(UZS)
+  status          PaymentStatus   @default(PENDING)
+  periodStart     DateTime?
+  periodEnd       DateTime?
+  paidAt          DateTime?
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  approvedById    String?
+  approvedBy      User?           @relation("PaymentsApproved", fields: [approvedById], references: [id])
+  note            String?
+  rejectionReason String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   @@index([storeId])
+  @@index([branchId])
   @@index([subscriptionId])
+  @@index([submittedById])
   @@index([status])
   @@index([createdAt])
+}
+
+model MediaObject {
+  id           String    @id @default(uuid())
+  storeId      String
+  store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  uploadedById String?
+  uploadedBy   User?     @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  kind         MediaKind
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  checksum     String
+  content      Bytes
+  payment      Payment?  @relation("PaymentReceipt")
+  createdAt    DateTime  @default(now())
+
+  @@index([storeId, kind])
+  @@index([uploadedById])
+  @@index([checksum])
 }
 
 model AuditLog {
@@ -221,6 +270,22 @@ model AuditLog {
   @@index([createdAt])
 }
 
+model AuthHandoff {
+  id          String         @id @default(uuid())
+  tokenHash   String         @unique
+  purpose     HandoffPurpose
+  userId      String
+  user        User           @relation("AuthHandoffUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?          @relation("AuthHandoffCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime       @default(now())
+
+  @@index([userId, purpose, usedAt])
+  @@index([expiresAt])
+}
+
 // ─── Branch ───────────────────────────────────────────────────────────────────
 
 model Branch {
@@ -237,6 +302,7 @@ model Branch {
   stockMovements StockMovement[]
   sales          Sale[]
   expenses       Expense[]
+  payments       Payment[]
   transfersFrom  Transfer[]      @relation("TransfersFrom")
   transfersTo    Transfer[]      @relation("TransfersTo")
   createdAt      DateTime        @default(now())
@@ -257,6 +323,8 @@ model User {
   password           String
   role               UserRole
   isActive           Boolean         @default(true)
+  mustChangePassword Boolean         @default(false)
+  authVersion        Int             @default(0)
   branchId           String?
   branch             Branch?         @relation(fields: [branchId], references: [id])
   stockBatches       StockBatch[]
@@ -264,7 +332,11 @@ model User {
   sales              Sale[]
   salePayments       SalePayment[]
   approvedPayments   Payment[]       @relation("PaymentsApproved")
+  submittedPayments  Payment[]       @relation("PaymentsSubmitted")
+  uploadedMedia      MediaObject[]
   auditLogs          AuditLog[]      @relation("AuditLogActor")
+  authHandoffs       AuthHandoff[]   @relation("AuthHandoffUser")
+  createdHandoffs    AuthHandoff[]   @relation("AuthHandoffCreator")
   expenses           Expense[]
   initiatedTransfers Transfer[]      @relation("TransfersInitiated")
   completedTransfers Transfer[]      @relation("TransfersCompleted")
@@ -318,14 +390,39 @@ model Product {
   stockMovements    StockMovement[]
   saleItems         SaleItem[]
   transferItems     TransferItem[]
+  images            ProductImage[]
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
   @@unique([storeId, sku])
+  @@unique([id, storeId])
   @@index([storeId])
   @@index([categoryId])
   @@index([isActive])
   @@index([sku])
+}
+
+model ProductImage {
+  id                  String   @id @default(uuid())
+  storeId             String
+  store               Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  productId           String
+  product             Product  @relation(fields: [productId, storeId], references: [id, storeId], onDelete: Cascade)
+  storageKey          String   @unique
+  thumbnailStorageKey String   @unique
+  originalFilename    String
+  mimeType            String
+  fileSize            Int
+  width               Int
+  height              Int
+  isPrimary           Boolean  @default(false)
+  sortOrder           Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([productId])
+  @@index([storeId])
+  @@index([productId, sortOrder])
 }
 
 // ─── Inventory ────────────────────────────────────────────────────────────────

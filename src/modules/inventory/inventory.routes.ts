@@ -3,6 +3,7 @@ import { authMiddleware } from "../auth/middleware/auth.middleware";
 import { validate } from "../../core/middleware/validate";
 import { stockInBatchSchema, stockInSchema, adjustmentSchema } from "./validations/inventory.validation";
 import { InventoryController } from "./controllers/inventory.controller";
+import { roleMiddleware } from "../auth/middleware/role.middleware";
 
 const router = Router();
 
@@ -140,8 +141,18 @@ router.use(authMiddleware);
  *       422:
  *         description: Validation error
  */
-router.post("/stock-in/batch", validate(stockInBatchSchema), InventoryController.stockInBatch);
-router.post("/stock-in", validate(stockInSchema), InventoryController.stockIn);
+router.post(
+    "/stock-in/batch",
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"),
+    validate(stockInBatchSchema),
+    InventoryController.stockInBatch
+);
+router.post(
+    "/stock-in",
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"),
+    validate(stockInSchema),
+    InventoryController.stockIn
+);
 
 // ─── Adjustment ───────────────────────────────────────────────────────────────
 
@@ -167,7 +178,12 @@ router.post("/stock-in", validate(stockInSchema), InventoryController.stockIn);
  *       422:
  *         description: Validation error
  */
-router.post("/adjustment", validate(adjustmentSchema), InventoryController.adjust);
+router.post(
+    "/adjustment",
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"),
+    validate(adjustmentSchema),
+    InventoryController.adjust
+);
 
 // ─── Current Stock ────────────────────────────────────────────────────────────
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AppError } from "../../../core/errors/AppError";
+import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
 import { JwtPayload } from "../../../core/types/jwt.types";
 import { branchScope, requireStoreId } from "../../../core/utils/branch-access";
 import { isBranchScopedRole } from "../../../core/utils/role-access";
@@ -139,6 +140,8 @@ export const SalesService = {
 
         // ── Atomic transaction ───────────────────────────────────────────────
         return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
+
             // 1. Create sale + items + initial payment
             const sale = await SalesRepository.create(
                 {
@@ -182,7 +185,7 @@ export const SalesService = {
 
             // 3. Update customer balance if debt exists
             if (dto.customerId && debtAmountUzs > 0) {
-                await CustomersRepository.adjustBalance(dto.customerId, debtAmountUzs, tx);
+                await CustomersRepository.adjustBalance(dto.customerId, storeId, debtAmountUzs, tx);
             }
 
             return sale;
@@ -201,26 +204,31 @@ export const SalesService = {
             throw new AppError(403, "Forbidden");
         }
 
-        const currentDebt = Number(sale.debtAmountUzs);
-        if (currentDebt <= 0) {
-            throw new AppError(400, "This sale has no outstanding debt");
-        }
-
-        const paymentUzsEquivalent = Number(
-            (dto.amountUzs + dto.amountUsd * (dto.usdToUzsRate ?? 0)).toFixed(2)
-        );
-        const newPaidAmountUzs = Number(
-            (Number(sale.paidAmountUzs) + paymentUzsEquivalent).toFixed(2)
-        );
-        const newDebtAmountUzs = Number(
-            Math.max(0, Number(sale.totalAmountUzs) - newPaidAmountUzs).toFixed(2)
-        );
-        const debtReduced = currentDebt - newDebtAmountUzs;
-
         return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
+            const currentSale = await SalesRepository.findById(saleId, storeId, tx);
+            if (!currentSale) throw new AppError(404, "Sale not found");
+
+            const currentDebt = Number(currentSale.debtAmountUzs);
+            if (currentDebt <= 0) {
+                throw new AppError(400, "This sale has no outstanding debt");
+            }
+
+            const paymentUzsEquivalent = Number(
+                (dto.amountUzs + dto.amountUsd * (dto.usdToUzsRate ?? 0)).toFixed(2)
+            );
+            const newPaidAmountUzs = Number(
+                (Number(currentSale.paidAmountUzs) + paymentUzsEquivalent).toFixed(2)
+            );
+            const newDebtAmountUzs = Number(
+                Math.max(0, Number(currentSale.totalAmountUzs) - newPaidAmountUzs).toFixed(2)
+            );
+            const debtReduced = currentDebt - newDebtAmountUzs;
+
             const updated = await SalesRepository.addPayment(
                 {
                     saleId,
+                    storeId,
                     amountUzs: dto.amountUzs,
                     amountUsd: dto.amountUsd,
                     usdToUzsRate: dto.usdToUzsRate,
@@ -234,8 +242,13 @@ export const SalesService = {
             );
 
             // Reduce customer balance by however much debt was cleared
-            if (sale.customer && debtReduced > 0) {
-                await CustomersRepository.adjustBalance(sale.customer.id, -debtReduced, tx);
+            if (currentSale.customer && debtReduced > 0) {
+                await CustomersRepository.adjustBalance(
+                    currentSale.customer.id,
+                    storeId,
+                    -debtReduced,
+                    tx
+                );
             }
 
             return updated;
@@ -284,18 +297,21 @@ export const SalesService = {
 
     async setDebtDeadline(saleId: string, debtDueDate: Date | null, user: JwtPayload) {
         const storeId = requireStoreId(user);
-        const sale = await SalesRepository.findById(saleId, storeId);
-        if (!sale) throw new AppError(404, "Sale not found");
+        return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
+            const sale = await SalesRepository.findById(saleId, storeId, tx);
+            if (!sale) throw new AppError(404, "Sale not found");
 
-        if (isBranchScopedRole(user.role) && sale.branch.id !== user.branchId) {
-            throw new AppError(403, "Forbidden");
-        }
+            if (isBranchScopedRole(user.role) && sale.branch.id !== user.branchId) {
+                throw new AppError(403, "Forbidden");
+            }
 
-        if (debtDueDate !== null && Number(sale.debtAmountUzs) <= 0) {
-            throw new AppError(400, "Cannot set a deadline on a sale with no outstanding debt");
-        }
+            if (debtDueDate !== null && Number(sale.debtAmountUzs) <= 0) {
+                throw new AppError(400, "Cannot set a deadline on a sale with no outstanding debt");
+            }
 
-        return SalesRepository.setDeadline(saleId, debtDueDate);
+            return SalesRepository.setDeadline(saleId, storeId, debtDueDate, tx);
+        }, transactionOptions);
     },
 
     async findById(id: string, user: JwtPayload) {

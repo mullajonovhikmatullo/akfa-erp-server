@@ -6,6 +6,13 @@ import { authMiddleware } from "../auth/middleware/auth.middleware";
 
 import { roleMiddleware } from "../auth/middleware/role.middleware";
 
+import { validate } from "../../core/middleware/validate";
+
+import {
+    createBranchSchema,
+    updateBranchSchema,
+} from "./validations/branch.validation";
+
 const router = Router();
 
 /**
@@ -56,6 +63,8 @@ router.post(
 
     roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
 
+    validate(createBranchSchema),
+
     BranchesController.create
 );
 
@@ -103,6 +112,7 @@ router.patch(
     "/:id",
     authMiddleware,
     roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    validate(updateBranchSchema),
     BranchesController.update
 );
 

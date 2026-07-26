@@ -2,6 +2,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 import { CreateExpenseDto } from "../dto/create-expense.dto";
 
+type DbClient = typeof prisma | Prisma.TransactionClient;
+
 const expenseSelect = {
     id: true,
     storeId: true,
@@ -29,8 +31,15 @@ type ExpenseFilters = {
 type ExpenseCategorySummaryFilters = Omit<ExpenseFilters, "limit">;
 
 export const ExpensesRepository = {
-    create(data: Omit<CreateExpenseDto, "branchId"> & { storeId: string; branchId: string; createdById: string }) {
-        return prisma.expense.create({
+    create(
+        data: Omit<CreateExpenseDto, "branchId"> & {
+            storeId: string;
+            branchId: string;
+            createdById: string;
+        },
+        client: DbClient = prisma
+    ) {
+        return client.expense.create({
             data: {
                 storeId: data.storeId,
                 branchId: data.branchId,
@@ -105,12 +114,12 @@ export const ExpensesRepository = {
         `;
     },
 
-    findById(id: string, storeId: string) {
-        return prisma.expense.findFirst({ where: { id, storeId }, select: expenseSelect });
+    findById(id: string, storeId: string, client: DbClient = prisma) {
+        return client.expense.findFirst({ where: { id, storeId }, select: expenseSelect });
     },
 
-    delete(id: string) {
-        return prisma.expense.delete({ where: { id } });
+    delete(id: string, storeId: string, client: DbClient = prisma) {
+        return client.expense.delete({ where: { id, storeId } });
     },
 
     sumByBranchAndPeriod(storeId: string, branchId: string, from: Date, to: Date) {

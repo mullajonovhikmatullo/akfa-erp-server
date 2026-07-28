@@ -93,6 +93,14 @@ app.get("/", (_, res) => {
     res.json({ message: "Store Management API Running" });
 });
 
+app.get("/health", (_req, res) => {
+    res.json({
+        status: "ok",
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+    });
+});
+
 // Must be last — global error handler
 app.use(errorHandler);
 

@@ -31,7 +31,12 @@ async function seedSuperAdmin() {
     const username = process.env.PLATFORM_OWNER_USERNAME?.trim();
     const password = process.env.PLATFORM_OWNER_PASSWORD;
     const fullName = process.env.PLATFORM_OWNER_FULL_NAME ?? "Platform Owner";
-    const minimumPasswordLength = process.env.NODE_ENV === "production" ? 16 : 10;
+    const allowWeakTestPassword = process.env.PLATFORM_OWNER_ALLOW_WEAK_PASSWORD === "1";
+    const minimumPasswordLength = allowWeakTestPassword
+        ? 6
+        : process.env.NODE_ENV === "production"
+            ? 16
+            : 10;
     if (!username || !password) {
         throw new Error("No platform owner exists. Set PLATFORM_OWNER_USERNAME and PLATFORM_OWNER_PASSWORD before startup.");
     }
@@ -47,6 +52,7 @@ async function seedSuperAdmin() {
             role: "PLATFORM_OWNER",
             storeId: null,
             branchId: null,
+            mustChangePassword: true,
         },
     });
     console.log("Platform owner created successfully");

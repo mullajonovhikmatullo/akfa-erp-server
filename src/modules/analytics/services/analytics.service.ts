@@ -36,7 +36,7 @@ export const AnalyticsService = {
             : Prisma.sql`p."lowStockThreshold"`;
         const lowStockThresholdRequiredSql = lowStockThreshold
             ? Prisma.empty
-            : Prisma.sql`p."lowStockThreshold" IS NOT NULL AND`;
+            : Prisma.sql`AND p."lowStockThreshold" IS NOT NULL`;
 
         const saleWhere: Prisma.SaleWhereInput = {
             storeId,
@@ -79,9 +79,9 @@ export const AnalyticsService = {
                     SELECT COUNT(*)::bigint AS count
                     FROM "Inventory" inv
                     JOIN "Product" p ON p.id = inv."productId"
-                    WHERE ${lowStockThresholdRequiredSql}
-                      inv."storeId" = ${storeId}
-                      p."isActive" = true
+                    WHERE inv."storeId" = ${storeId}
+                      AND p."isActive" = true
+                      ${lowStockThresholdRequiredSql}
                       AND inv.quantity <= ${lowStockThresholdSql}
                       ${branchId ? Prisma.sql`AND inv."branchId" = ${branchId}` : Prisma.empty}
                 `,
@@ -292,7 +292,7 @@ export const AnalyticsService = {
             : Prisma.sql`p."lowStockThreshold"`;
         const lowStockThresholdRequiredSql = lowStockThreshold
             ? Prisma.empty
-            : Prisma.sql`p."lowStockThreshold" IS NOT NULL AND`;
+            : Prisma.sql`AND p."lowStockThreshold" IS NOT NULL`;
 
         const [stockByBranch, lowStock, movementSummary] = await Promise.all([
             prisma.$queryRaw<{
@@ -350,9 +350,9 @@ export const AnalyticsService = {
                 FROM "Inventory" inv
                 JOIN "Product" p ON p.id = inv."productId"
                 JOIN "Branch" b ON b.id = inv."branchId"
-                WHERE ${lowStockThresholdRequiredSql}
-                  inv."storeId" = ${storeId}
-                  p."isActive" = true
+                WHERE inv."storeId" = ${storeId}
+                  AND p."isActive" = true
+                  ${lowStockThresholdRequiredSql}
                   AND inv.quantity <= ${lowStockThresholdSql}
                   ${branchId ? Prisma.sql`AND inv."branchId" = ${branchId}` : Prisma.empty}
                 ORDER BY (inv.quantity / NULLIF(${lowStockThresholdSql}, 0)) ASC NULLS LAST

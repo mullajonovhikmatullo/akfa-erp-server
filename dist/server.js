@@ -91,6 +91,13 @@ app.use("/uploads", product_image_files_routes_1.default);
 app.get("/", (_, res) => {
     res.json({ message: "Store Management API Running" });
 });
+app.get("/health", (_req, res) => {
+    res.json({
+        status: "ok",
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+    });
+});
 // Must be last — global error handler
 app.use(errorHandler_1.errorHandler);
 const PORT = process.env.PORT || 3000;

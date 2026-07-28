@@ -30,6 +30,7 @@ export function initSocketServer(
     isOriginAllowed: (origin?: string) => boolean
 ) {
     io = new Server(server, {
+        path: process.env.SOCKET_IO_PATH || "/api/socket.io",
         cors: {
             origin: (origin, callback) => {
                 if (isOriginAllowed(origin)) return callback(null, true);

@@ -63,41 +63,44 @@ app.use((0, cors_1.default)({
 }));
 const securityHeaders = (0, helmet_1.default)();
 app.use((req, res, next) => {
-    if (req.path.startsWith("/docs"))
+    if (req.path.startsWith("/docs") || req.path.startsWith("/api/docs"))
         return next();
     return securityHeaders(req, res, next);
 });
 app.use((0, morgan_1.default)("dev"));
-app.use("/docs", swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swagger_1.swaggerSpec));
-app.get("/openapi.json", (_req, res) => {
+const apiRouter = express_1.default.Router();
+apiRouter.use("/docs", swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swagger_1.swaggerSpec));
+apiRouter.get("/openapi.json", (_req, res) => {
     res.json(swagger_1.swaggerSpec);
 });
-app.use("/public", onboarding_routes_1.default);
-app.use("/auth", auth_routes_1.default);
-app.use("/platform", platform_routes_1.default);
-app.use("/users", users_routes_1.default);
-app.use("/branches", branches_routes_1.default);
-app.use("/admins", admins_routes_1.default);
-app.use("/products", products_routes_1.default);
-app.use("/inventory", inventory_routes_1.default);
-app.use("/customers", customers_routes_1.default);
-app.use("/sales", sales_routes_1.default);
-app.use("/expenses", expenses_routes_1.default);
-app.use("/transfers", transfers_routes_1.default);
-app.use("/analytics", analytics_routes_1.default);
-app.use("/billing", billing_routes_1.default);
-app.use("/media", media_routes_1.default);
-app.use("/uploads", product_image_files_routes_1.default);
-app.get("/", (_, res) => {
+apiRouter.use("/public", onboarding_routes_1.default);
+apiRouter.use("/auth", auth_routes_1.default);
+apiRouter.use("/platform", platform_routes_1.default);
+apiRouter.use("/users", users_routes_1.default);
+apiRouter.use("/branches", branches_routes_1.default);
+apiRouter.use("/admins", admins_routes_1.default);
+apiRouter.use("/products", products_routes_1.default);
+apiRouter.use("/inventory", inventory_routes_1.default);
+apiRouter.use("/customers", customers_routes_1.default);
+apiRouter.use("/sales", sales_routes_1.default);
+apiRouter.use("/expenses", expenses_routes_1.default);
+apiRouter.use("/transfers", transfers_routes_1.default);
+apiRouter.use("/analytics", analytics_routes_1.default);
+apiRouter.use("/billing", billing_routes_1.default);
+apiRouter.use("/media", media_routes_1.default);
+apiRouter.use("/uploads", product_image_files_routes_1.default);
+apiRouter.get("/", (_, res) => {
     res.json({ message: "Store Management API Running" });
 });
-app.get("/health", (_req, res) => {
+apiRouter.get("/health", (_req, res) => {
     res.json({
         status: "ok",
         uptime: process.uptime(),
         timestamp: new Date().toISOString(),
     });
 });
+app.use("/", apiRouter);
+app.use("/api", apiRouter);
 // Must be last — global error handler
 app.use(errorHandler_1.errorHandler);
 const PORT = process.env.PORT || 3000;

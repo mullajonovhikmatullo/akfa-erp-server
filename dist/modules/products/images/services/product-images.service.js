@@ -337,6 +337,21 @@ function createProductImagesService(dependencies = {}) {
                 mimeType: "image/webp",
             };
         },
+        async readPublicFile(routeStoreId, productId, imageId, fileName) {
+            if (fileName !== "main.webp" && fileName !== "thumbnail.webp") {
+                throw new AppError_1.AppError(404, "Product image not found");
+            }
+            const image = await repository.findImage(imageId, productId, routeStoreId);
+            if (!image)
+                throw new AppError_1.AppError(404, "Product image not found");
+            const key = fileName === "main.webp"
+                ? image.storageKey
+                : image.thumbnailStorageKey;
+            return {
+                content: await storage.read(key),
+                mimeType: "image/webp",
+            };
+        },
         async cleanupProductFiles(images) {
             await deleteStoredFiles(storage, images.flatMap((image) => [
                 image.storageKey,

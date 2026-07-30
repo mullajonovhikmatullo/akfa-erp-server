@@ -9,18 +9,6 @@ const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const inventory_service_1 = require("../../inventory/services/inventory.service");
 const customers_repository_1 = require("../../customers/repositories/customers.repository");
 const sales_repository_1 = require("../repositories/sales.repository");
-function resolveSaleBranchId(requestedBranchId, user) {
-    if ((0, role_access_1.isBranchScopedRole)(user.role)) {
-        if (!user.branchId) {
-            throw new AppError_1.AppError(403, "Your account is not assigned to any branch");
-        }
-        return user.branchId;
-    }
-    if (!requestedBranchId) {
-        throw new AppError_1.AppError(400, "branchId is required");
-    }
-    return requestedBranchId;
-}
 function resolveUnitPriceUzs(priceUzs, priceUsd, usdToUzsRate) {
     const uzs = Number(priceUzs ?? 0);
     const usd = priceUsd == null ? null : Number(priceUsd);
@@ -36,7 +24,7 @@ exports.SalesService = {
     // ─── Create Sale ──────────────────────────────────────────────────────────
     async create(dto, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
-        const branchId = resolveSaleBranchId(dto.branchId, user);
+        const branchId = (0, branch_access_1.resolveBranchId)(dto.branchId, user);
         // ── Validate branch ──────────────────────────────────────────────────
         const branch = await prisma_1.prisma.branch.findFirst({
             where: { id: branchId, storeId },

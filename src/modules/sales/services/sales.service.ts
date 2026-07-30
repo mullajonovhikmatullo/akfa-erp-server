@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AppError } from "../../../core/errors/AppError";
 import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
 import { JwtPayload } from "../../../core/types/jwt.types";
-import { branchScope, requireStoreId } from "../../../core/utils/branch-access";
+import { branchScope, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
 import { isBranchScopedRole } from "../../../core/utils/role-access";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { InventoryService } from "../../inventory/services/inventory.service";
@@ -11,21 +11,6 @@ import { CreateSaleDto } from "../dto/create-sale.dto";
 import { AddPaymentDto } from "../dto/add-payment.dto";
 import { SalesRepository } from "../repositories/sales.repository";
 import { saleQuerySchema } from "../validations/sale.validation";
-
-function resolveSaleBranchId(requestedBranchId: string | undefined, user: JwtPayload): string {
-    if (isBranchScopedRole(user.role)) {
-        if (!user.branchId) {
-            throw new AppError(403, "Your account is not assigned to any branch");
-        }
-        return user.branchId;
-    }
-
-    if (!requestedBranchId) {
-        throw new AppError(400, "branchId is required");
-    }
-
-    return requestedBranchId;
-}
 
 function resolveUnitPriceUzs(priceUzs: unknown, priceUsd: unknown, usdToUzsRate?: number): number {
     const uzs = Number(priceUzs ?? 0);
@@ -47,7 +32,7 @@ export const SalesService = {
 
     async create(dto: CreateSaleDto, user: JwtPayload) {
         const storeId = requireStoreId(user);
-        const branchId = resolveSaleBranchId(dto.branchId, user);
+        const branchId = resolveBranchId(dto.branchId, user);
 
         // ── Validate branch ──────────────────────────────────────────────────
         const branch = await prisma.branch.findFirst({

@@ -10,7 +10,7 @@ export const registerStoreSchema = z.object({
         .min(3)
         .max(50)
         .regex(/^[a-zA-Z0-9_]+$/, "Username may only contain letters, numbers, and underscores"),
-    password: z.string().min(10).max(100),
+    password: z.string().min(6).max(100),
     confirmPassword: z.string().min(1).max(100),
     planCode: z
         .string()

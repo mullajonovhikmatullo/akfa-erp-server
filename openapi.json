@@ -1422,7 +1422,7 @@
           },
           "password": {
             "type": "string",
-            "minLength": 10,
+            "minLength": 6,
             "example": "secret12345"
           },
           "branchId": {

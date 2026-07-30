@@ -11,7 +11,7 @@ export const exchangeHandoffSchema = z.object({
 
 export const completeAccountSetupSchema = z.object({
     setupCode: z.string().min(32).max(200),
-    newPassword: z.string().min(10).max(100),
+    newPassword: z.string().min(6).max(100),
     confirmPassword: z.string().min(1).max(100),
 }).strict().refine((data) => data.newPassword === data.confirmPassword, {
     message: "Passwords do not match",

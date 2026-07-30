@@ -7,7 +7,7 @@ export const createAdminSchema = z.object({
         .min(3)
         .max(50)
         .regex(/^[a-zA-Z0-9_]+$/, "Username may only contain letters, numbers, and underscores"),
-    password: z.string().min(10).max(100),
+    password: z.string().min(6).max(100),
     branchId: z.string().uuid("branchId must be a valid UUID"),
 }).strict();
 

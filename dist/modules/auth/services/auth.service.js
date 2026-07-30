@@ -121,7 +121,7 @@ exports.updateProfileSchema = zod_1.z.object({
 }).strict();
 exports.changePasswordSchema = zod_1.z.object({
     currentPassword: zod_1.z.string().min(1, "Joriy parolni kiriting"),
-    newPassword: zod_1.z.string().min(10, "Yangi parol kamida 10 ta belgi bo'lishi kerak").max(100),
+    newPassword: zod_1.z.string().min(6, "Yangi parol kamida 6 ta belgi bo'lishi kerak").max(100),
     confirmPassword: zod_1.z.string().min(1, "Parolni tasdiqlang"),
 }).strict().refine((data) => data.newPassword === data.confirmPassword, {
     message: "Parollar mos kelmadi",

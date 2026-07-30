@@ -56,7 +56,8 @@ test("public onboarding accepts dynamic plan codes and rejects malformed input",
 
     assert.equal(registerStoreSchema.safeParse({ ...base, planCode: "NETWORK" }).success, true);
     assert.equal(registerStoreSchema.safeParse({ ...base, planCode: "../NETWORK" }).success, false);
-    assert.equal(registerStoreSchema.safeParse({ ...base, password: "123456" }).success, false);
+    assert.equal(registerStoreSchema.safeParse({ ...base, password: "123456", confirmPassword: "123456" }).success, true);
+    assert.equal(registerStoreSchema.safeParse({ ...base, password: "12345", confirmPassword: "12345" }).success, false);
     assert.equal(registerStoreSchema.safeParse({ ...base, confirmPassword: "different-password" }).success, false);
     assert.equal(registerStoreSchema.safeParse({ ...base, planCode: "START" }).success, true);
 });
@@ -178,14 +179,14 @@ test("owner setup regeneration requires step-up password confirmation", () => {
     );
 });
 
-test("new tenant admins require a ten-character password", () => {
+test("new tenant admins require a six-character password", () => {
     const base = {
         fullName: "Branch Admin",
         username: "branch_admin",
         branchId: "0f7683fb-7c0a-40b6-a7d1-e3548231b789",
     };
-    assert.equal(createAdminSchema.safeParse({ ...base, password: "123456789" }).success, false);
-    assert.equal(createAdminSchema.safeParse({ ...base, password: "1234567890" }).success, true);
+    assert.equal(createAdminSchema.safeParse({ ...base, password: "12345" }).success, false);
+    assert.equal(createAdminSchema.safeParse({ ...base, password: "123456" }).success, true);
 });
 
 test("handoff codes are hashed deterministically and have bounded TTLs", () => {

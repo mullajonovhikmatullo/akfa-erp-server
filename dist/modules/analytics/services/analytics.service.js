@@ -32,7 +32,7 @@ exports.AnalyticsService = {
             : client_1.Prisma.sql `p."lowStockThreshold"`;
         const lowStockThresholdRequiredSql = lowStockThreshold
             ? client_1.Prisma.empty
-            : client_1.Prisma.sql `p."lowStockThreshold" IS NOT NULL AND`;
+            : client_1.Prisma.sql `AND p."lowStockThreshold" IS NOT NULL`;
         const saleWhere = {
             storeId,
             ...(branchId && { branchId }),
@@ -70,9 +70,9 @@ exports.AnalyticsService = {
                     SELECT COUNT(*)::bigint AS count
                     FROM "Inventory" inv
                     JOIN "Product" p ON p.id = inv."productId"
-                    WHERE ${lowStockThresholdRequiredSql}
-                      inv."storeId" = ${storeId}
-                      p."isActive" = true
+                    WHERE inv."storeId" = ${storeId}
+                      AND p."isActive" = true
+                      ${lowStockThresholdRequiredSql}
                       AND inv.quantity <= ${lowStockThresholdSql}
                       ${branchId ? client_1.Prisma.sql `AND inv."branchId" = ${branchId}` : client_1.Prisma.empty}
                 `,
@@ -249,7 +249,7 @@ exports.AnalyticsService = {
             : client_1.Prisma.sql `p."lowStockThreshold"`;
         const lowStockThresholdRequiredSql = lowStockThreshold
             ? client_1.Prisma.empty
-            : client_1.Prisma.sql `p."lowStockThreshold" IS NOT NULL AND`;
+            : client_1.Prisma.sql `AND p."lowStockThreshold" IS NOT NULL`;
         const [stockByBranch, lowStock, movementSummary] = await Promise.all([
             prisma_1.prisma.$queryRaw `
                 SELECT
@@ -290,9 +290,9 @@ exports.AnalyticsService = {
                 FROM "Inventory" inv
                 JOIN "Product" p ON p.id = inv."productId"
                 JOIN "Branch" b ON b.id = inv."branchId"
-                WHERE ${lowStockThresholdRequiredSql}
-                  inv."storeId" = ${storeId}
-                  p."isActive" = true
+                WHERE inv."storeId" = ${storeId}
+                  AND p."isActive" = true
+                  ${lowStockThresholdRequiredSql}
                   AND inv.quantity <= ${lowStockThresholdSql}
                   ${branchId ? client_1.Prisma.sql `AND inv."branchId" = ${branchId}` : client_1.Prisma.empty}
                 ORDER BY (inv.quantity / NULLIF(${lowStockThresholdSql}, 0)) ASC NULLS LAST

@@ -475,6 +475,29 @@ export function createProductImagesService(
             };
         },
 
+        async readPublicFile(
+            routeStoreId: string,
+            productId: string,
+            imageId: string,
+            fileName: string
+        ) {
+            if (fileName !== "main.webp" && fileName !== "thumbnail.webp") {
+                throw new AppError(404, "Product image not found");
+            }
+
+            const image = await repository.findImage(imageId, productId, routeStoreId);
+            if (!image) throw new AppError(404, "Product image not found");
+            const key =
+                fileName === "main.webp"
+                    ? image.storageKey
+                    : image.thumbnailStorageKey;
+
+            return {
+                content: await storage.read(key),
+                mimeType: "image/webp",
+            };
+        },
+
         async cleanupProductFiles(images: Array<{
             storageKey: string;
             thumbnailStorageKey: string;

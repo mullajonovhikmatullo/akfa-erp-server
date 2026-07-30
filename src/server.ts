@@ -62,36 +62,49 @@ app.use(
 );
 const securityHeaders = helmet();
 app.use((req, res, next) => {
-    if (req.path.startsWith("/docs")) return next();
+    if (req.path.startsWith("/docs") || req.path.startsWith("/api/docs")) return next();
     return securityHeaders(req, res, next);
 });
 app.use(morgan("dev"));
 
-app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.get("/openapi.json", (_req, res) => {
+const apiRouter = express.Router();
+
+apiRouter.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+apiRouter.get("/openapi.json", (_req, res) => {
     res.json(swaggerSpec);
 });
 
-app.use("/public", onboardingRoutes);
-app.use("/auth", authRoutes);
-app.use("/platform", platformRoutes);
-app.use("/users", usersRoutes);
-app.use("/branches", branchesRoutes);
-app.use("/admins", adminsRoutes);
-app.use("/products", productsRoutes);
-app.use("/inventory", inventoryRoutes);
-app.use("/customers", customersRoutes);
-app.use("/sales", salesRoutes);
-app.use("/expenses", expensesRoutes);
-app.use("/transfers", transfersRoutes);
-app.use("/analytics", analyticsRoutes);
-app.use("/billing", billingRoutes);
-app.use("/media", mediaRoutes);
-app.use("/uploads", productImageFilesRoutes);
+apiRouter.use("/public", onboardingRoutes);
+apiRouter.use("/auth", authRoutes);
+apiRouter.use("/platform", platformRoutes);
+apiRouter.use("/users", usersRoutes);
+apiRouter.use("/branches", branchesRoutes);
+apiRouter.use("/admins", adminsRoutes);
+apiRouter.use("/products", productsRoutes);
+apiRouter.use("/inventory", inventoryRoutes);
+apiRouter.use("/customers", customersRoutes);
+apiRouter.use("/sales", salesRoutes);
+apiRouter.use("/expenses", expensesRoutes);
+apiRouter.use("/transfers", transfersRoutes);
+apiRouter.use("/analytics", analyticsRoutes);
+apiRouter.use("/billing", billingRoutes);
+apiRouter.use("/media", mediaRoutes);
+apiRouter.use("/uploads", productImageFilesRoutes);
 
-app.get("/", (_, res) => {
+apiRouter.get("/", (_, res) => {
     res.json({ message: "Store Management API Running" });
 });
+
+apiRouter.get("/health", (_req, res) => {
+    res.json({
+        status: "ok",
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString(),
+    });
+});
+
+app.use("/", apiRouter);
+app.use("/api", apiRouter);
 
 // Must be last — global error handler
 app.use(errorHandler);

@@ -20,6 +20,7 @@ const branchRoom = (branchId) => `branch:${branchId}`;
 const userRoom = (userId) => `user:${userId}`;
 function initSocketServer(server, isOriginAllowed) {
     io = new socket_io_1.Server(server, {
+        path: process.env.SOCKET_IO_PATH || "/api/socket.io",
         cors: {
             origin: (origin, callback) => {
                 if (isOriginAllowed(origin))

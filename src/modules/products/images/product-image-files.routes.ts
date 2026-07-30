@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { authMiddleware } from "../../auth/middleware/auth.middleware";
 import { ProductImagesController } from "./controllers/product-images.controller";
 
 const router = Router();
@@ -50,7 +49,6 @@ const router = Router();
  */
 router.get(
     "/organizations/:storeId/products/:productId/:imageId/:fileName",
-    authMiddleware,
     ProductImagesController.file
 );
 

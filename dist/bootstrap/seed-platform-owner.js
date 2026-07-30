@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.seedSuperAdmin = seedSuperAdmin;
+exports.seedPlatformOwner = seedPlatformOwner;
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const prisma_1 = require("../infrastructure/prisma/prisma");
 const PLAN_SEEDS = [
@@ -18,7 +18,7 @@ async function seedPlans() {
         update: {},
     })));
 }
-async function seedSuperAdmin() {
+async function seedPlatformOwner() {
     await seedPlans();
     const existingPlatformOwner = await prisma_1.prisma.user.findFirst({
         where: { role: "PLATFORM_OWNER" },

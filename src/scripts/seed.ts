@@ -1,1 +1,1 @@
-import "./create-super-admin";
+import "./create-platform-owner";

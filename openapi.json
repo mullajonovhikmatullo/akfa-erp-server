@@ -1590,7 +1590,7 @@
           "branchId": {
             "type": "string",
             "format": "uuid",
-            "description": "Required for SUPER_ADMIN; ignored for ADMIN"
+            "description": "Required for STORE_OWNER; ignored for ADMIN"
           },
           "fullName": {
             "type": "string",
@@ -1747,7 +1747,7 @@
           "branchId": {
             "type": "string",
             "format": "uuid",
-            "description": "Required for SUPER_ADMIN; ignored for ADMIN (uses own branch)"
+            "description": "Required for STORE_OWNER; ignored for ADMIN (uses own branch)"
           },
           "productId": {
             "type": "string",
@@ -1782,7 +1782,7 @@
           "branchId": {
             "type": "string",
             "format": "uuid",
-            "description": "Required for SUPER_ADMIN; ignored for ADMIN"
+            "description": "Required for STORE_OWNER; ignored for ADMIN"
           },
           "productId": {
             "type": "string",
@@ -2424,7 +2424,7 @@
           "fromBranchId": {
             "type": "string",
             "format": "uuid",
-            "description": "Required for SUPER_ADMIN; ignored for ADMIN (uses their branch)"
+            "description": "Required for STORE_OWNER; ignored for ADMIN (uses their branch)"
           },
           "toBranchId": {
             "type": "string",
@@ -3820,7 +3820,7 @@
     "/analytics/dashboard": {
       "get": {
         "summary": "Top-level KPIs for a date range",
-        "description": "Returns aggregated sales, expenses, net profit, inventory value,\nlow-stock count, customer debt, and pending transfers.\nADMIN sees their branch only; SUPER_ADMIN sees all or a specific branch.\n",
+        "description": "Returns aggregated sales, expenses, net profit, inventory value,\nlow-stock count, customer debt, and pending transfers.\nADMIN sees their branch only; STORE_OWNER sees all or a specific branch.\n",
         "tags": [
           "Analytics"
         ],
@@ -3837,7 +3837,7 @@
               "type": "string",
               "format": "uuid"
             },
-            "description": "SUPER_ADMIN only"
+            "description": "STORE_OWNER only"
           },
           {
             "in": "query",
@@ -4367,7 +4367,7 @@
     },
     "/expenses/categories": {
       "post": {
-        "summary": "Create an expense category (SUPER_ADMIN only)",
+        "summary": "Create an expense category (STORE_OWNER only)",
         "tags": [
           "Expense Categories"
         ],
@@ -4415,7 +4415,7 @@
             "schema": {
               "type": "boolean"
             },
-            "description": "Include inactive categories (SUPER_ADMIN use)"
+            "description": "Include inactive categories (STORE_OWNER use)"
           }
         ],
         "responses": {
@@ -4457,7 +4457,7 @@
         }
       },
       "patch": {
-        "summary": "Update an expense category (SUPER_ADMIN only)",
+        "summary": "Update an expense category (STORE_OWNER only)",
         "tags": [
           "Expense Categories"
         ],
@@ -4500,7 +4500,7 @@
         }
       },
       "delete": {
-        "summary": "Delete an expense category (SUPER_ADMIN only, only if no linked expenses)",
+        "summary": "Delete an expense category (STORE_OWNER only, only if no linked expenses)",
         "tags": [
           "Expense Categories"
         ],
@@ -4719,7 +4719,7 @@
         }
       },
       "delete": {
-        "summary": "Delete an expense (ADMIN within 24h; SUPER_ADMIN anytime)",
+        "summary": "Delete an expense (ADMIN within 24h; STORE_OWNER anytime)",
         "tags": [
           "Expenses"
         ],
@@ -4839,7 +4839,7 @@
               "type": "string",
               "format": "uuid"
             },
-            "description": "SUPER_ADMIN only — omit to see all branches"
+            "description": "STORE_OWNER only — omit to see all branches"
           },
           {
             "in": "query",
@@ -6029,7 +6029,7 @@
               "type": "string",
               "format": "uuid"
             },
-            "description": "SUPER_ADMIN only — filter by branch (as source or destination)"
+            "description": "STORE_OWNER only — filter by branch (as source or destination)"
           },
           {
             "in": "query",
@@ -6148,7 +6148,7 @@
     "/transfers/{id}/cancel": {
       "post": {
         "summary": "Cancel a pending transfer (no stock movement)",
-        "description": "ADMIN can cancel only their own transfers; SUPER_ADMIN can cancel any.",
+        "description": "ADMIN can cancel only their own transfers; STORE_OWNER can cancel any.",
         "tags": [
           "Transfers"
         ],
@@ -6187,24 +6187,6 @@
     "/users/me": {
       "get": {
         "summary": "Current user",
-        "tags": [
-          "Users"
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success"
-          }
-        }
-      }
-    },
-    "/users/super-admin": {
-      "get": {
-        "summary": "Super admin only",
         "tags": [
           "Users"
         ],

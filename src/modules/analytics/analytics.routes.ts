@@ -7,7 +7,7 @@ const router = Router();
 
 router.use(
     authMiddleware,
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN")
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "ADMIN")
 );
 
 /**
@@ -28,7 +28,7 @@ router.use(
  *     description: |
  *       Returns aggregated sales, expenses, net profit, inventory value,
  *       low-stock count, customer debt, and pending transfers.
- *       ADMIN sees their branch only; SUPER_ADMIN sees all or a specific branch.
+ *       ADMIN sees their branch only; STORE_OWNER sees all or a specific branch.
  *     tags: [Analytics]
  *     security:
  *       - bearerAuth: []
@@ -36,7 +36,7 @@ router.use(
  *       - in: query
  *         name: branchId
  *         schema: { type: string, format: uuid }
- *         description: SUPER_ADMIN only
+ *         description: STORE_OWNER only
  *       - in: query
  *         name: from
  *         schema: { type: string, format: date-time }

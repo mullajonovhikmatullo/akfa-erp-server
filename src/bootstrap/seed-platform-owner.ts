@@ -19,7 +19,7 @@ async function seedPlans(): Promise<void> {
     );
 }
 
-export async function seedSuperAdmin(): Promise<void> {
+export async function seedPlatformOwner(): Promise<void> {
     await seedPlans();
 
     const existingPlatformOwner = await prisma.user.findFirst({

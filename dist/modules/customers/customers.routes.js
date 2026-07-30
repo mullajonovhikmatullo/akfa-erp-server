@@ -45,7 +45,7 @@ router.use(auth_middleware_1.authMiddleware);
  *         branchId:
  *           type: string
  *           format: uuid
- *           description: Required for SUPER_ADMIN; ignored for ADMIN
+ *           description: Required for STORE_OWNER; ignored for ADMIN
  *         fullName:
  *           type: string
  *           example: Bobur Toshmatov

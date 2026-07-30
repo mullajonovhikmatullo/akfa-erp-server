@@ -100,7 +100,7 @@ export const BillingService = {
 
     async submitPayment(input: SubmitTenantPaymentInput, actor: JwtPayload) {
         const storeId = requireStore(actor);
-        if (![UserRole.STORE_OWNER, UserRole.STORE_ADMIN, UserRole.SUPER_ADMIN].includes(actor.role as any)) {
+        if (![UserRole.STORE_OWNER, UserRole.STORE_ADMIN].includes(actor.role as any)) {
             throw new AppError(403, "Only a store owner or store admin can submit subscription payments");
         }
         const receipt = prepareReceipt(input.receipt);

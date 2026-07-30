@@ -7,7 +7,7 @@ import { AdminsController } from "./controllers/admins.controller";
 
 const router = Router();
 
-router.use(authMiddleware, roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"));
+router.use(authMiddleware, roleMiddleware("STORE_OWNER", "STORE_ADMIN"));
 
 /**
  * @swagger
@@ -105,7 +105,7 @@ router.use(authMiddleware, roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_A
  */
 router.post(
     "/",
-    roleMiddleware("STORE_OWNER", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER"),
     validate(createAdminSchema),
     AdminsController.create
 );
@@ -185,7 +185,7 @@ router.get("/:id", AdminsController.findById);
  */
 router.patch(
     "/:id",
-    roleMiddleware("STORE_OWNER", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER"),
     validate(updateAdminSchema),
     AdminsController.update
 );
@@ -211,7 +211,7 @@ router.patch(
  */
 router.patch(
     "/:id/disable",
-    roleMiddleware("STORE_OWNER", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER"),
     AdminsController.disable
 );
 
@@ -236,7 +236,7 @@ router.patch(
  */
 router.patch(
     "/:id/enable",
-    roleMiddleware("STORE_OWNER", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER"),
     AdminsController.enable
 );
 
@@ -263,7 +263,7 @@ router.patch(
  */
 router.delete(
     "/:id",
-    roleMiddleware("STORE_OWNER", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER"),
     AdminsController.delete
 );
 

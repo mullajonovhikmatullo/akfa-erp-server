@@ -77,7 +77,7 @@ router.use(auth_middleware_1.authMiddleware);
  *       422:
  *         description: Validation error
  */
-router.post("/categories", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(category_validation_1.createCategorySchema), categories_controller_1.CategoriesController.create);
+router.post("/categories", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), (0, validate_1.validate)(category_validation_1.createCategorySchema), categories_controller_1.CategoriesController.create);
 /**
  * @swagger
  * /products/categories:
@@ -147,7 +147,7 @@ router.get("/categories/:id", categories_controller_1.CategoriesController.findB
  *       409:
  *         description: Name already in use
  */
-router.patch("/categories/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(category_validation_1.updateCategorySchema), categories_controller_1.CategoriesController.update);
+router.patch("/categories/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), (0, validate_1.validate)(category_validation_1.updateCategorySchema), categories_controller_1.CategoriesController.update);
 /**
  * @swagger
  * /products/categories/{id}:
@@ -169,7 +169,7 @@ router.patch("/categories/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWN
  *       409:
  *         description: Category has assigned products
  */
-router.delete("/categories/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), categories_controller_1.CategoriesController.delete);
+router.delete("/categories/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), categories_controller_1.CategoriesController.delete);
 // ─── Product Routes ────────────────────────────────────────────────────────────
 /**
  * @swagger
@@ -406,7 +406,7 @@ router.delete("/categories/:id", (0, role_middleware_1.roleMiddleware)("STORE_OW
  *       422:
  *         description: Validation error
  */
-router.post("/", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(product_validation_1.createProductSchema), products_controller_1.ProductsController.create);
+router.post("/", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), (0, validate_1.validate)(product_validation_1.createProductSchema), products_controller_1.ProductsController.create);
 /**
  * @swagger
  * /products:
@@ -492,7 +492,7 @@ router.get("/summary", products_controller_1.ProductsController.summary);
  *       200:
  *         description: Ordered product images
  */
-router.post("/:productId/images", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), product_image_upload_middleware_1.productImageUpload, product_images_controller_1.ProductImagesController.upload);
+router.post("/:productId/images", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), product_image_upload_middleware_1.productImageUpload, product_images_controller_1.ProductImagesController.upload);
 router.get("/:productId/images", product_images_controller_1.ProductImagesController.list);
 /**
  * @swagger
@@ -523,7 +523,7 @@ router.get("/:productId/images", product_images_controller_1.ProductImagesContro
  *     security:
  *       - bearerAuth: []
  */
-router.put("/:productId/images/:imageId", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), product_image_upload_middleware_1.productImageUpload, product_images_controller_1.ProductImagesController.replace);
+router.put("/:productId/images/:imageId", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), product_image_upload_middleware_1.productImageUpload, product_images_controller_1.ProductImagesController.replace);
 /**
  * @swagger
  * /products/{productId}/images/reorder:
@@ -542,7 +542,7 @@ router.put("/:productId/images/:imageId", (0, role_middleware_1.roleMiddleware)(
  *       200:
  *         description: Images reordered
  */
-router.patch("/:productId/images/reorder", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(product_image_validation_1.reorderProductImagesSchema), product_images_controller_1.ProductImagesController.reorder);
+router.patch("/:productId/images/reorder", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), (0, validate_1.validate)(product_image_validation_1.reorderProductImagesSchema), product_images_controller_1.ProductImagesController.reorder);
 /**
  * @swagger
  * /products/{productId}/images/{imageId}/primary:
@@ -555,8 +555,8 @@ router.patch("/:productId/images/reorder", (0, role_middleware_1.roleMiddleware)
  *       200:
  *         description: Primary image updated
  */
-router.patch("/:productId/images/:imageId/primary", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), product_images_controller_1.ProductImagesController.setPrimary);
-router.delete("/:productId/images/:imageId", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), product_images_controller_1.ProductImagesController.delete);
+router.patch("/:productId/images/:imageId/primary", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), product_images_controller_1.ProductImagesController.setPrimary);
+router.delete("/:productId/images/:imageId", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), product_images_controller_1.ProductImagesController.delete);
 /**
  * @swagger
  * /products/sku/{sku}:
@@ -629,7 +629,7 @@ router.get("/:id", products_controller_1.ProductsController.findById);
  *       409:
  *         description: SKU already in use
  */
-router.patch("/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(product_validation_1.updateProductSchema), products_controller_1.ProductsController.update);
+router.patch("/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), (0, validate_1.validate)(product_validation_1.updateProductSchema), products_controller_1.ProductsController.update);
 /**
  * @swagger
  * /products/{id}:
@@ -651,5 +651,5 @@ router.patch("/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE
  *       404:
  *         description: Product not found
  */
-router.delete("/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), products_controller_1.ProductsController.delete);
+router.delete("/:id", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), products_controller_1.ProductsController.delete);
 exports.default = router;

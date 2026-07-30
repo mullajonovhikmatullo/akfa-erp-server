@@ -9,7 +9,7 @@ import swaggerUi from "swagger-ui-express";
 import { swaggerSpec } from "./core/config/swagger";
 import { AppError } from "./core/errors/AppError";
 import { errorHandler } from "./core/errors/errorHandler";
-import { seedSuperAdmin } from "./bootstrap/seed-super-admin";
+import { seedPlatformOwner } from "./bootstrap/seed-platform-owner";
 import { initSocketServer } from "./infrastructure/socket";
 
 import authRoutes from "./modules/auth/auth.routes";
@@ -110,7 +110,7 @@ function assertRuntimeSecurityConfig() {
 
 async function startServer() {
     assertRuntimeSecurityConfig();
-    await seedSuperAdmin();
+    await seedPlatformOwner();
     server.listen(PORT, () => {
         console.log(`SERVER RUNNING ON ${PORT}`);
     });

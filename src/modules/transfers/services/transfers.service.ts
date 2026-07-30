@@ -168,7 +168,7 @@ export const TransfersService = {
             throw new AppError(409, `Only PENDING transfers can be cancelled`);
         }
 
-        // ADMIN can cancel their own initiated transfers; SUPER_ADMIN can cancel any
+        // ADMIN can cancel their own initiated transfers; STORE_OWNER can cancel any
         if (
             isBranchScopedRole(user.role) &&
             transfer.initiatedBy.id !== user.id

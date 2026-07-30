@@ -89,7 +89,7 @@ exports.BillingService = {
     },
     async submitPayment(input, actor) {
         const storeId = requireStore(actor);
-        if (![client_1.UserRole.STORE_OWNER, client_1.UserRole.STORE_ADMIN, client_1.UserRole.SUPER_ADMIN].includes(actor.role)) {
+        if (![client_1.UserRole.STORE_OWNER, client_1.UserRole.STORE_ADMIN].includes(actor.role)) {
             throw new AppError_1.AppError(403, "Only a store owner or store admin can submit subscription payments");
         }
         const receipt = (0, media_service_1.prepareReceipt)(input.receipt);

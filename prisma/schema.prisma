@@ -15,7 +15,6 @@ enum UserRole {
   STORE_ADMIN
   BRANCH_ADMIN
   CASHIER
-  SUPER_ADMIN
   ADMIN
 }
 

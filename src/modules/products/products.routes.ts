@@ -88,7 +88,7 @@ router.use(authMiddleware);
  */
 router.post(
     "/categories",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN"),
     validate(createCategorySchema),
     CategoriesController.create
 );
@@ -167,7 +167,7 @@ router.get("/categories/:id", CategoriesController.findById);
  */
 router.patch(
     "/categories/:id",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN"),
     validate(updateCategorySchema),
     CategoriesController.update
 );
@@ -195,7 +195,7 @@ router.patch(
  */
 router.delete(
     "/categories/:id",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN"),
     CategoriesController.delete
 );
 
@@ -439,7 +439,7 @@ router.delete(
  */
 router.post(
     "/",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN"),
     validate(createProductSchema),
     ProductsController.create
 );
@@ -533,7 +533,7 @@ router.get("/summary", ProductsController.summary);
  */
 router.post(
     "/:productId/images",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN"),
     productImageUpload,
     ProductImagesController.upload
 );
@@ -571,7 +571,7 @@ router.get("/:productId/images", ProductImagesController.list);
  */
 router.put(
     "/:productId/images/:imageId",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN"),
     productImageUpload,
     ProductImagesController.replace
 );
@@ -596,7 +596,7 @@ router.put(
  */
 router.patch(
     "/:productId/images/reorder",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN"),
     validate(reorderProductImagesSchema),
     ProductImagesController.reorder
 );
@@ -615,13 +615,13 @@ router.patch(
  */
 router.patch(
     "/:productId/images/:imageId/primary",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN"),
     ProductImagesController.setPrimary
 );
 
 router.delete(
     "/:productId/images/:imageId",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN"),
     ProductImagesController.delete
 );
 
@@ -701,7 +701,7 @@ router.get("/:id", ProductsController.findById);
  */
 router.patch(
     "/:id",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN"),
     validate(updateProductSchema),
     ProductsController.update
 );
@@ -727,6 +727,6 @@ router.patch(
  *       404:
  *         description: Product not found
  */
-router.delete("/:id", roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), ProductsController.delete);
+router.delete("/:id", roleMiddleware("STORE_OWNER", "STORE_ADMIN"), ProductsController.delete);
 
 export default router;

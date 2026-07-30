@@ -22,7 +22,7 @@ router.use(authMiddleware);
  *         branchId:
  *           type: string
  *           format: uuid
- *           description: Required for SUPER_ADMIN; ignored for ADMIN (uses own branch)
+ *           description: Required for STORE_OWNER; ignored for ADMIN (uses own branch)
  *         productId:
  *           type: string
  *           format: uuid
@@ -45,7 +45,7 @@ router.use(authMiddleware);
  *         branchId:
  *           type: string
  *           format: uuid
- *           description: Required for SUPER_ADMIN; ignored for ADMIN
+ *           description: Required for STORE_OWNER; ignored for ADMIN
  *         productId:
  *           type: string
  *           format: uuid
@@ -143,13 +143,13 @@ router.use(authMiddleware);
  */
 router.post(
     "/stock-in/batch",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "ADMIN"),
     validate(stockInBatchSchema),
     InventoryController.stockInBatch
 );
 router.post(
     "/stock-in",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "ADMIN"),
     validate(stockInSchema),
     InventoryController.stockIn
 );
@@ -180,7 +180,7 @@ router.post(
  */
 router.post(
     "/adjustment",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "ADMIN"),
     validate(adjustmentSchema),
     InventoryController.adjust
 );
@@ -201,7 +201,7 @@ router.post(
  *         schema:
  *           type: string
  *           format: uuid
- *         description: SUPER_ADMIN only — omit to see all branches
+ *         description: STORE_OWNER only — omit to see all branches
  *       - in: query
  *         name: productId
  *         schema:

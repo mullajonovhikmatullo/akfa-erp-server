@@ -1,8 +1,8 @@
 import { JwtPayload } from "../types/jwt.types";
 
 export const PLATFORM_ROLES = ["PLATFORM_OWNER"] as const;
-export const STORE_OWNER_ROLES = ["STORE_OWNER", "SUPER_ADMIN"] as const;
-export const STORE_MANAGER_ROLES = ["STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"] as const;
+export const STORE_OWNER_ROLES = ["STORE_OWNER"] as const;
+export const STORE_MANAGER_ROLES = ["STORE_OWNER", "STORE_ADMIN"] as const;
 export const BRANCH_SCOPED_ROLES = ["BRANCH_ADMIN", "CASHIER", "ADMIN"] as const;
 
 export function isPlatformRole(role: JwtPayload["role"]): boolean {
@@ -27,6 +27,6 @@ export function isStoreRole(role: JwtPayload["role"]): boolean {
 
 export function toClientRole(role: JwtPayload["role"]): string {
     if (role === "PLATFORM_OWNER") return "platform_owner";
-    if (isStoreOwnerRole(role)) return "super_admin";
+    if (isStoreOwnerRole(role)) return "store_owner";
     return "branch_admin";
 }

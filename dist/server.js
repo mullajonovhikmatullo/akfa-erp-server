@@ -13,7 +13,7 @@ const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
 const swagger_1 = require("./core/config/swagger");
 const AppError_1 = require("./core/errors/AppError");
 const errorHandler_1 = require("./core/errors/errorHandler");
-const seed_super_admin_1 = require("./bootstrap/seed-super-admin");
+const seed_platform_owner_1 = require("./bootstrap/seed-platform-owner");
 const socket_1 = require("./infrastructure/socket");
 const auth_routes_1 = __importDefault(require("./modules/auth/auth.routes"));
 const onboarding_routes_1 = __importDefault(require("./modules/onboarding/onboarding.routes"));
@@ -105,7 +105,7 @@ function assertRuntimeSecurityConfig() {
 }
 async function startServer() {
     assertRuntimeSecurityConfig();
-    await (0, seed_super_admin_1.seedSuperAdmin)();
+    await (0, seed_platform_owner_1.seedPlatformOwner)();
     server.listen(PORT, () => {
         console.log(`SERVER RUNNING ON ${PORT}`);
     });

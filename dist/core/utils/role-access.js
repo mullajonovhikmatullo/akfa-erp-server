@@ -8,8 +8,8 @@ exports.isBranchScopedRole = isBranchScopedRole;
 exports.isStoreRole = isStoreRole;
 exports.toClientRole = toClientRole;
 exports.PLATFORM_ROLES = ["PLATFORM_OWNER"];
-exports.STORE_OWNER_ROLES = ["STORE_OWNER", "SUPER_ADMIN"];
-exports.STORE_MANAGER_ROLES = ["STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"];
+exports.STORE_OWNER_ROLES = ["STORE_OWNER"];
+exports.STORE_MANAGER_ROLES = ["STORE_OWNER", "STORE_ADMIN"];
 exports.BRANCH_SCOPED_ROLES = ["BRANCH_ADMIN", "CASHIER", "ADMIN"];
 function isPlatformRole(role) {
     return exports.PLATFORM_ROLES.includes(role);
@@ -30,6 +30,6 @@ function toClientRole(role) {
     if (role === "PLATFORM_OWNER")
         return "platform_owner";
     if (isStoreOwnerRole(role))
-        return "super_admin";
+        return "store_owner";
     return "branch_admin";
 }

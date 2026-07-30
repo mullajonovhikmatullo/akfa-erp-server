@@ -10,7 +10,7 @@ const router = Router();
 
 router.use(
     authMiddleware,
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN")
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN")
 );
 
 router.get("/", BillingController.summary);

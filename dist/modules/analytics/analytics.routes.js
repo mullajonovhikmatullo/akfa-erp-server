@@ -5,7 +5,7 @@ const auth_middleware_1 = require("../auth/middleware/auth.middleware");
 const analytics_controller_1 = require("./controllers/analytics.controller");
 const role_middleware_1 = require("../auth/middleware/role.middleware");
 const router = (0, express_1.Router)();
-router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"));
+router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "ADMIN"));
 /**
  * @swagger
  * components:
@@ -23,7 +23,7 @@ router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddlewar
  *     description: |
  *       Returns aggregated sales, expenses, net profit, inventory value,
  *       low-stock count, customer debt, and pending transfers.
- *       ADMIN sees their branch only; SUPER_ADMIN sees all or a specific branch.
+ *       ADMIN sees their branch only; STORE_OWNER sees all or a specific branch.
  *     tags: [Analytics]
  *     security:
  *       - bearerAuth: []
@@ -31,7 +31,7 @@ router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddlewar
  *       - in: query
  *         name: branchId
  *         schema: { type: string, format: uuid }
- *         description: SUPER_ADMIN only
+ *         description: STORE_OWNER only
  *       - in: query
  *         name: from
  *         schema: { type: string, format: date-time }

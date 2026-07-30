@@ -8,7 +8,7 @@ const role_middleware_1 = require("../auth/middleware/role.middleware");
 const billing_controller_1 = require("./controllers/billing.controller");
 const billing_validation_1 = require("./validations/billing.validation");
 const router = (0, express_1.Router)();
-router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"));
+router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"));
 router.get("/", billing_controller_1.BillingController.summary);
 router.get("/payments", billing_controller_1.BillingController.listPayments);
 router.post("/payments", rateLimit_1.sensitiveActionRateLimit, (0, validate_1.validate)(billing_validation_1.submitTenantPaymentSchema), billing_controller_1.BillingController.submitPayment);

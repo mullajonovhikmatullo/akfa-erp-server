@@ -64,7 +64,7 @@ router.use(authMiddleware);
  * @swagger
  * /expenses/categories:
  *   post:
- *     summary: Create an expense category (SUPER_ADMIN only)
+ *     summary: Create an expense category (STORE_OWNER only)
  *     tags: [Expense Categories]
  *     security:
  *       - bearerAuth: []
@@ -84,7 +84,7 @@ router.use(authMiddleware);
  */
 router.post(
     "/categories",
-    requireRole("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    requireRole("STORE_OWNER", "STORE_ADMIN"),
     validate(createExpenseCategorySchema),
     ExpenseCategoriesController.create
 );
@@ -102,7 +102,7 @@ router.post(
  *         name: includeInactive
  *         schema:
  *           type: boolean
- *         description: Include inactive categories (SUPER_ADMIN use)
+ *         description: Include inactive categories (STORE_OWNER use)
  *     responses:
  *       200:
  *         description: Category list with linked expense count
@@ -136,7 +136,7 @@ router.get("/categories/:id", ExpenseCategoriesController.findById);
  * @swagger
  * /expenses/categories/{id}:
  *   patch:
- *     summary: Update an expense category (SUPER_ADMIN only)
+ *     summary: Update an expense category (STORE_OWNER only)
  *     tags: [Expense Categories]
  *     security:
  *       - bearerAuth: []
@@ -163,7 +163,7 @@ router.get("/categories/:id", ExpenseCategoriesController.findById);
  */
 router.patch(
     "/categories/:id",
-    requireRole("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    requireRole("STORE_OWNER", "STORE_ADMIN"),
     validate(updateExpenseCategorySchema),
     ExpenseCategoriesController.update
 );
@@ -172,7 +172,7 @@ router.patch(
  * @swagger
  * /expenses/categories/{id}:
  *   delete:
- *     summary: Delete an expense category (SUPER_ADMIN only, only if no linked expenses)
+ *     summary: Delete an expense category (STORE_OWNER only, only if no linked expenses)
  *     tags: [Expense Categories]
  *     security:
  *       - bearerAuth: []
@@ -191,7 +191,7 @@ router.patch(
  */
 router.delete(
     "/categories/:id",
-    requireRole("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    requireRole("STORE_OWNER", "STORE_ADMIN"),
     ExpenseCategoriesController.delete
 );
 
@@ -373,7 +373,7 @@ router.get("/:id", ExpensesController.findById);
  * @swagger
  * /expenses/{id}:
  *   delete:
- *     summary: Delete an expense (ADMIN within 24h; SUPER_ADMIN anytime)
+ *     summary: Delete an expense (ADMIN within 24h; STORE_OWNER anytime)
  *     tags: [Expenses]
  *     security:
  *       - bearerAuth: []

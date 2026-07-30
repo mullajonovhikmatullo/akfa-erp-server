@@ -58,7 +58,7 @@ router.use(auth_middleware_1.authMiddleware);
  * @swagger
  * /expenses/categories:
  *   post:
- *     summary: Create an expense category (SUPER_ADMIN only)
+ *     summary: Create an expense category (STORE_OWNER only)
  *     tags: [Expense Categories]
  *     security:
  *       - bearerAuth: []
@@ -76,7 +76,7 @@ router.use(auth_middleware_1.authMiddleware);
  *       422:
  *         description: Validation error
  */
-router.post("/categories", (0, requireRole_1.requireRole)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(expense_category_validation_1.createExpenseCategorySchema), expense_categories_controller_1.ExpenseCategoriesController.create);
+router.post("/categories", (0, requireRole_1.requireRole)("STORE_OWNER", "STORE_ADMIN"), (0, validate_1.validate)(expense_category_validation_1.createExpenseCategorySchema), expense_categories_controller_1.ExpenseCategoriesController.create);
 /**
  * @swagger
  * /expenses/categories:
@@ -90,7 +90,7 @@ router.post("/categories", (0, requireRole_1.requireRole)("STORE_OWNER", "STORE_
  *         name: includeInactive
  *         schema:
  *           type: boolean
- *         description: Include inactive categories (SUPER_ADMIN use)
+ *         description: Include inactive categories (STORE_OWNER use)
  *     responses:
  *       200:
  *         description: Category list with linked expense count
@@ -122,7 +122,7 @@ router.get("/categories/:id", expense_categories_controller_1.ExpenseCategoriesC
  * @swagger
  * /expenses/categories/{id}:
  *   patch:
- *     summary: Update an expense category (SUPER_ADMIN only)
+ *     summary: Update an expense category (STORE_OWNER only)
  *     tags: [Expense Categories]
  *     security:
  *       - bearerAuth: []
@@ -147,12 +147,12 @@ router.get("/categories/:id", expense_categories_controller_1.ExpenseCategoriesC
  *       409:
  *         description: Name conflict
  */
-router.patch("/categories/:id", (0, requireRole_1.requireRole)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(expense_category_validation_1.updateExpenseCategorySchema), expense_categories_controller_1.ExpenseCategoriesController.update);
+router.patch("/categories/:id", (0, requireRole_1.requireRole)("STORE_OWNER", "STORE_ADMIN"), (0, validate_1.validate)(expense_category_validation_1.updateExpenseCategorySchema), expense_categories_controller_1.ExpenseCategoriesController.update);
 /**
  * @swagger
  * /expenses/categories/{id}:
  *   delete:
- *     summary: Delete an expense category (SUPER_ADMIN only, only if no linked expenses)
+ *     summary: Delete an expense category (STORE_OWNER only, only if no linked expenses)
  *     tags: [Expense Categories]
  *     security:
  *       - bearerAuth: []
@@ -169,7 +169,7 @@ router.patch("/categories/:id", (0, requireRole_1.requireRole)("STORE_OWNER", "S
  *       409:
  *         description: Category has linked expenses — deactivate it instead
  */
-router.delete("/categories/:id", (0, requireRole_1.requireRole)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), expense_categories_controller_1.ExpenseCategoriesController.delete);
+router.delete("/categories/:id", (0, requireRole_1.requireRole)("STORE_OWNER", "STORE_ADMIN"), expense_categories_controller_1.ExpenseCategoriesController.delete);
 // ─── Expenses CRUD ────────────────────────────────────────────────────────────
 /**
  * @swagger
@@ -342,7 +342,7 @@ router.get("/:id", expenses_controller_1.ExpensesController.findById);
  * @swagger
  * /expenses/{id}:
  *   delete:
- *     summary: Delete an expense (ADMIN within 24h; SUPER_ADMIN anytime)
+ *     summary: Delete an expense (ADMIN within 24h; STORE_OWNER anytime)
  *     tags: [Expenses]
  *     security:
  *       - bearerAuth: []

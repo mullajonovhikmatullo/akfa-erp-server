@@ -36,7 +36,7 @@ router.use(authMiddleware);
  *         fromBranchId:
  *           type: string
  *           format: uuid
- *           description: Required for SUPER_ADMIN; ignored for ADMIN (uses their branch)
+ *           description: Required for STORE_OWNER; ignored for ADMIN (uses their branch)
  *         toBranchId:
  *           type: string
  *           format: uuid
@@ -76,7 +76,7 @@ router.use(authMiddleware);
  */
 router.post(
     "/",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "ADMIN"),
     validate(createTransferSchema),
     TransfersController.create
 );
@@ -95,7 +95,7 @@ router.post(
  *         schema:
  *           type: string
  *           format: uuid
- *         description: SUPER_ADMIN only — filter by branch (as source or destination)
+ *         description: STORE_OWNER only — filter by branch (as source or destination)
  *       - in: query
  *         name: status
  *         schema:
@@ -178,7 +178,7 @@ router.get("/:id", TransfersController.findById);
  */
 router.post(
     "/:id/complete",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "ADMIN"),
     TransfersController.complete
 );
 
@@ -187,7 +187,7 @@ router.post(
  * /transfers/{id}/cancel:
  *   post:
  *     summary: Cancel a pending transfer (no stock movement)
- *     description: ADMIN can cancel only their own transfers; SUPER_ADMIN can cancel any.
+ *     description: ADMIN can cancel only their own transfers; STORE_OWNER can cancel any.
  *     tags: [Transfers]
  *     security:
  *       - bearerAuth: []
@@ -210,7 +210,7 @@ router.post(
  */
 router.post(
     "/:id/cancel",
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "ADMIN"),
     TransfersController.cancel
 );
 

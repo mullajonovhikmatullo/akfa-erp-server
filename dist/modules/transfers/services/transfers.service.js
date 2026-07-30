@@ -125,7 +125,7 @@ exports.TransfersService = {
         if (transfer.status !== "PENDING") {
             throw new AppError_1.AppError(409, `Only PENDING transfers can be cancelled`);
         }
-        // ADMIN can cancel their own initiated transfers; SUPER_ADMIN can cancel any
+        // ADMIN can cancel their own initiated transfers; STORE_OWNER can cancel any
         if ((0, role_access_1.isBranchScopedRole)(user.role) &&
             transfer.initiatedBy.id !== user.id) {
             throw new AppError_1.AppError(403, "You can only cancel transfers you initiated");

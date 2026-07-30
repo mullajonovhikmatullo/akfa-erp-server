@@ -61,7 +61,7 @@ const storeListSelect = {
         },
     },
     users: {
-        where: { role: { in: [client_1.UserRole.STORE_OWNER, client_1.UserRole.SUPER_ADMIN] } },
+        where: { role: { in: [client_1.UserRole.STORE_OWNER] } },
         select: {
             id: true,
             username: true,

@@ -7,10 +7,5 @@ class UsersController {
             user: req.user,
         });
     }
-    static async superAdminData(req, res) {
-        return res.json({
-            message: "ONLY SUPER ADMIN",
-        });
-    }
 }
 exports.UsersController = UsersController;

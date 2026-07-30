@@ -25,7 +25,7 @@ export function requireStoreId(user: JwtPayload): string {
  * Resolves which branchId an operation targets.
  *
  * ADMIN is always locked to their own branch — requestedBranchId is ignored.
- * SUPER_ADMIN must explicitly supply a branchId.
+ * STORE_OWNER must explicitly supply a branchId.
  *
  * This is the single enforcement point for branch isolation across all modules.
  */
@@ -51,7 +51,7 @@ export function resolveBranchId(
 
 /**
  * Builds a Prisma `where` clause fragment that enforces branch scope.
- * ADMIN sees only their branch; SUPER_ADMIN can filter by branchId or see all.
+ * ADMIN sees only their branch; STORE_OWNER can filter by branchId or see all.
  */
 export function branchScope(
     user: JwtPayload,

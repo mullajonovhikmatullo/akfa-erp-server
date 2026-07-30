@@ -20,7 +20,7 @@ router.use(auth_middleware_1.authMiddleware);
  *         branchId:
  *           type: string
  *           format: uuid
- *           description: Required for SUPER_ADMIN; ignored for ADMIN (uses own branch)
+ *           description: Required for STORE_OWNER; ignored for ADMIN (uses own branch)
  *         productId:
  *           type: string
  *           format: uuid
@@ -43,7 +43,7 @@ router.use(auth_middleware_1.authMiddleware);
  *         branchId:
  *           type: string
  *           format: uuid
- *           description: Required for SUPER_ADMIN; ignored for ADMIN
+ *           description: Required for STORE_OWNER; ignored for ADMIN
  *         productId:
  *           type: string
  *           format: uuid
@@ -138,8 +138,8 @@ router.use(auth_middleware_1.authMiddleware);
  *       422:
  *         description: Validation error
  */
-router.post("/stock-in/batch", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"), (0, validate_1.validate)(inventory_validation_1.stockInBatchSchema), inventory_controller_1.InventoryController.stockInBatch);
-router.post("/stock-in", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"), (0, validate_1.validate)(inventory_validation_1.stockInSchema), inventory_controller_1.InventoryController.stockIn);
+router.post("/stock-in/batch", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "ADMIN"), (0, validate_1.validate)(inventory_validation_1.stockInBatchSchema), inventory_controller_1.InventoryController.stockInBatch);
+router.post("/stock-in", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "ADMIN"), (0, validate_1.validate)(inventory_validation_1.stockInSchema), inventory_controller_1.InventoryController.stockIn);
 // ─── Adjustment ───────────────────────────────────────────────────────────────
 /**
  * @swagger
@@ -163,7 +163,7 @@ router.post("/stock-in", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "S
  *       422:
  *         description: Validation error
  */
-router.post("/adjustment", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "SUPER_ADMIN", "ADMIN"), (0, validate_1.validate)(inventory_validation_1.adjustmentSchema), inventory_controller_1.InventoryController.adjust);
+router.post("/adjustment", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "ADMIN"), (0, validate_1.validate)(inventory_validation_1.adjustmentSchema), inventory_controller_1.InventoryController.adjust);
 // ─── Current Stock ────────────────────────────────────────────────────────────
 /**
  * @swagger
@@ -179,7 +179,7 @@ router.post("/adjustment", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", 
  *         schema:
  *           type: string
  *           format: uuid
- *         description: SUPER_ADMIN only — omit to see all branches
+ *         description: STORE_OWNER only — omit to see all branches
  *       - in: query
  *         name: productId
  *         schema:

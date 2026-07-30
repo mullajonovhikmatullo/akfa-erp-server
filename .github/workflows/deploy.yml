@@ -18,6 +18,8 @@ permissions:
 jobs:
   test-build:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

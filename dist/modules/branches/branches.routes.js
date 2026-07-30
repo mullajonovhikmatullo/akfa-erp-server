@@ -47,7 +47,7 @@ const router = (0, express_1.Router)();
  *       500:
  *         description: Failed to create branch
  */
-router.post("/", auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(branch_validation_1.createBranchSchema), branches_controller_1.BranchesController.create);
+router.post("/", auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), (0, validate_1.validate)(branch_validation_1.createBranchSchema), branches_controller_1.BranchesController.create);
 /**
  * @swagger
  * /branches:
@@ -81,7 +81,7 @@ router.get("/", auth_middleware_1.authMiddleware, branches_controller_1.Branches
  *       200:
  *         description: Branch updated
  */
-router.patch("/:id", auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), (0, validate_1.validate)(branch_validation_1.updateBranchSchema), branches_controller_1.BranchesController.update);
+router.patch("/:id", auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), (0, validate_1.validate)(branch_validation_1.updateBranchSchema), branches_controller_1.BranchesController.update);
 /**
  * @swagger
  * /branches/{id}:
@@ -103,5 +103,5 @@ router.patch("/:id", auth_middleware_1.authMiddleware, (0, role_middleware_1.rol
  *       500:
  *         description: Delete failed
  */
-router.delete("/:id", auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"), branches_controller_1.BranchesController.delete);
+router.delete("/:id", auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADMIN"), branches_controller_1.BranchesController.delete);
 exports.default = router;

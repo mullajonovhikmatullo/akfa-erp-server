@@ -61,7 +61,7 @@ router.post(
 
     authMiddleware,
 
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN"),
 
     validate(createBranchSchema),
 
@@ -111,7 +111,7 @@ router.get(
 router.patch(
     "/:id",
     authMiddleware,
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN"),
     validate(updateBranchSchema),
     BranchesController.update
 );
@@ -142,7 +142,7 @@ router.delete(
 
     authMiddleware,
 
-    roleMiddleware("STORE_OWNER", "STORE_ADMIN", "SUPER_ADMIN"),
+    roleMiddleware("STORE_OWNER", "STORE_ADMIN"),
 
     BranchesController.delete
 );

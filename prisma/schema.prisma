@@ -597,9 +597,11 @@ model SalePayment {
   note          String?
   receivedById  String
   receivedBy    User          @relation(fields: [receivedById], references: [id])
+  isDebtPayment Boolean       @default(false)
   createdAt     DateTime      @default(now())
 
   @@index([saleId])
+  @@index([isDebtPayment, createdAt])
 }
 
 // ─── Expense ──────────────────────────────────────────────────────────────────

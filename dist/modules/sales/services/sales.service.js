@@ -202,6 +202,17 @@ exports.SalesService = {
         ]);
         return { items, total, totalWithDebt };
     },
+    async findDebtPayments(query, user) {
+        const scope = (0, branch_access_1.branchScope)(user, query.branchId);
+        const [items, total] = await sales_repository_1.SalesRepository.findDebtPayments({
+            ...scope,
+            customerId: query.customerId,
+            paymentMethod: query.paymentMethod,
+            from: query.from,
+            to: query.to,
+        }, query.page, query.pageSize);
+        return { items, total, page: query.page, pageSize: query.pageSize };
+    },
     async setDebtDeadline(saleId, debtDueDate, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
         return prisma_1.prisma.$transaction(async (tx) => {

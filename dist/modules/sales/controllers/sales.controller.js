@@ -39,6 +39,16 @@ exports.SalesController = {
             next(error);
         }
     },
+    async findDebtPayments(req, res, next) {
+        try {
+            const query = sale_validation_1.debtPaymentQuerySchema.parse(req.query);
+            const result = await sales_service_1.SalesService.findDebtPayments(query, req.user);
+            return ApiResponse_1.ApiResponse.success(res, result);
+        }
+        catch (error) {
+            next(error);
+        }
+    },
     async addPayment(req, res, next) {
         try {
             const sale = await sales_service_1.SalesService.addPayment(req.params.id, req.body, req.user);

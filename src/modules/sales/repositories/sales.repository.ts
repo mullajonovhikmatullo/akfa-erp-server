@@ -1,4 +1,4 @@
-import { Prisma, SaleType } from "@prisma/client";
+import { PaymentMethod, Prisma, SaleType } from "@prisma/client";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
@@ -59,6 +59,15 @@ type SaleFilters = {
     from?: string;
     to?: string;
     limit: number;
+};
+
+type DebtPaymentFilters = {
+    storeId: string;
+    branchId?: string;
+    customerId?: string;
+    paymentMethod?: PaymentMethod;
+    from?: string;
+    to?: string;
 };
 
 type CreateSaleData = {
@@ -179,6 +188,54 @@ export const SalesRepository = {
         });
     },
 
+    findDebtPayments(filters: DebtPaymentFilters, page: number, pageSize: number) {
+        const where = {
+            isDebtPayment: true,
+            sale: {
+                storeId: filters.storeId,
+                ...(filters.branchId && { branchId: filters.branchId }),
+                ...(filters.customerId && { customerId: filters.customerId }),
+            },
+            ...(filters.paymentMethod && { paymentMethod: filters.paymentMethod }),
+            ...((filters.from || filters.to) && {
+                createdAt: {
+                    ...(filters.from && { gte: new Date(filters.from) }),
+                    ...(filters.to && { lte: new Date(filters.to) }),
+                },
+            }),
+        } satisfies Prisma.SalePaymentWhereInput;
+
+        const select = {
+            id: true,
+            amountUzs: true,
+            amountUsd: true,
+            usdToUzsRate: true,
+            paymentMethod: true,
+            note: true,
+            createdAt: true,
+            receivedBy: { select: { id: true, fullName: true } },
+            sale: {
+                select: {
+                    id: true,
+                    debtAmountUzs: true,
+                    branch: { select: { id: true, name: true } },
+                    customer: { select: { id: true, fullName: true, phone: true } },
+                },
+            },
+        } as const;
+
+        return Promise.all([
+            prisma.salePayment.findMany({
+                where,
+                select,
+                orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+            }),
+            prisma.salePayment.count({ where }),
+        ]);
+    },
+
     findById(id: string, storeId: string, client: DbClient = prisma) {
         return client.sale.findFirst({ where: { id, storeId }, select: saleDetailSelect });
     },
@@ -218,6 +275,7 @@ export const SalesRepository = {
                         paymentMethod: data.paymentMethod as any,
                         note: data.note,
                         receivedById: data.receivedById,
+                        isDebtPayment: true,
                     },
                 },
             },

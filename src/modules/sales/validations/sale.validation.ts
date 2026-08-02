@@ -74,3 +74,13 @@ export const saleQuerySchema = z.object({
         .optional()
         .transform((v) => (v ? Math.min(parseInt(v, 10), 200) : 50)),
 });
+
+export const debtPaymentQuerySchema = z.object({
+    branchId: z.string().uuid().optional(),
+    customerId: z.string().uuid().optional(),
+    paymentMethod: z.nativeEnum(PaymentMethod).optional(),
+    from: z.string().datetime().optional(),
+    to: z.string().datetime().optional(),
+    page: z.coerce.number().int().positive().default(1),
+    pageSize: z.coerce.number().int().positive().max(100).default(10),
+});

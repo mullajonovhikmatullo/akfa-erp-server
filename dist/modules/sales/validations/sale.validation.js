@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.saleQuerySchema = exports.addPaymentSchema = exports.createSaleSchema = exports.setDebtDeadlineSchema = void 0;
+exports.debtPaymentQuerySchema = exports.saleQuerySchema = exports.addPaymentSchema = exports.createSaleSchema = exports.setDebtDeadlineSchema = void 0;
 const zod_1 = require("zod");
 const client_1 = require("@prisma/client");
 const saleItemSchema = zod_1.z.object({
@@ -59,4 +59,13 @@ exports.saleQuerySchema = zod_1.z.object({
         .string()
         .optional()
         .transform((v) => (v ? Math.min(parseInt(v, 10), 200) : 50)),
+});
+exports.debtPaymentQuerySchema = zod_1.z.object({
+    branchId: zod_1.z.string().uuid().optional(),
+    customerId: zod_1.z.string().uuid().optional(),
+    paymentMethod: zod_1.z.nativeEnum(client_1.PaymentMethod).optional(),
+    from: zod_1.z.string().datetime().optional(),
+    to: zod_1.z.string().datetime().optional(),
+    page: zod_1.z.coerce.number().int().positive().default(1),
+    pageSize: zod_1.z.coerce.number().int().positive().max(100).default(10),
 });

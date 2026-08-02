@@ -10,7 +10,7 @@ import { CustomersRepository } from "../../customers/repositories/customers.repo
 import { CreateSaleDto } from "../dto/create-sale.dto";
 import { AddPaymentDto } from "../dto/add-payment.dto";
 import { SalesRepository } from "../repositories/sales.repository";
-import { saleQuerySchema } from "../validations/sale.validation";
+import { debtPaymentQuerySchema, saleQuerySchema } from "../validations/sale.validation";
 
 function resolveUnitPriceUzs(priceUzs: unknown, priceUsd: unknown, usdToUzsRate?: number): number {
     const uzs = Number(priceUzs ?? 0);
@@ -278,6 +278,22 @@ export const SalesService = {
             SalesRepository.countWithDebt(scope.storeId, scope.branchId),
         ]);
         return { items, total, totalWithDebt };
+    },
+
+    async findDebtPayments(query: z.infer<typeof debtPaymentQuerySchema>, user: JwtPayload) {
+        const scope = branchScope(user, query.branchId);
+        const [items, total] = await SalesRepository.findDebtPayments(
+            {
+                ...scope,
+                customerId: query.customerId,
+                paymentMethod: query.paymentMethod,
+                from: query.from,
+                to: query.to,
+            },
+            query.page,
+            query.pageSize
+        );
+        return { items, total, page: query.page, pageSize: query.pageSize };
     },
 
     async setDebtDeadline(saleId: string, debtDueDate: Date | null, user: JwtPayload) {

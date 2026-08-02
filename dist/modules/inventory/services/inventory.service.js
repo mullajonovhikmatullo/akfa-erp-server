@@ -102,6 +102,7 @@ exports.InventoryService = {
         ]);
         return prisma_1.prisma.$transaction(async (tx) => {
             await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
+            const receiptId = (0, crypto_1.randomUUID)();
             const batchIds = items.map(() => (0, crypto_1.randomUUID)());
             const balanceIncrements = new Map();
             items.forEach((item) => {
@@ -122,6 +123,7 @@ exports.InventoryService = {
             await tx.stockBatch.createMany({
                 data: items.map((item, index) => ({
                     id: batchIds[index],
+                    receiptId,
                     storeId: item.storeId,
                     branchId: item.branchId,
                     productId: item.dto.productId,
@@ -239,8 +241,8 @@ exports.InventoryService = {
             to: query.to,
         });
     },
-    async findBatchesSummary(user) {
-        const scope = (0, branch_access_1.branchScope)(user);
+    async findBatchesSummary(query, user) {
+        const scope = (0, branch_access_1.branchScope)(user, query.branchId);
         const [totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs] = await Promise.all([
             inventory_repository_1.InventoryRepository.countBatches({ storeId: scope.storeId, branchId: scope.branchId }),
             inventory_repository_1.InventoryRepository.countBatches({ storeId: scope.storeId, branchId: scope.branchId, depleted: false }),
@@ -268,6 +270,29 @@ exports.InventoryService = {
         ]);
         return { items, total, totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs };
     },
+    async findReceiptsPaginated(query, page, pageSize, user) {
+        const scope = (0, branch_access_1.branchScope)(user, query.branchId);
+        const result = await inventory_repository_1.InventoryRepository.findReceiptsPaginated({ ...scope, from: query.from, to: query.to }, page, pageSize);
+        return {
+            total: result.total,
+            items: result.items.map((item) => ({
+                id: item.id,
+                receivedAt: item.receivedAt,
+                productCount: item.productCount,
+                pieceQuantity: Number(item.pieceQuantity),
+                kgQuantity: Number(item.kgQuantity),
+                totalCostUzs: Number(item.totalCostUzs),
+                remainingValueUzs: Number(item.remainingValueUzs),
+                supplierNote: item.supplierNote,
+                branch: { id: item.branchId, name: item.branchName },
+                createdBy: { id: item.createdById, fullName: item.createdByName },
+            })),
+        };
+    },
+    async findReceiptItems(receiptId, page, pageSize, user) {
+        const scope = (0, branch_access_1.branchScope)(user);
+        return inventory_repository_1.InventoryRepository.findReceiptItems({ ...scope, receiptId }, page, pageSize);
+    },
     // ─── Internal: FIFO deduction ─────────────────────────────────────────────
     // Called by SalesService (STOCK_OUT) and TransfersService (TRANSFER_OUT).
     // movementType lets the caller control what gets logged in StockMovement.
@@ -283,11 +308,13 @@ exports.InventoryService = {
         }
         // FIFO: consume from oldest batches first
         let remaining = quantity;
+        const allocations = [];
         for (const batch of batches) {
             if (remaining <= 0)
                 break;
             const consume = Math.min(Number(batch.remainingQty), remaining);
             await inventory_repository_1.InventoryRepository.decrementBatch(batch.id, consume, tx);
+            allocations.push({ stockBatchId: batch.id, quantity: consume });
             remaining -= consume;
         }
         const nextQty = Number(Math.max(0, currentQty - quantity).toFixed(4));
@@ -298,6 +325,28 @@ exports.InventoryService = {
             productId,
             type: movementType,
             quantity: -quantity,
+            balanceAfter: Number(updated.quantity),
+            note,
+            createdById,
+        }, tx);
+        return { balance: Number(updated.quantity), allocations };
+    },
+    async restoreTransferStock(storeId, branchId, productId, allocations, createdById, note, tx) {
+        const quantity = allocations.reduce((sum, allocation) => sum + allocation.quantity, 0);
+        for (const allocation of allocations) {
+            await tx.stockBatch.update({
+                where: { id: allocation.stockBatchId },
+                data: { remainingQty: { increment: allocation.quantity } },
+            });
+        }
+        const availableQty = await inventory_repository_1.InventoryRepository.sumRemainingQty(storeId, branchId, productId, tx);
+        const updated = await inventory_repository_1.InventoryRepository.setBalance(storeId, branchId, productId, availableQty, tx);
+        await inventory_repository_1.InventoryRepository.createMovement({
+            storeId,
+            branchId,
+            productId,
+            type: client_1.StockMovementType.TRANSFER_IN,
+            quantity,
             balanceAfter: Number(updated.quantity),
             note,
             createdById,

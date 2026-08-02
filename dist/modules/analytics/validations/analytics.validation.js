@@ -24,4 +24,5 @@ exports.analyticsQuerySchema = zod_1.z.object({
         const parsed = Number(v);
         return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
     }),
+    topProductsSort: zod_1.z.enum(["revenue", "quantity"]).default("revenue"),
 });

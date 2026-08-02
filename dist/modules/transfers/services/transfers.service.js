@@ -57,7 +57,7 @@ exports.TransfersService = {
         });
         const created = await prisma_1.prisma.$transaction(async (tx) => {
             await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
-            return transfers_repository_1.TransfersRepository.create({
+            const transfer = await transfers_repository_1.TransfersRepository.create({
                 storeId,
                 fromBranchId,
                 toBranchId: dto.toBranchId,
@@ -65,7 +65,18 @@ exports.TransfersService = {
                 initiatedById: user.id,
                 items,
             }, tx);
-        }, prisma_1.transactionOptions);
+            for (const item of transfer.items) {
+                const reserved = await inventory_service_1.InventoryService.deductStock(storeId, fromBranchId, item.product.id, Number(item.quantity), user.id, `Transfer ${transfer.id} reserved → ${toBranch.name}`, tx, client_1.StockMovementType.TRANSFER_OUT);
+                await tx.transferAllocation.createMany({
+                    data: reserved.allocations.map((allocation) => ({
+                        transferItemId: item.id,
+                        stockBatchId: allocation.stockBatchId,
+                        quantity: allocation.quantity,
+                    })),
+                });
+            }
+            return transfer;
+        }, { ...prisma_1.transactionOptions, isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable });
         (0, socket_1.emitTransferChanged)({
             storeId,
             transferId: created.id,
@@ -97,16 +108,27 @@ exports.TransfersService = {
         }
         const completed = await prisma_1.prisma.$transaction(async (tx) => {
             await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
+            const claimed = await tx.transfer.updateMany({
+                where: { id, storeId, status: "PENDING" },
+                data: { updatedAt: new Date() },
+            });
+            if (claimed.count !== 1)
+                throw new AppError_1.AppError(409, "Transfer is no longer pending");
             for (const item of transfer.items) {
                 const qty = Number(item.quantity);
                 const cost = Number(item.unitCostUzs);
-                // 1. Deduct from source branch (TRANSFER_OUT + FIFO)
-                await inventory_service_1.InventoryService.deductStock(storeId, transfer.fromBranch.id, item.product.id, qty, user.id, `Transfer ${id} → ${transfer.toBranch.name}`, tx, client_1.StockMovementType.TRANSFER_OUT);
-                // 2. Add to destination branch (TRANSFER_IN + new batch)
+                const reservationCount = await tx.transferAllocation.count({
+                    where: { transferItemId: item.id },
+                });
+                // Legacy pending transfers were created before reservation support.
+                if (reservationCount === 0) {
+                    await inventory_service_1.InventoryService.deductStock(storeId, transfer.fromBranch.id, item.product.id, qty, user.id, `Transfer ${id} → ${transfer.toBranch.name}`, tx, client_1.StockMovementType.TRANSFER_OUT);
+                }
+                // Source was already reserved at creation; confirmation only receives it.
                 await inventory_service_1.InventoryService.transferIn(storeId, transfer.toBranch.id, item.product.id, qty, cost, transfer.fromBranch.name, user.id, tx);
             }
             return transfers_repository_1.TransfersRepository.updateStatus(id, "COMPLETED", user.id, tx);
-        }, prisma_1.transactionOptions);
+        }, { ...prisma_1.transactionOptions, isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable });
         (0, socket_1.emitTransferChanged)({
             storeId,
             transferId: completed.id,
@@ -132,8 +154,34 @@ exports.TransfersService = {
         }
         const cancelled = await prisma_1.prisma.$transaction(async (tx) => {
             await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
+            const claimed = await tx.transfer.updateMany({
+                where: { id, storeId, status: "PENDING" },
+                data: { updatedAt: new Date() },
+            });
+            if (claimed.count !== 1)
+                throw new AppError_1.AppError(409, "Transfer is no longer pending");
+            const allocations = await tx.transferAllocation.findMany({
+                where: { transferItem: { transferId: id } },
+                select: {
+                    stockBatchId: true,
+                    quantity: true,
+                    transferItem: { select: { productId: true } },
+                },
+            });
+            const byProduct = new Map();
+            for (const allocation of allocations) {
+                const productAllocations = byProduct.get(allocation.transferItem.productId) ?? [];
+                productAllocations.push({
+                    stockBatchId: allocation.stockBatchId,
+                    quantity: Number(allocation.quantity),
+                });
+                byProduct.set(allocation.transferItem.productId, productAllocations);
+            }
+            for (const [productId, productAllocations] of byProduct) {
+                await inventory_service_1.InventoryService.restoreTransferStock(storeId, transfer.fromBranch.id, productId, productAllocations, user.id, `Cancelled transfer ${id}`, tx);
+            }
             return transfers_repository_1.TransfersRepository.updateStatus(id, "CANCELLED", null, tx);
-        }, prisma_1.transactionOptions);
+        }, { ...prisma_1.transactionOptions, isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable });
         (0, socket_1.emitTransferChanged)({
             storeId,
             transferId: cancelled.id,

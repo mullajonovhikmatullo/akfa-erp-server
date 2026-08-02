@@ -34,6 +34,7 @@ const movementSelect = {
 };
 const batchSelect = {
     id: true,
+    receiptId: true,
     initialQty: true,
     remainingQty: true,
     costPriceUzs: true,
@@ -174,6 +175,66 @@ exports.InventoryRepository = {
             skip: (page - 1) * pageSize,
             take: pageSize,
         });
+    },
+    async findReceiptsPaginated(filters, page, pageSize) {
+        const conditions = [client_1.Prisma.sql `sb."storeId" = ${filters.storeId}`];
+        if (filters.branchId)
+            conditions.push(client_1.Prisma.sql `sb."branchId" = ${filters.branchId}`);
+        if (filters.from)
+            conditions.push(client_1.Prisma.sql `sb."receivedAt" >= ${new Date(filters.from)}`);
+        if (filters.to)
+            conditions.push(client_1.Prisma.sql `sb."receivedAt" <= ${new Date(filters.to)}`);
+        const where = client_1.Prisma.sql `WHERE ${client_1.Prisma.join(conditions, " AND ")}`;
+        const offset = (page - 1) * pageSize;
+        const [items, countRows] = await Promise.all([
+            prisma_1.prisma.$queryRaw(client_1.Prisma.sql `
+                SELECT
+                    sb."receiptId" AS id,
+                    MIN(sb."receivedAt") AS "receivedAt",
+                    COUNT(*)::int AS "productCount",
+                    COALESCE(SUM(CASE WHEN p."unit" = 'PIECE' THEN sb."initialQty" ELSE 0 END), 0) AS "pieceQuantity",
+                    COALESCE(SUM(CASE WHEN p."unit" = 'KG' THEN sb."initialQty" ELSE 0 END), 0) AS "kgQuantity",
+                    COALESCE(SUM(sb."initialQty" * sb."costPriceUzs"), 0) AS "totalCostUzs",
+                    COALESCE(SUM(sb."remainingQty" * sb."costPriceUzs"), 0) AS "remainingValueUzs",
+                    MIN(NULLIF(sb."supplierNote", '')) AS "supplierNote",
+                    b.id AS "branchId",
+                    b.name AS "branchName",
+                    u.id AS "createdById",
+                    u."fullName" AS "createdByName"
+                FROM "StockBatch" sb
+                JOIN "Product" p ON p.id = sb."productId"
+                JOIN "Branch" b ON b.id = sb."branchId"
+                JOIN "User" u ON u.id = sb."createdById"
+                ${where}
+                GROUP BY sb."receiptId", b.id, b.name, u.id, u."fullName"
+                ORDER BY MIN(sb."receivedAt") DESC, sb."receiptId" ASC
+                LIMIT ${pageSize} OFFSET ${offset}
+            `),
+            prisma_1.prisma.$queryRaw(client_1.Prisma.sql `
+                SELECT COUNT(DISTINCT sb."receiptId")::bigint AS total
+                FROM "StockBatch" sb
+                ${where}
+            `),
+        ]);
+        return { items, total: Number(countRows[0]?.total ?? 0) };
+    },
+    async findReceiptItems(filters, page, pageSize) {
+        const where = {
+            storeId: filters.storeId,
+            receiptId: filters.receiptId,
+            ...(filters.branchId && { branchId: filters.branchId }),
+        };
+        const [items, total] = await Promise.all([
+            prisma_1.prisma.stockBatch.findMany({
+                where,
+                select: batchSelect,
+                orderBy: [{ product: { name: "asc" } }, { id: "asc" }],
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+            }),
+            prisma_1.prisma.stockBatch.count({ where }),
+        ]);
+        return { items, total };
     },
     countBatches(filters) {
         return prisma_1.prisma.stockBatch.count({ where: buildBatchWhere(filters) });

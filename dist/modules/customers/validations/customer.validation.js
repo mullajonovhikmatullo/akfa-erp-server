@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.customerQuerySchema = exports.updateCustomerSchema = exports.createCustomerSchema = void 0;
+exports.linkCustomerBranchSchema = exports.customerPhoneCheckSchema = exports.customerQuerySchema = exports.updateCustomerSchema = exports.createCustomerSchema = void 0;
 const zod_1 = require("zod");
 exports.createCustomerSchema = zod_1.z.object({
     branchId: zod_1.z.string().uuid().optional(),
@@ -32,4 +32,11 @@ exports.customerQuerySchema = zod_1.z.object({
         .string()
         .optional()
         .transform((v) => v === "true"),
+});
+exports.customerPhoneCheckSchema = zod_1.z.object({
+    phone: zod_1.z.string().min(7).max(20),
+    branchId: zod_1.z.string().uuid().optional(),
+});
+exports.linkCustomerBranchSchema = zod_1.z.object({
+    branchId: zod_1.z.string().uuid().optional(),
 });

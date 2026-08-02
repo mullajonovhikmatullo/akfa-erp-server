@@ -427,9 +427,8 @@ const frontendSchemas = {
     },
     SubmitTenantPaymentPayload: {
         type: "object",
-        required: ["branchId", "receipt"],
+        required: ["receipt"],
         properties: {
-            branchId: { type: "string" },
             paidAt: { type: "string", format: "date-time" },
             note: { type: "string" },
             receipt: {

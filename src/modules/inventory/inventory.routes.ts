@@ -311,6 +311,8 @@ router.get("/movements", InventoryController.findMovements);
 
 // ─── Batch History ────────────────────────────────────────────────────────────
 
+router.get("/receipts", InventoryController.findReceipts);
+router.get("/receipts/:receiptId/items", InventoryController.findReceiptItems);
 router.get("/batches/summary", InventoryController.findBatchesSummary);
 
 /**

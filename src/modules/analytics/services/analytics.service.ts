@@ -147,6 +147,9 @@ export const AnalyticsService = {
             ? Prisma.sql`AND "branchId" = ${branchId}`
             : Prisma.empty;
         const saleTableStoreCond = Prisma.sql`AND "storeId" = ${storeId}`;
+        const topProductsOrder = query.topProductsSort === "quantity"
+            ? Prisma.sql`SUM(si.quantity) DESC`
+            : Prisma.sql`SUM(si."totalPrice") DESC`;
 
         const periodTrunc = Prisma.raw(`DATE_TRUNC('${query.period}', "createdAt")`);
         const expensePeriodTrunc = Prisma.raw(`DATE_TRUNC('${query.period}', "expenseDate")`);
@@ -230,7 +233,7 @@ export const AnalyticsService = {
                   ${saleStoreCond}
                   ${branchCond}
                 GROUP BY p.id, p.name, p.sku, p.unit
-                ORDER BY SUM(si."totalPrice") DESC
+                ORDER BY ${topProductsOrder}
                 LIMIT ${query.limit}
             `,
         ]);

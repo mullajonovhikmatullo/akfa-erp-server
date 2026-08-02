@@ -7,23 +7,28 @@ const customerSelect = {
     storeId: true,
     fullName: true,
     phone: true,
+    normalizedPhone: true,
     address: true,
     balance: true,
     isActive: true,
     branchId: true,
     branch: { select: { id: true, name: true } },
+    branchLinks: { select: { branchId: true, branch: { select: { id: true, name: true } } } },
     createdAt: true,
     updatedAt: true,
 };
 exports.CustomersRepository = {
     create(data, client = prisma_1.prisma) {
-        return client.customer.create({ data, select: customerSelect });
+        return client.customer.create({
+            data: { ...data, branchLinks: { create: { branchId: data.branchId } } },
+            select: customerSelect,
+        });
     },
     findAll(filters) {
         return prisma_1.prisma.customer.findMany({
             where: {
                 storeId: filters.storeId,
-                ...(filters.branchId && { branchId: filters.branchId }),
+                ...(filters.branchId && { branchLinks: { some: { branchId: filters.branchId } } }),
                 ...(filters.isActive !== undefined && { isActive: filters.isActive }),
                 ...(filters.hasDebt && { balance: { gt: 0 } }),
                 ...(filters.search && {
@@ -42,8 +47,21 @@ exports.CustomersRepository = {
     },
     findByIdInBranch(id, branchId, storeId) {
         return prisma_1.prisma.customer.findFirst({
-            where: { id, branchId, storeId },
+            where: { id, storeId, branchLinks: { some: { branchId } } },
             select: customerSelect,
+        });
+    },
+    findByNormalizedPhone(storeId, normalizedPhone, client = prisma_1.prisma) {
+        return client.customer.findUnique({
+            where: { storeId_normalizedPhone: { storeId, normalizedPhone } },
+            select: customerSelect,
+        });
+    },
+    linkBranch(customerId, branchId, client = prisma_1.prisma) {
+        return client.customerBranch.upsert({
+            where: { customerId_branchId: { customerId, branchId } },
+            create: { customerId, branchId },
+            update: {},
         });
     },
     update(id, storeId, data, client = prisma_1.prisma) {

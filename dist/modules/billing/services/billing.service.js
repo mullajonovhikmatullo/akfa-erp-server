@@ -89,8 +89,8 @@ exports.BillingService = {
     },
     async submitPayment(input, actor) {
         const storeId = requireStore(actor);
-        if (![client_1.UserRole.STORE_OWNER, client_1.UserRole.STORE_ADMIN].includes(actor.role)) {
-            throw new AppError_1.AppError(403, "Only a store owner or store admin can submit subscription payments");
+        if (actor.role !== client_1.UserRole.STORE_OWNER) {
+            throw new AppError_1.AppError(403, "Only a store owner can submit subscription payments");
         }
         const receipt = (0, media_service_1.prepareReceipt)(input.receipt);
         const payment = await prisma_1.prisma.$transaction(async (tx) => {
@@ -112,12 +112,6 @@ exports.BillingService = {
                 store.status === client_1.StoreStatus.CANCELLED) {
                 throw new AppError_1.AppError(409, "Blocked stores cannot submit a payment");
             }
-            const branch = await tx.branch.findFirst({
-                where: { id: input.branchId, storeId },
-                select: { id: true, name: true },
-            });
-            if (!branch)
-                throw new AppError_1.AppError(422, "Selected branch does not belong to this store");
             const amount = Number(store.plan.monthlyPriceUzs);
             if (!Number.isFinite(amount) || amount <= 0) {
                 throw new AppError_1.AppError(409, "Store plan does not have a billable monthly price");
@@ -140,7 +134,6 @@ exports.BillingService = {
             const created = await tx.payment.create({
                 data: {
                     storeId,
-                    branchId: branch.id,
                     subscriptionId: store.subscription.id,
                     submittedById: actor.id,
                     receiptMediaId: media.id,
@@ -161,8 +154,6 @@ exports.BillingService = {
                     action: client_1.AuditAction.PAYMENT_CREATED,
                     metadata: {
                         paymentId: created.id,
-                        branchId: branch.id,
-                        branchName: branch.name,
                         amount,
                         currency: "UZS",
                         planCode: store.plan.code,

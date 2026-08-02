@@ -24,6 +24,24 @@ exports.CustomersController = {
             next(error);
         }
     },
+    async checkPhone(req, res, next) {
+        try {
+            const query = customer_validation_1.customerPhoneCheckSchema.parse(req.query);
+            return ApiResponse_1.ApiResponse.success(res, await customers_service_1.CustomersService.checkPhone(query.phone, query.branchId, req.user));
+        }
+        catch (error) {
+            next(error);
+        }
+    },
+    async linkBranch(req, res, next) {
+        try {
+            const body = customer_validation_1.linkCustomerBranchSchema.parse(req.body);
+            return ApiResponse_1.ApiResponse.success(res, await customers_service_1.CustomersService.linkBranch(req.params.id, body.branchId, req.user));
+        }
+        catch (error) {
+            next(error);
+        }
+    },
     async findById(req, res, next) {
         try {
             const customer = await customers_service_1.CustomersService.findById(req.params.id, req.user);

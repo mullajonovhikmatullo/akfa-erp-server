@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { StockMovementType } from "@prisma/client";
+import { Prisma, StockMovementType } from "@prisma/client";
 import { AppError } from "../../../core/errors/AppError";
 import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
 import { JwtPayload } from "../../../core/types/jwt.types";
@@ -65,7 +65,7 @@ export const TransfersService = {
 
         const created = await prisma.$transaction(async (tx) => {
             await assertStoreWritableInTransaction(tx, storeId);
-            return TransfersRepository.create({
+            const transfer = await TransfersRepository.create({
                 storeId,
                 fromBranchId,
                 toBranchId: dto.toBranchId,
@@ -73,7 +73,29 @@ export const TransfersService = {
                 initiatedById: user.id,
                 items,
             }, tx);
-        }, transactionOptions);
+
+            for (const item of transfer.items) {
+                const reserved = await InventoryService.deductStock(
+                    storeId,
+                    fromBranchId,
+                    item.product.id,
+                    Number(item.quantity),
+                    user.id,
+                    `Transfer ${transfer.id} reserved → ${toBranch.name}`,
+                    tx,
+                    StockMovementType.TRANSFER_OUT
+                );
+                await tx.transferAllocation.createMany({
+                    data: reserved.allocations.map((allocation) => ({
+                        transferItemId: item.id,
+                        stockBatchId: allocation.stockBatchId,
+                        quantity: allocation.quantity,
+                    })),
+                });
+            }
+
+            return transfer;
+        }, { ...transactionOptions, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
         emitTransferChanged({
             storeId,
@@ -112,24 +134,34 @@ export const TransfersService = {
         const completed = await prisma.$transaction(
             async (tx) => {
                 await assertStoreWritableInTransaction(tx, storeId);
+                const claimed = await tx.transfer.updateMany({
+                    where: { id, storeId, status: "PENDING" },
+                    data: { updatedAt: new Date() },
+                });
+                if (claimed.count !== 1) throw new AppError(409, "Transfer is no longer pending");
 
                 for (const item of transfer.items) {
                     const qty = Number(item.quantity);
                     const cost = Number(item.unitCostUzs);
 
-                    // 1. Deduct from source branch (TRANSFER_OUT + FIFO)
-                    await InventoryService.deductStock(
-                        storeId,
-                        transfer.fromBranch.id,
-                        item.product.id,
-                        qty,
-                        user.id,
-                        `Transfer ${id} → ${transfer.toBranch.name}`,
-                        tx,
-                        StockMovementType.TRANSFER_OUT
-                    );
+                    const reservationCount = await tx.transferAllocation.count({
+                        where: { transferItemId: item.id },
+                    });
+                    // Legacy pending transfers were created before reservation support.
+                    if (reservationCount === 0) {
+                        await InventoryService.deductStock(
+                            storeId,
+                            transfer.fromBranch.id,
+                            item.product.id,
+                            qty,
+                            user.id,
+                            `Transfer ${id} → ${transfer.toBranch.name}`,
+                            tx,
+                            StockMovementType.TRANSFER_OUT
+                        );
+                    }
 
-                    // 2. Add to destination branch (TRANSFER_IN + new batch)
+                    // Source was already reserved at creation; confirmation only receives it.
                     await InventoryService.transferIn(
                         storeId,
                         transfer.toBranch.id,
@@ -144,7 +176,7 @@ export const TransfersService = {
 
                 return TransfersRepository.updateStatus(id, "COMPLETED", user.id, tx);
             },
-            transactionOptions
+            { ...transactionOptions, isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
         );
 
         emitTransferChanged({
@@ -178,8 +210,41 @@ export const TransfersService = {
 
         const cancelled = await prisma.$transaction(async (tx) => {
             await assertStoreWritableInTransaction(tx, storeId);
+            const claimed = await tx.transfer.updateMany({
+                where: { id, storeId, status: "PENDING" },
+                data: { updatedAt: new Date() },
+            });
+            if (claimed.count !== 1) throw new AppError(409, "Transfer is no longer pending");
+            const allocations = await tx.transferAllocation.findMany({
+                where: { transferItem: { transferId: id } },
+                select: {
+                    stockBatchId: true,
+                    quantity: true,
+                    transferItem: { select: { productId: true } },
+                },
+            });
+            const byProduct = new Map<string, Array<{ stockBatchId: string; quantity: number }>>();
+            for (const allocation of allocations) {
+                const productAllocations = byProduct.get(allocation.transferItem.productId) ?? [];
+                productAllocations.push({
+                    stockBatchId: allocation.stockBatchId,
+                    quantity: Number(allocation.quantity),
+                });
+                byProduct.set(allocation.transferItem.productId, productAllocations);
+            }
+            for (const [productId, productAllocations] of byProduct) {
+                await InventoryService.restoreTransferStock(
+                    storeId,
+                    transfer.fromBranch.id,
+                    productId,
+                    productAllocations,
+                    user.id,
+                    `Cancelled transfer ${id}`,
+                    tx
+                );
+            }
             return TransfersRepository.updateStatus(id, "CANCELLED", null, tx);
-        }, transactionOptions);
+        }, { ...transactionOptions, isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
         emitTransferChanged({
             storeId,

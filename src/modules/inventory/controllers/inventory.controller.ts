@@ -5,6 +5,7 @@ import {
     inventoryQuerySchema,
     movementQuerySchema,
 } from "../validations/inventory.validation";
+import { z } from "zod";
 import { InventoryService } from "../services/inventory.service";
 
 export const InventoryController = {
@@ -57,7 +58,8 @@ export const InventoryController = {
 
     async findBatchesSummary(req: Request, res: Response, next: NextFunction) {
         try {
-            const summary = await InventoryService.findBatchesSummary(req.user!);
+            const query = batchQuerySchema.parse(req.query);
+            const summary = await InventoryService.findBatchesSummary(query, req.user!);
             return ApiResponse.success(res, summary);
         } catch (error) {
             next(error);
@@ -75,6 +77,30 @@ export const InventoryController = {
             }
             const batches = await InventoryService.findBatches(query, req.user!);
             return ApiResponse.success(res, batches);
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    async findReceipts(req: Request, res: Response, next: NextFunction) {
+        try {
+            const query = batchQuerySchema.parse(req.query);
+            const page = Math.max(1, Number(req.query.page) || 1);
+            const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+            const result = await InventoryService.findReceiptsPaginated(query, page, pageSize, req.user!);
+            return ApiResponse.success(res, result);
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    async findReceiptItems(req: Request, res: Response, next: NextFunction) {
+        try {
+            const receiptId = z.string().uuid().parse(req.params.receiptId);
+            const page = Math.max(1, Number(req.query.page) || 1);
+            const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 25));
+            const result = await InventoryService.findReceiptItems(receiptId, page, pageSize, req.user!);
+            return ApiResponse.success(res, result);
         } catch (error) {
             next(error);
         }

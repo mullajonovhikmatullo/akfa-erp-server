@@ -140,7 +140,6 @@ test("manual payments cannot choose foreign currency or billing period", () => {
 
 test("tenant payment payload cannot override amount and requires a bounded receipt", () => {
     const valid = {
-        branchId: "0f7683fb-7c0a-40b6-a7d1-e3548231b789",
         receipt: {
             fileName: "receipt.png",
             mimeType: "image/png",

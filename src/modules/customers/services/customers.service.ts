@@ -10,14 +10,60 @@ import { z } from "zod";
 import { customerQuerySchema } from "../validations/customer.validation";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 
+export function normalizeCustomerPhone(phone?: string | null) {
+    if (!phone) return undefined;
+    let digits = phone.replace(/\D/g, "");
+    if (digits.startsWith("00")) digits = digits.slice(2);
+    if (digits.length === 9) digits = `998${digits}`;
+    return digits ? `+${digits}` : undefined;
+}
+
 export const CustomersService = {
     async create(dto: CreateCustomerDto, user: JwtPayload) {
         const storeId = requireStoreId(user);
         const branchId = resolveBranchId(dto.branchId, user);
+        const normalizedPhone = normalizeCustomerPhone(dto.phone);
         return prisma.$transaction(async (tx) => {
             await assertStoreWritableInTransaction(tx, storeId);
             await assertBranchInStore(branchId, storeId, tx);
-            return CustomersRepository.create({ ...dto, storeId, branchId }, tx);
+            if (normalizedPhone) {
+                const existing = await CustomersRepository.findByNormalizedPhone(storeId, normalizedPhone, tx);
+                if (existing) throw new AppError(409, "Bu telefon raqamli mijoz allaqachon mavjud");
+            }
+            return CustomersRepository.create({
+                ...dto,
+                phone: normalizedPhone,
+                normalizedPhone,
+                storeId,
+                branchId,
+            }, tx);
+        }, transactionOptions);
+    },
+
+    async checkPhone(phone: string, requestedBranchId: string | undefined, user: JwtPayload) {
+        const storeId = requireStoreId(user);
+        const branchId = resolveBranchId(requestedBranchId, user);
+        await assertBranchInStore(branchId, storeId);
+        const normalizedPhone = normalizeCustomerPhone(phone);
+        if (!normalizedPhone) return { customer: null, linkedToBranch: false, normalizedPhone: null };
+        const customer = await CustomersRepository.findByNormalizedPhone(storeId, normalizedPhone);
+        return {
+            customer,
+            linkedToBranch: Boolean(customer?.branchLinks.some((link) => link.branchId === branchId)),
+            normalizedPhone,
+        };
+    },
+
+    async linkBranch(id: string, requestedBranchId: string | undefined, user: JwtPayload) {
+        const storeId = requireStoreId(user);
+        const branchId = resolveBranchId(requestedBranchId, user);
+        return prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId);
+            await assertBranchInStore(branchId, storeId, tx);
+            const customer = await CustomersRepository.findById(id, storeId, tx);
+            if (!customer) throw new AppError(404, "Customer not found");
+            await CustomersRepository.linkBranch(customer.id, branchId, tx);
+            return CustomersRepository.findById(customer.id, storeId, tx);
         }, transactionOptions);
     },
 
@@ -37,7 +83,7 @@ export const CustomersService = {
         if (!customer) throw new AppError(404, "Customer not found");
 
         // Branch isolation: ADMIN can only view customers in their branch
-        if (isBranchScopedRole(user.role) && customer.branchId !== user.branchId) {
+        if (isBranchScopedRole(user.role) && !customer.branchLinks.some((link) => link.branchId === user.branchId)) {
             throw new AppError(403, "Forbidden");
         }
 
@@ -52,11 +98,19 @@ export const CustomersService = {
             const customer = await CustomersRepository.findById(id, storeId, tx);
             if (!customer) throw new AppError(404, "Customer not found");
 
-            if (isBranchScopedRole(user.role) && customer.branchId !== user.branchId) {
+            if (isBranchScopedRole(user.role) && !customer.branchLinks.some((link) => link.branchId === user.branchId)) {
                 throw new AppError(403, "Forbidden");
             }
 
-            return CustomersRepository.update(id, storeId, dto, tx);
+            const normalizedPhone = dto.phone === undefined ? undefined : normalizeCustomerPhone(dto.phone);
+            if (normalizedPhone) {
+                const duplicate = await CustomersRepository.findByNormalizedPhone(storeId, normalizedPhone, tx);
+                if (duplicate && duplicate.id !== id) throw new AppError(409, "Bu telefon raqamli mijoz allaqachon mavjud");
+            }
+            return CustomersRepository.update(id, storeId, {
+                ...dto,
+                ...(dto.phone !== undefined ? { phone: normalizedPhone, normalizedPhone } : {}),
+            }, tx);
         }, transactionOptions);
     },
 
@@ -67,7 +121,7 @@ export const CustomersService = {
             const customer = await CustomersRepository.findById(id, storeId, tx);
             if (!customer) throw new AppError(404, "Customer not found");
 
-            if (isBranchScopedRole(user.role) && customer.branchId !== user.branchId) {
+            if (isBranchScopedRole(user.role) && !customer.branchLinks.some((link) => link.branchId === user.branchId)) {
                 throw new AppError(403, "Forbidden");
             }
 

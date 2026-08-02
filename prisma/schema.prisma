@@ -297,6 +297,7 @@ model Branch {
   phone          String?
   users          User[]
   customers      Customer[]
+  customerLinks  CustomerBranch[]
   inventories    Inventory[]
   stockBatches   StockBatch[]
   stockMovements StockMovement[]
@@ -448,6 +449,7 @@ model Inventory {
 
 model StockBatch {
   id           String   @id @default(uuid())
+  receiptId    String   @default(uuid())
   storeId      String
   store        Store    @relation(fields: [storeId], references: [id])
   branchId     String
@@ -464,8 +466,10 @@ model StockBatch {
   createdBy    User     @relation(fields: [createdById], references: [id])
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  transferAllocations TransferAllocation[]
 
   @@index([storeId])
+  @@index([storeId, receiptId])
   @@index([branchId, productId])
   @@index([remainingQty])
   @@index([receivedAt])
@@ -504,18 +508,33 @@ model Customer {
   store     Store    @relation(fields: [storeId], references: [id])
   fullName  String
   phone     String?
+  normalizedPhone String?
   address   String?
   branchId  String
   branch    Branch   @relation(fields: [branchId], references: [id])
   balance   Decimal  @default(0) @db.Decimal(18, 2)
   isActive  Boolean  @default(true)
   sales     Sale[]
+  branchLinks CustomerBranch[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([storeId])
   @@index([branchId])
   @@index([phone])
+  @@unique([storeId, normalizedPhone])
+}
+
+model CustomerBranch {
+  id         String   @id @default(uuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  branchId   String
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, branchId])
+  @@index([branchId])
 }
 
 // ─── Sale ─────────────────────────────────────────────────────────────────────
@@ -665,7 +684,22 @@ model TransferItem {
   quantity     Decimal  @db.Decimal(18, 4)
   unitCostUzs  Decimal  @db.Decimal(18, 2)
   totalCostUzs Decimal  @db.Decimal(18, 2)
+  allocations TransferAllocation[]
 
   @@index([transferId])
   @@index([productId])
+}
+
+model TransferAllocation {
+  id             String       @id @default(uuid())
+  transferItemId String
+  transferItem   TransferItem @relation(fields: [transferItemId], references: [id], onDelete: Cascade)
+  stockBatchId   String
+  stockBatch     StockBatch   @relation(fields: [stockBatchId], references: [id])
+  quantity       Decimal      @db.Decimal(18, 4)
+  createdAt      DateTime     @default(now())
+
+  @@unique([transferItemId, stockBatchId])
+  @@index([transferItemId])
+  @@index([stockBatchId])
 }

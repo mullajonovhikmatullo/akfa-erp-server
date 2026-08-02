@@ -33,3 +33,12 @@ export const customerQuerySchema = z.object({
         .optional()
         .transform((v) => v === "true"),
 });
+
+export const customerPhoneCheckSchema = z.object({
+    phone: z.string().min(7).max(20),
+    branchId: z.string().uuid().optional(),
+});
+
+export const linkCustomerBranchSchema = z.object({
+    branchId: z.string().uuid().optional(),
+});

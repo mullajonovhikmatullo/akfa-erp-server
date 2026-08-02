@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.InventoryController = void 0;
 const ApiResponse_1 = require("../../../core/response/ApiResponse");
 const inventory_validation_1 = require("../validations/inventory.validation");
+const zod_1 = require("zod");
 const inventory_service_1 = require("../services/inventory.service");
 exports.InventoryController = {
     async stockIn(req, res, next) {
@@ -54,7 +55,8 @@ exports.InventoryController = {
     },
     async findBatchesSummary(req, res, next) {
         try {
-            const summary = await inventory_service_1.InventoryService.findBatchesSummary(req.user);
+            const query = inventory_validation_1.batchQuerySchema.parse(req.query);
+            const summary = await inventory_service_1.InventoryService.findBatchesSummary(query, req.user);
             return ApiResponse_1.ApiResponse.success(res, summary);
         }
         catch (error) {
@@ -72,6 +74,30 @@ exports.InventoryController = {
             }
             const batches = await inventory_service_1.InventoryService.findBatches(query, req.user);
             return ApiResponse_1.ApiResponse.success(res, batches);
+        }
+        catch (error) {
+            next(error);
+        }
+    },
+    async findReceipts(req, res, next) {
+        try {
+            const query = inventory_validation_1.batchQuerySchema.parse(req.query);
+            const page = Math.max(1, Number(req.query.page) || 1);
+            const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+            const result = await inventory_service_1.InventoryService.findReceiptsPaginated(query, page, pageSize, req.user);
+            return ApiResponse_1.ApiResponse.success(res, result);
+        }
+        catch (error) {
+            next(error);
+        }
+    },
+    async findReceiptItems(req, res, next) {
+        try {
+            const receiptId = zod_1.z.string().uuid().parse(req.params.receiptId);
+            const page = Math.max(1, Number(req.query.page) || 1);
+            const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 25));
+            const result = await inventory_service_1.InventoryService.findReceiptItems(receiptId, page, pageSize, req.user);
+            return ApiResponse_1.ApiResponse.success(res, result);
         }
         catch (error) {
             next(error);

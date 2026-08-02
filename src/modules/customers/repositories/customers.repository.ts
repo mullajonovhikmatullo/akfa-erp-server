@@ -8,11 +8,13 @@ const customerSelect = {
     storeId: true,
     fullName: true,
     phone: true,
+    normalizedPhone: true,
     address: true,
     balance: true,
     isActive: true,
     branchId: true,
     branch: { select: { id: true, name: true } },
+    branchLinks: { select: { branchId: true, branch: { select: { id: true, name: true } } } },
     createdAt: true,
     updatedAt: true,
 } as const;
@@ -29,17 +31,20 @@ type DbClient = typeof prisma | Prisma.TransactionClient;
 
 export const CustomersRepository = {
     create(
-        data: Omit<CreateCustomerDto, "branchId"> & { storeId: string; branchId: string },
+        data: Omit<CreateCustomerDto, "branchId"> & { storeId: string; branchId: string; normalizedPhone?: string },
         client: DbClient = prisma
     ) {
-        return client.customer.create({ data, select: customerSelect });
+        return client.customer.create({
+            data: { ...data, branchLinks: { create: { branchId: data.branchId } } },
+            select: customerSelect,
+        });
     },
 
     findAll(filters: CustomerFilters) {
         return prisma.customer.findMany({
             where: {
                 storeId: filters.storeId,
-                ...(filters.branchId && { branchId: filters.branchId }),
+                ...(filters.branchId && { branchLinks: { some: { branchId: filters.branchId } } }),
                 ...(filters.isActive !== undefined && { isActive: filters.isActive }),
                 ...(filters.hasDebt && { balance: { gt: 0 } }),
                 ...(filters.search && {
@@ -60,8 +65,23 @@ export const CustomersRepository = {
 
     findByIdInBranch(id: string, branchId: string, storeId: string) {
         return prisma.customer.findFirst({
-            where: { id, branchId, storeId },
+            where: { id, storeId, branchLinks: { some: { branchId } } },
             select: customerSelect,
+        });
+    },
+
+    findByNormalizedPhone(storeId: string, normalizedPhone: string, client: DbClient = prisma) {
+        return client.customer.findUnique({
+            where: { storeId_normalizedPhone: { storeId, normalizedPhone } },
+            select: customerSelect,
+        });
+    },
+
+    linkBranch(customerId: string, branchId: string, client: DbClient = prisma) {
+        return client.customerBranch.upsert({
+            where: { customerId_branchId: { customerId, branchId } },
+            create: { customerId, branchId },
+            update: {},
         });
     },
 

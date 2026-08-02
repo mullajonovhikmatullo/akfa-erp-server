@@ -7,7 +7,6 @@ const receiptSchema = z.object({
 }).strict();
 
 export const submitTenantPaymentSchema = z.object({
-    branchId: z.string().uuid(),
     paidAt: z.string().datetime().optional(),
     note: z.string().trim().max(500).optional(),
     receipt: receiptSchema,

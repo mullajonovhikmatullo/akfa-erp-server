@@ -22,6 +22,7 @@ export const analyticsQuerySchema = z.object({
             const parsed = Number(v);
             return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
         }),
+    topProductsSort: z.enum(["revenue", "quantity"]).default("revenue"),
 });
 
 export type AnalyticsQuery = z.infer<typeof analyticsQuerySchema>;

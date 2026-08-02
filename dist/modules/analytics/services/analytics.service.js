@@ -131,6 +131,9 @@ exports.AnalyticsService = {
             ? client_1.Prisma.sql `AND "branchId" = ${branchId}`
             : client_1.Prisma.empty;
         const saleTableStoreCond = client_1.Prisma.sql `AND "storeId" = ${storeId}`;
+        const topProductsOrder = query.topProductsSort === "quantity"
+            ? client_1.Prisma.sql `SUM(si.quantity) DESC`
+            : client_1.Prisma.sql `SUM(si."totalPrice") DESC`;
         const periodTrunc = client_1.Prisma.raw(`DATE_TRUNC('${query.period}', "createdAt")`);
         const expensePeriodTrunc = client_1.Prisma.raw(`DATE_TRUNC('${query.period}', "expenseDate")`);
         const [summary, byPeriod, byType, byPaymentMethod, debtPaymentMethod, topProducts] = await Promise.all([
@@ -191,7 +194,7 @@ exports.AnalyticsService = {
                   ${saleStoreCond}
                   ${branchCond}
                 GROUP BY p.id, p.name, p.sku, p.unit
-                ORDER BY SUM(si."totalPrice") DESC
+                ORDER BY ${topProductsOrder}
                 LIMIT ${query.limit}
             `,
         ]);

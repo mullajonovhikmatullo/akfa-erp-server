@@ -100,8 +100,8 @@ export const BillingService = {
 
     async submitPayment(input: SubmitTenantPaymentInput, actor: JwtPayload) {
         const storeId = requireStore(actor);
-        if (![UserRole.STORE_OWNER, UserRole.STORE_ADMIN].includes(actor.role as any)) {
-            throw new AppError(403, "Only a store owner or store admin can submit subscription payments");
+        if (actor.role !== UserRole.STORE_OWNER) {
+            throw new AppError(403, "Only a store owner can submit subscription payments");
         }
         const receipt = prepareReceipt(input.receipt);
 
@@ -124,12 +124,6 @@ export const BillingService = {
             ) {
                 throw new AppError(409, "Blocked stores cannot submit a payment");
             }
-
-            const branch = await tx.branch.findFirst({
-                where: { id: input.branchId, storeId },
-                select: { id: true, name: true },
-            });
-            if (!branch) throw new AppError(422, "Selected branch does not belong to this store");
 
             const amount = Number(store.plan.monthlyPriceUzs);
             if (!Number.isFinite(amount) || amount <= 0) {
@@ -155,7 +149,6 @@ export const BillingService = {
             const created = await tx.payment.create({
                 data: {
                     storeId,
-                    branchId: branch.id,
                     subscriptionId: store.subscription.id,
                     submittedById: actor.id,
                     receiptMediaId: media.id,
@@ -177,8 +170,6 @@ export const BillingService = {
                     action: AuditAction.PAYMENT_CREATED,
                     metadata: {
                         paymentId: created.id,
-                        branchId: branch.id,
-                        branchName: branch.name,
                         amount,
                         currency: "UZS",
                         planCode: store.plan.code,

@@ -37,6 +37,7 @@ const movementSelect = {
 
 const batchSelect = {
     id: true,
+    receiptId: true,
     initialQty: true,
     remainingQty: true,
     costPriceUzs: true,
@@ -148,6 +149,7 @@ export const InventoryRepository = {
             costPriceUsd?: number;
             supplierNote?: string;
             createdById: string;
+            receiptId?: string;
         },
         tx: Tx
     ) {
@@ -239,6 +241,88 @@ export const InventoryRepository = {
             skip: (page - 1) * pageSize,
             take: pageSize,
         });
+    },
+
+    async findReceiptsPaginated(
+        filters: { storeId: string; branchId?: string; from?: string; to?: string },
+        page: number,
+        pageSize: number
+    ) {
+        const conditions: Prisma.Sql[] = [Prisma.sql`sb."storeId" = ${filters.storeId}`];
+        if (filters.branchId) conditions.push(Prisma.sql`sb."branchId" = ${filters.branchId}`);
+        if (filters.from) conditions.push(Prisma.sql`sb."receivedAt" >= ${new Date(filters.from)}`);
+        if (filters.to) conditions.push(Prisma.sql`sb."receivedAt" <= ${new Date(filters.to)}`);
+        const where = Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}`;
+        const offset = (page - 1) * pageSize;
+
+        const [items, countRows] = await Promise.all([
+            prisma.$queryRaw<Array<{
+                id: string;
+                receivedAt: Date;
+                productCount: number;
+                pieceQuantity: unknown;
+                kgQuantity: unknown;
+                totalCostUzs: unknown;
+                remainingValueUzs: unknown;
+                supplierNote: string | null;
+                branchId: string;
+                branchName: string;
+                createdById: string;
+                createdByName: string;
+            }>>(Prisma.sql`
+                SELECT
+                    sb."receiptId" AS id,
+                    MIN(sb."receivedAt") AS "receivedAt",
+                    COUNT(*)::int AS "productCount",
+                    COALESCE(SUM(CASE WHEN p."unit" = 'PIECE' THEN sb."initialQty" ELSE 0 END), 0) AS "pieceQuantity",
+                    COALESCE(SUM(CASE WHEN p."unit" = 'KG' THEN sb."initialQty" ELSE 0 END), 0) AS "kgQuantity",
+                    COALESCE(SUM(sb."initialQty" * sb."costPriceUzs"), 0) AS "totalCostUzs",
+                    COALESCE(SUM(sb."remainingQty" * sb."costPriceUzs"), 0) AS "remainingValueUzs",
+                    MIN(NULLIF(sb."supplierNote", '')) AS "supplierNote",
+                    b.id AS "branchId",
+                    b.name AS "branchName",
+                    u.id AS "createdById",
+                    u."fullName" AS "createdByName"
+                FROM "StockBatch" sb
+                JOIN "Product" p ON p.id = sb."productId"
+                JOIN "Branch" b ON b.id = sb."branchId"
+                JOIN "User" u ON u.id = sb."createdById"
+                ${where}
+                GROUP BY sb."receiptId", b.id, b.name, u.id, u."fullName"
+                ORDER BY MIN(sb."receivedAt") DESC, sb."receiptId" ASC
+                LIMIT ${pageSize} OFFSET ${offset}
+            `),
+            prisma.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`
+                SELECT COUNT(DISTINCT sb."receiptId")::bigint AS total
+                FROM "StockBatch" sb
+                ${where}
+            `),
+        ]);
+
+        return { items, total: Number(countRows[0]?.total ?? 0) };
+    },
+
+    async findReceiptItems(
+        filters: { storeId: string; branchId?: string; receiptId: string },
+        page: number,
+        pageSize: number
+    ) {
+        const where = {
+            storeId: filters.storeId,
+            receiptId: filters.receiptId,
+            ...(filters.branchId && { branchId: filters.branchId }),
+        };
+        const [items, total] = await Promise.all([
+            prisma.stockBatch.findMany({
+                where,
+                select: batchSelect,
+                orderBy: [{ product: { name: "asc" } }, { id: "asc" }],
+                skip: (page - 1) * pageSize,
+                take: pageSize,
+            }),
+            prisma.stockBatch.count({ where }),
+        ]);
+        return { items, total };
     },
 
     countBatches(filters: { storeId: string; branchId?: string; productId?: string; depleted?: boolean; from?: string; to?: string }) {

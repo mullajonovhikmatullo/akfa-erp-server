@@ -412,6 +412,100 @@ exports.PlatformService = {
         await (0, billing_state_service_1.refreshStoreBillingState)(id);
         return selectStore(id);
     },
+    async updateStorePlan(id, input, actor) {
+        await (0, billing_state_service_1.refreshStoreBillingState)(id);
+        const updated = await prisma_1.prisma.$transaction(async (tx) => {
+            await (0, plan_limit_service_1.lockStore)(tx, id);
+            const store = await tx.store.findUnique({
+                where: { id },
+                select: {
+                    id: true,
+                    name: true,
+                    planId: true,
+                    billingVersion: true,
+                    subscription: { select: { id: true, planId: true } },
+                },
+            });
+            if (!store)
+                throw new AppError_1.AppError(404, "Store not found");
+            if (!store.subscription)
+                throw new AppError_1.AppError(409, "Store subscription is not configured");
+            if (store.billingVersion !== input.expectedVersion) {
+                throw new AppError_1.AppError(409, "Store billing state changed. Refresh and try again.");
+            }
+            const targetPlan = await tx.plan.findUnique({
+                where: { id: input.planId },
+                select: {
+                    id: true,
+                    code: true,
+                    name: true,
+                    isActive: true,
+                    maxBranches: true,
+                    maxUsers: true,
+                    maxProducts: true,
+                },
+            });
+            if (!targetPlan)
+                throw new AppError_1.AppError(404, "Target plan not found");
+            if (!targetPlan.isActive)
+                throw new AppError_1.AppError(409, "Only active plans can be assigned to a store");
+            if (store.planId === targetPlan.id && store.subscription.planId === targetPlan.id) {
+                return tx.store.findUniqueOrThrow({ where: { id }, select: storeListSelect });
+            }
+            const pendingPayment = await tx.payment.findFirst({
+                where: { storeId: id, status: client_1.PaymentStatus.PENDING },
+                select: { id: true },
+            });
+            if (pendingPayment) {
+                throw new AppError_1.AppError(409, "Resolve the pending payment before changing the store plan");
+            }
+            const [branchCount, activeUserCount, activeProductCount] = await Promise.all([
+                tx.branch.count({ where: { storeId: id } }),
+                tx.user.count({ where: { storeId: id, isActive: true } }),
+                tx.product.count({ where: { storeId: id, isActive: true } }),
+            ]);
+            const limits = [
+                { current: branchCount, limit: targetPlan.maxBranches, label: "branch" },
+                { current: activeUserCount, limit: targetPlan.maxUsers, label: "active user" },
+                { current: activeProductCount, limit: targetPlan.maxProducts, label: "active product" },
+            ];
+            const exceeded = limits.find(({ current, limit }) => limit !== null && current > limit);
+            if (exceeded) {
+                throw new AppError_1.AppError(409, `${targetPlan.name} plan ${exceeded.label} limit (${exceeded.limit}) is below current usage (${exceeded.current})`);
+            }
+            const changed = await tx.store.updateMany({
+                where: { id, billingVersion: input.expectedVersion },
+                data: {
+                    planId: targetPlan.id,
+                    billingVersion: { increment: 1 },
+                },
+            });
+            if (changed.count !== 1) {
+                throw new AppError_1.AppError(409, "Store billing state changed. Refresh and try again.");
+            }
+            await tx.subscription.update({
+                where: { id: store.subscription.id },
+                data: { planId: targetPlan.id },
+            });
+            await tx.auditLog.create({
+                data: {
+                    storeId: id,
+                    actorId: actor.id,
+                    action: client_1.AuditAction.PLAN_UPDATED,
+                    metadata: {
+                        scope: "STORE_ASSIGNMENT",
+                        fromPlanId: store.planId,
+                        fromSubscriptionPlanId: store.subscription.planId,
+                        toPlanId: targetPlan.id,
+                        toPlanCode: targetPlan.code,
+                        billingVersion: input.expectedVersion + 1,
+                    },
+                },
+            });
+            return tx.store.findUniqueOrThrow({ where: { id }, select: storeListSelect });
+        }, prisma_1.transactionOptions);
+        return serializeStore(updated);
+    },
     async updateStoreStatus(id, input, actor) {
         if (input.status === client_1.StoreStatus.CANCELLED) {
             await assertPlatformOwnerPassword(actor, input.currentPassword);

@@ -48,6 +48,11 @@ export const updateStoreStatusSchema = z.object({
     }
 });
 
+export const updateStorePlanSchema = z.object({
+    planId: z.string().uuid(),
+    expectedVersion: z.number().int().nonnegative(),
+}).strict();
+
 export const createPaymentSchema = z.object({
     storeId: z.string().uuid(),
     amount: z.number().positive().multipleOf(0.01),
@@ -87,7 +92,15 @@ const planFieldsSchema = z.object({
     isActive: z.boolean(),
 }).strict();
 
-export const createPlanSchema = planFieldsSchema.superRefine((data, ctx) => {
+const validatePlanVisibility = (data: z.infer<typeof planFieldsSchema>, ctx: z.RefinementCtx) => {
+    if (data.isPublic && !data.isActive) {
+        ctx.addIssue({
+            code: "custom",
+            path: ["isPublic"],
+            message: "A public plan must be active",
+        });
+    }
+
     if (data.isPublic && data.monthlyPriceUzs <= 0) {
         ctx.addIssue({
             code: "custom",
@@ -95,19 +108,13 @@ export const createPlanSchema = planFieldsSchema.superRefine((data, ctx) => {
             message: "A public plan must have a positive monthly price",
         });
     }
-});
+};
+
+export const createPlanSchema = planFieldsSchema.superRefine(validatePlanVisibility);
 
 export const updatePlanSchema = planFieldsSchema.extend({
     expectedVersion: z.number().int().nonnegative(),
-}).superRefine((data, ctx) => {
-    if (data.isPublic && data.monthlyPriceUzs <= 0) {
-        ctx.addIssue({
-            code: "custom",
-            path: ["monthlyPriceUzs"],
-            message: "A public plan must have a positive monthly price",
-        });
-    }
-});
+}).superRefine(validatePlanVisibility);
 
 export const deletePlanSchema = z.object({
     expectedVersion: z.number().int().nonnegative(),
@@ -130,6 +137,7 @@ export const provisionStoreSchema = z.object({
 
 export type ListStoresQuery = z.infer<typeof listStoresQuerySchema>;
 export type UpdateStoreStatusInput = z.infer<typeof updateStoreStatusSchema>;
+export type UpdateStorePlanInput = z.infer<typeof updateStorePlanSchema>;
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 export type RegenerateOwnerSetupInput = z.infer<typeof regenerateOwnerSetupSchema>;
 export type RejectPaymentInput = z.infer<typeof rejectPaymentSchema>;

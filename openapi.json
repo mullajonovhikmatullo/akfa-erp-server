@@ -623,6 +623,22 @@
           }
         }
       },
+      "UpdateStorePlanPayload": {
+        "type": "object",
+        "required": [
+          "planId",
+          "expectedVersion"
+        ],
+        "properties": {
+          "planId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expectedVersion": {
+            "type": "number"
+          }
+        }
+      },
       "PlatformPaymentStore": {
         "type": "object",
         "required": [
@@ -934,6 +950,18 @@
               },
               "monthlyPriceUzs": {
                 "type": "number"
+              },
+              "maxBranches": {
+                "type": "integer",
+                "nullable": true
+              },
+              "maxUsers": {
+                "type": "integer",
+                "nullable": true
+              },
+              "maxProducts": {
+                "type": "integer",
+                "nullable": true
               }
             }
           },
@@ -3090,6 +3118,55 @@
         "responses": {
           "200": {
             "description": "Store status updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PlatformStore"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/stores/{id}/plan": {
+      "patch": {
+        "tags": [
+          "Platform"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStorePlanPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Store plan updated",
             "content": {
               "application/json": {
                 "schema": {

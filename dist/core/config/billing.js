@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getTrialDays = getTrialDays;
 exports.addDays = addDays;
 exports.addMonths = addMonths;
-const DEFAULT_TRIAL_DAYS = 1;
+const DEFAULT_TRIAL_DAYS = 14;
 function getTrialDays() {
     const configured = Number(process.env.TRIAL_DAYS ?? process.env.FREE_TRIAL_DAYS);
     if (Number.isFinite(configured) && configured > 0)

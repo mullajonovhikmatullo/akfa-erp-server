@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.provisionStoreSchema = exports.deletePlanSchema = exports.updatePlanSchema = exports.createPlanSchema = exports.rejectPaymentSchema = exports.paymentStatusQuerySchema = exports.regenerateOwnerSetupSchema = exports.createPaymentSchema = exports.updateStoreStatusSchema = exports.listStoresQuerySchema = void 0;
+exports.provisionStoreSchema = exports.deletePlanSchema = exports.updatePlanSchema = exports.createPlanSchema = exports.rejectPaymentSchema = exports.paymentStatusQuerySchema = exports.regenerateOwnerSetupSchema = exports.createPaymentSchema = exports.updateStorePlanSchema = exports.updateStoreStatusSchema = exports.listStoresQuerySchema = void 0;
 const zod_1 = require("zod");
 exports.listStoresQuerySchema = zod_1.z.object({
     status: zod_1.z.enum(["TRIALING", "ACTIVE", "PAST_DUE", "SUSPENDED", "CANCELLED"]).optional(),
@@ -44,6 +44,10 @@ exports.updateStoreStatusSchema = zod_1.z.object({
         });
     }
 });
+exports.updateStorePlanSchema = zod_1.z.object({
+    planId: zod_1.z.string().uuid(),
+    expectedVersion: zod_1.z.number().int().nonnegative(),
+}).strict();
 exports.createPaymentSchema = zod_1.z.object({
     storeId: zod_1.z.string().uuid(),
     amount: zod_1.z.number().positive().multipleOf(0.01),
@@ -76,7 +80,14 @@ const planFieldsSchema = zod_1.z.object({
     isPublic: zod_1.z.boolean(),
     isActive: zod_1.z.boolean(),
 }).strict();
-exports.createPlanSchema = planFieldsSchema.superRefine((data, ctx) => {
+const validatePlanVisibility = (data, ctx) => {
+    if (data.isPublic && !data.isActive) {
+        ctx.addIssue({
+            code: "custom",
+            path: ["isPublic"],
+            message: "A public plan must be active",
+        });
+    }
     if (data.isPublic && data.monthlyPriceUzs <= 0) {
         ctx.addIssue({
             code: "custom",
@@ -84,18 +95,11 @@ exports.createPlanSchema = planFieldsSchema.superRefine((data, ctx) => {
             message: "A public plan must have a positive monthly price",
         });
     }
-});
+};
+exports.createPlanSchema = planFieldsSchema.superRefine(validatePlanVisibility);
 exports.updatePlanSchema = planFieldsSchema.extend({
     expectedVersion: zod_1.z.number().int().nonnegative(),
-}).superRefine((data, ctx) => {
-    if (data.isPublic && data.monthlyPriceUzs <= 0) {
-        ctx.addIssue({
-            code: "custom",
-            path: ["monthlyPriceUzs"],
-            message: "A public plan must have a positive monthly price",
-        });
-    }
-});
+}).superRefine(validatePlanVisibility);
 exports.deletePlanSchema = zod_1.z.object({
     expectedVersion: zod_1.z.number().int().nonnegative(),
     currentPassword: zod_1.z.string().min(1).max(200),

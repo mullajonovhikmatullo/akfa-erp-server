@@ -293,6 +293,14 @@ const frontendSchemas = {
             currentPassword: { type: "string", format: "password" },
         },
     },
+    UpdateStorePlanPayload: {
+        type: "object",
+        required: ["planId", "expectedVersion"],
+        properties: {
+            planId: { type: "string", format: "uuid" },
+            expectedVersion: { type: "number" },
+        },
+    },
     PlatformPaymentStore: {
         type: "object",
         required: ["id", "name", "slug", "status"],
@@ -410,6 +418,9 @@ const frontendSchemas = {
                     code: { $ref: "#/components/schemas/PlanCode" },
                     name: { type: "string" },
                     monthlyPriceUzs: { type: "number" },
+                    maxBranches: { type: "integer", nullable: true },
+                    maxUsers: { type: "integer", nullable: true },
+                    maxProducts: { type: "integer", nullable: true },
                 },
             },
             subscription: {
@@ -899,6 +910,30 @@ const frontendPaths = {
             responses: {
                 200: {
                     description: "Store status updated",
+                    content: {
+                        "application/json": {
+                            schema: apiEnvelope({ $ref: "#/components/schemas/PlatformStore" }),
+                        },
+                    },
+                },
+            },
+        },
+    },
+    "/platform/stores/{id}/plan": {
+        patch: {
+            tags: ["Platform"],
+            security: [{ bearerAuth: [] }],
+            requestBody: {
+                required: true,
+                content: {
+                    "application/json": {
+                        schema: { $ref: "#/components/schemas/UpdateStorePlanPayload" },
+                    },
+                },
+            },
+            responses: {
+                200: {
+                    description: "Store plan updated",
                     content: {
                         "application/json": {
                             schema: apiEnvelope({ $ref: "#/components/schemas/PlatformStore" }),

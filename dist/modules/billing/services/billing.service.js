@@ -51,7 +51,14 @@ exports.BillingService = {
                 status: true,
                 trialEndsAt: true,
                 plan: {
-                    select: { code: true, name: true, monthlyPriceUzs: true },
+                    select: {
+                        code: true,
+                        name: true,
+                        monthlyPriceUzs: true,
+                        maxBranches: true,
+                        maxUsers: true,
+                        maxProducts: true,
+                    },
                 },
                 subscription: {
                     select: {

@@ -12,6 +12,7 @@ import {
     provisionStoreSchema,
     regenerateOwnerSetupSchema,
     updateStoreStatusSchema,
+    updateStorePlanSchema,
     updatePlanSchema,
 } from "./validations/platform.validation";
 
@@ -52,6 +53,12 @@ router.patch(
     sensitiveActionRateLimit,
     validate(updateStoreStatusSchema),
     PlatformController.updateStoreStatus
+);
+router.patch(
+    "/stores/:id/plan",
+    sensitiveActionRateLimit,
+    validate(updateStorePlanSchema),
+    PlatformController.updateStorePlan
 );
 router.post(
     "/stores/:id/owner/setup-link",

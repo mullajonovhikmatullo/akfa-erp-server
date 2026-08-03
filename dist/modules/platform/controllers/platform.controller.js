@@ -125,6 +125,16 @@ exports.PlatformController = {
             return next(error);
         }
     },
+    async updateStorePlan(req, res, next) {
+        try {
+            const input = platform_validation_1.updateStorePlanSchema.parse(req.body);
+            const data = await platform_service_1.PlatformService.updateStorePlan(req.params.id, input, req.user);
+            return ApiResponse_1.ApiResponse.success(res, data, "Store plan updated");
+        }
+        catch (error) {
+            return next(error);
+        }
+    },
     async listPayments(req, res, next) {
         try {
             const { status } = platform_validation_1.paymentStatusQuerySchema.parse(req.query);

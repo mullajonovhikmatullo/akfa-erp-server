@@ -11,6 +11,7 @@ import {
     regenerateOwnerSetupSchema,
     rejectPaymentSchema,
     updateStoreStatusSchema,
+    updateStorePlanSchema,
     updatePlanSchema,
 } from "../validations/platform.validation";
 import { AuthService } from "../../auth/services/auth.service";
@@ -146,6 +147,16 @@ export const PlatformController = {
             const input = updateStoreStatusSchema.parse(req.body);
             const data = await PlatformService.updateStoreStatus(req.params.id as string, input, req.user!);
             return ApiResponse.success(res, data, "Store status updated");
+        } catch (error) {
+            return next(error);
+        }
+    },
+
+    async updateStorePlan(req: Request, res: Response, next: NextFunction) {
+        try {
+            const input = updateStorePlanSchema.parse(req.body);
+            const data = await PlatformService.updateStorePlan(req.params.id as string, input, req.user!);
+            return ApiResponse.success(res, data, "Store plan updated");
         } catch (error) {
             return next(error);
         }

@@ -43,7 +43,7 @@ services:
       UPLOAD_ROOT: /srv/erp-pos/media
       PRODUCT_IMAGE_MAX_SIZE_MB: ${PRODUCT_IMAGE_MAX_SIZE_MB:-5}
       PRODUCT_IMAGE_MAX_COUNT: ${PRODUCT_IMAGE_MAX_COUNT:-5}
-      TRIAL_DAYS: ${TRIAL_DAYS:-1}
+      TRIAL_DAYS: ${TRIAL_DAYS:-14}
     volumes:
       - /srv/erp-pos/media:/srv/erp-pos/media
     healthcheck:

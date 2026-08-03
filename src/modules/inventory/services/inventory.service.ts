@@ -509,10 +509,12 @@ export const InventoryService = {
         costPriceUzs: number,
         note: string,
         createdById: string,
+        receiptId: string,
         tx: Prisma.TransactionClient
     ) {
         await InventoryRepository.createBatch(
             {
+                receiptId,
                 storeId,
                 branchId,
                 productId,

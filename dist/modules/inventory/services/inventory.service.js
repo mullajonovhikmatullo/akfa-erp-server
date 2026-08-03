@@ -356,8 +356,9 @@ exports.InventoryService = {
     // ─── Internal: Transfer-in (called by TransfersService) ──────────────────
     // Creates a new StockBatch at the destination branch so cost price
     // is preserved for future FIFO deductions and COGS calculations.
-    async transferIn(storeId, branchId, productId, quantity, costPriceUzs, note, createdById, tx) {
+    async transferIn(storeId, branchId, productId, quantity, costPriceUzs, note, createdById, receiptId, tx) {
         await inventory_repository_1.InventoryRepository.createBatch({
+            receiptId,
             storeId,
             branchId,
             productId,

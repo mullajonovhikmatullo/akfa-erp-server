@@ -125,7 +125,7 @@ exports.TransfersService = {
                     await inventory_service_1.InventoryService.deductStock(storeId, transfer.fromBranch.id, item.product.id, qty, user.id, `Transfer ${id} → ${transfer.toBranch.name}`, tx, client_1.StockMovementType.TRANSFER_OUT);
                 }
                 // Source was already reserved at creation; confirmation only receives it.
-                await inventory_service_1.InventoryService.transferIn(storeId, transfer.toBranch.id, item.product.id, qty, cost, transfer.fromBranch.name, user.id, tx);
+                await inventory_service_1.InventoryService.transferIn(storeId, transfer.toBranch.id, item.product.id, qty, cost, transfer.fromBranch.name, user.id, transfer.id, tx);
             }
             return transfers_repository_1.TransfersRepository.updateStatus(id, "COMPLETED", user.id, tx);
         }, { ...prisma_1.transactionOptions, isolationLevel: client_1.Prisma.TransactionIsolationLevel.Serializable });

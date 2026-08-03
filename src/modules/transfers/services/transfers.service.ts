@@ -170,6 +170,7 @@ export const TransfersService = {
                         cost,
                         transfer.fromBranch.name,
                         user.id,
+                        transfer.id,
                         tx
                     );
                 }

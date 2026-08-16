@@ -32,7 +32,7 @@ async function deleteStoredFiles(storage, keys) {
     await Promise.all(uniqueKeys.map((key) => storage.delete(key)));
 }
 function createProductImagesService(dependencies = {}) {
-    const storage = dependencies.storage ?? storage_1.localFileStorage;
+    const storage = dependencies.storage ?? storage_1.fileStorage;
     const processor = dependencies.processor ?? image_processing_service_1.ImageProcessingService;
     const repository = dependencies.repository ?? product_images_repository_1.ProductImagesRepository;
     const maxCount = dependencies.maxCount ?? uploads_1.uploadConfig.productImageMaxCount;
@@ -60,11 +60,13 @@ function createProductImagesService(dependencies = {}) {
                 await storage.save({
                     storageKey: image.storageKey,
                     content: image.main,
+                    contentType: image.mimeType,
                 });
                 savedKeys.push(image.storageKey);
                 await storage.save({
                     storageKey: image.thumbnailStorageKey,
                     content: image.thumbnail,
+                    contentType: image.mimeType,
                 });
                 savedKeys.push(image.thumbnailStorageKey);
             }

@@ -256,6 +256,10 @@ router.delete("/categories/:id", (0, role_middleware_1.roleMiddleware)("STORE_OW
  *           nullable: true
  *         unit:
  *           $ref: '#/components/schemas/ProductUnit'
+ *         lowStockThreshold:
+ *           type: string
+ *           nullable: true
+ *           description: Product-specific quantity at or below which the product is considered low stock
  *         costPriceUzs:
  *           type: string
  *           description: Decimal value as string
@@ -331,6 +335,11 @@ router.delete("/categories/:id", (0, role_middleware_1.roleMiddleware)("STORE_OW
  *           type: string
  *           format: uuid
  *           description: Branch where an initial zero-balance inventory row is created
+ *         lowStockThreshold:
+ *           type: number
+ *           nullable: true
+ *           minimum: 0
+ *           description: Product-specific quantity at or below which the product is considered low stock
  *         costPriceUzs:
  *           type: number
  *           example: 180000
@@ -363,6 +372,11 @@ router.delete("/categories/:id", (0, role_middleware_1.roleMiddleware)("STORE_OW
  *         categoryId:
  *           type: string
  *           format: uuid
+ *         lowStockThreshold:
+ *           type: number
+ *           nullable: true
+ *           minimum: 0
+ *           description: Product-specific quantity at or below which the product is considered low stock
  *         costPriceUzs:
  *           type: number
  *         retailPriceUzs:

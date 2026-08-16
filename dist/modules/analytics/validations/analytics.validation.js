@@ -15,14 +15,5 @@ exports.analyticsQuerySchema = zod_1.z.object({
         .string()
         .optional()
         .transform((v) => (v ? Math.min(parseInt(v, 10), 100) : 10)),
-    lowStockThreshold: zod_1.z
-        .string()
-        .optional()
-        .transform((v) => {
-        if (!v)
-            return undefined;
-        const parsed = Number(v);
-        return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
-    }),
     topProductsSort: zod_1.z.enum(["revenue", "quantity"]).default("revenue"),
 });

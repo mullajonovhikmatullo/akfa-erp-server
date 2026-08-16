@@ -4,7 +4,7 @@ import { AppError } from "../../../../core/errors/AppError";
 import { assertStoreWritableInTransaction } from "../../../../core/services/billing-state.service";
 import {
     FileStorageService,
-    localFileStorage,
+    fileStorage,
 } from "../../../../core/storage";
 import { JwtPayload } from "../../../../core/types/jwt.types";
 import { requireStoreId } from "../../../../core/utils/branch-access";
@@ -74,7 +74,7 @@ async function deleteStoredFiles(
 export function createProductImagesService(
     dependencies: Partial<ProductImageServiceDependencies> = {}
 ) {
-    const storage = dependencies.storage ?? localFileStorage;
+    const storage = dependencies.storage ?? fileStorage;
     const processor = dependencies.processor ?? ImageProcessingService;
     const repository = dependencies.repository ?? ProductImagesRepository;
     const maxCount = dependencies.maxCount ?? uploadConfig.productImageMaxCount;
@@ -112,11 +112,13 @@ export function createProductImagesService(
                 await storage.save({
                     storageKey: image.storageKey,
                     content: image.main,
+                    contentType: image.mimeType,
                 });
                 savedKeys.push(image.storageKey);
                 await storage.save({
                     storageKey: image.thumbnailStorageKey,
                     content: image.thumbnail,
+                    contentType: image.mimeType,
                 });
                 savedKeys.push(image.thumbnailStorageKey);
             }

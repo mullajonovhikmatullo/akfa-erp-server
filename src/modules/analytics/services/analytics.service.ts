@@ -30,13 +30,8 @@ export const AnalyticsService = {
     async dashboard(query: AnalyticsQuery, user: JwtPayload) {
         const { storeId, branchId } = branchScope(user, query.branchId);
         const { start, end } = resolveRange(query.from, query.to);
-        const lowStockThreshold = query.lowStockThreshold;
-        const lowStockThresholdSql = lowStockThreshold
-            ? Prisma.sql`${lowStockThreshold}`
-            : Prisma.sql`p."lowStockThreshold"`;
-        const lowStockThresholdRequiredSql = lowStockThreshold
-            ? Prisma.empty
-            : Prisma.sql`AND p."lowStockThreshold" IS NOT NULL`;
+        const lowStockThresholdSql = Prisma.sql`p."lowStockThreshold"`;
+        const lowStockThresholdRequiredSql = Prisma.sql`AND p."lowStockThreshold" IS NOT NULL`;
 
         const saleWhere: Prisma.SaleWhereInput = {
             storeId,
@@ -289,13 +284,8 @@ export const AnalyticsService = {
     async inventoryReport(query: AnalyticsQuery, user: JwtPayload) {
         const { storeId, branchId } = branchScope(user, query.branchId);
         const { start, end } = resolveRange(query.from, query.to);
-        const lowStockThreshold = query.lowStockThreshold;
-        const lowStockThresholdSql = lowStockThreshold
-            ? Prisma.sql`${lowStockThreshold}`
-            : Prisma.sql`p."lowStockThreshold"`;
-        const lowStockThresholdRequiredSql = lowStockThreshold
-            ? Prisma.empty
-            : Prisma.sql`AND p."lowStockThreshold" IS NOT NULL`;
+        const lowStockThresholdSql = Prisma.sql`p."lowStockThreshold"`;
+        const lowStockThresholdRequiredSql = Prisma.sql`AND p."lowStockThreshold" IS NOT NULL`;
 
         const [stockByBranch, lowStock, movementSummary] = await Promise.all([
             prisma.$queryRaw<{

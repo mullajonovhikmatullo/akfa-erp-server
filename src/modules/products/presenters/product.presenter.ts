@@ -1,4 +1,4 @@
-import { FileStorageService, localFileStorage } from "../../../core/storage";
+import { FileStorageService, fileStorage } from "../../../core/storage";
 import { serializeProductImage } from "../images/presenters/product-image.presenter";
 
 type ProductWithImageMetadata = {
@@ -10,7 +10,7 @@ type ProductWithImageMetadata = {
 export function serializeProductResponse(
     product: ProductWithImageMetadata,
     includeImages: boolean,
-    storage: FileStorageService = localFileStorage
+    storage: FileStorageService = fileStorage
 ) {
     const { images = [], _count, ...data } = product;
     const imageResponses = images.map((image) =>

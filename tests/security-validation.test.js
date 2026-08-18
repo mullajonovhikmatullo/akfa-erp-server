@@ -18,6 +18,10 @@ const {
     createAdminSchema,
 } = require("../dist/modules/admins/validations/admin.validation");
 const {
+    createExpenseCategorySchema,
+    updateExpenseCategorySchema,
+} = require("../dist/modules/expenses/validations/expense-category.validation");
+const {
     hashHandoffCode,
     getHandoffExpiry,
 } = require("../dist/core/services/auth-handoff.service");
@@ -186,6 +190,16 @@ test("new tenant admins require a six-character password", () => {
     };
     assert.equal(createAdminSchema.safeParse({ ...base, password: "12345" }).success, false);
     assert.equal(createAdminSchema.safeParse({ ...base, password: "123456" }).success, true);
+});
+
+test("expense category names are trimmed and bounded to 100 characters", () => {
+    const validName = "A".repeat(100);
+    const tooLongName = "A".repeat(101);
+
+    assert.equal(createExpenseCategorySchema.safeParse({ name: validName }).success, true);
+    assert.equal(createExpenseCategorySchema.safeParse({ name: tooLongName }).success, false);
+    assert.equal(createExpenseCategorySchema.safeParse({ name: "   " }).success, false);
+    assert.equal(updateExpenseCategorySchema.safeParse({ name: tooLongName }).success, false);
 });
 
 test("handoff codes are hashed deterministically and have bounded TTLs", () => {

@@ -10,7 +10,7 @@ const priceField = z
 
 export const createProductSchema = z.object({
     name: z.string().min(1).max(200),
-    description: z.string().max(1000).optional(),
+    description: z.string().max(500).optional(),
     sku: z
         .string()
         .max(100)
@@ -53,7 +53,7 @@ export const createProductSchema = z.object({
 
 export const updateProductSchema = z.object({
     name: z.string().min(1).max(200).optional(),
-    description: z.string().max(1000).optional(),
+    description: z.string().max(500).optional(),
     sku: z
         .string()
         .max(100)

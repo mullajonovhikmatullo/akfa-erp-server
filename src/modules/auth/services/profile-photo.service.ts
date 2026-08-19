@@ -1,94 +1,60 @@
-import sharp from "sharp";
 import { AppError } from "../../../core/errors/AppError";
 
 const PROFILE_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
-const PROFILE_PHOTO_MAX_INPUT_PIXELS = 40_000_000;
+const PROFILE_THUMBNAIL_MAX_BYTES = 1024 * 1024;
 const SUPPORTED_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const SUPPORTED_FORMATS = new Set(["jpeg", "png", "webp"]);
 
 export type ProcessedProfilePhoto = {
     base64Photo: string;
     thumbnailPhoto: string;
 };
 
-function decodeImageDataUrl(value: string): Buffer {
-    const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+function hasExpectedSignature(content: Buffer, mimeType: string): boolean {
+    if (mimeType === "image/jpeg") {
+        return content.length >= 3 && content[0] === 0xff && content[1] === 0xd8 && content[2] === 0xff;
+    }
+    if (mimeType === "image/png") {
+        return content.length >= 8 && content.subarray(0, 8).equals(
+            Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+        );
+    }
+    return content.length >= 12
+        && content.subarray(0, 4).toString("ascii") === "RIFF"
+        && content.subarray(8, 12).toString("ascii") === "WEBP";
+}
+
+function validateImageDataUrl(value: string, maxBytes: number): string {
+    const normalized = value.trim();
+    const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(normalized);
     if (!match || !SUPPORTED_MIME_TYPES.has(match[1])) {
         throw new AppError(422, "Only JPEG, PNG and WebP profile photos are supported");
     }
 
-    const content = Buffer.from(match[2], "base64");
-    if (content.length === 0) {
-        throw new AppError(422, "Profile photo is empty");
+    const encoded = match[2];
+    const content = Buffer.from(encoded, "base64");
+    if (content.length < 12) {
+        throw new AppError(422, "Profile photo is empty or invalid");
     }
-    if (content.length > PROFILE_PHOTO_MAX_BYTES) {
-        throw new AppError(413, "Profile photo must not exceed 5 MB");
+    if (content.length > maxBytes) {
+        throw new AppError(413, "Profile photo is too large");
+    }
+    if (content.toString("base64").replace(/=+$/, "") !== encoded.replace(/=+$/, "")) {
+        throw new AppError(422, "Profile photo contains invalid base64 data");
+    }
+    if (!hasExpectedSignature(content, match[1])) {
+        throw new AppError(422, "Profile photo content does not match its image type");
     }
 
-    return content;
-}
-
-function toWebpDataUrl(content: Buffer): string {
-    return `data:image/webp;base64,${content.toString("base64")}`;
+    return normalized;
 }
 
 export const ProfilePhotoService = {
-    async process(value: string): Promise<ProcessedProfilePhoto> {
-        const content = decodeImageDataUrl(value);
+    async process(value: string, thumbnailValue?: string): Promise<ProcessedProfilePhoto> {
+        const base64Photo = validateImageDataUrl(value, PROFILE_PHOTO_MAX_BYTES);
+        const thumbnailPhoto = thumbnailValue
+            ? validateImageDataUrl(thumbnailValue, PROFILE_THUMBNAIL_MAX_BYTES)
+            : base64Photo;
 
-        try {
-            const metadata = await sharp(content, {
-                failOn: "error",
-                limitInputPixels: PROFILE_PHOTO_MAX_INPUT_PIXELS,
-                sequentialRead: true,
-            }).metadata();
-
-            if (
-                !metadata.format ||
-                !SUPPORTED_FORMATS.has(metadata.format) ||
-                !metadata.width ||
-                !metadata.height
-            ) {
-                throw new AppError(422, "Invalid or unsupported profile photo");
-            }
-
-            const base64Photo = await sharp(content, {
-                failOn: "error",
-                limitInputPixels: PROFILE_PHOTO_MAX_INPUT_PIXELS,
-                sequentialRead: true,
-            })
-                .rotate()
-                .resize({
-                    width: 1400,
-                    height: 1400,
-                    fit: "inside",
-                    withoutEnlargement: true,
-                })
-                .webp({ quality: 90, smartSubsample: true })
-                .toBuffer();
-
-            const thumbnailPhoto = await sharp(content, {
-                failOn: "error",
-                limitInputPixels: PROFILE_PHOTO_MAX_INPUT_PIXELS,
-                sequentialRead: true,
-            })
-                .rotate()
-                .resize({
-                    width: 96,
-                    height: 96,
-                    fit: "cover",
-                    position: "attention",
-                })
-                .webp({ quality: 82, smartSubsample: true })
-                .toBuffer();
-
-            return {
-                base64Photo: toWebpDataUrl(base64Photo),
-                thumbnailPhoto: toWebpDataUrl(thumbnailPhoto),
-            };
-        } catch (error) {
-            if (error instanceof AppError) throw error;
-            throw new AppError(422, "Invalid or corrupted profile photo");
-        }
+        return { base64Photo, thumbnailPhoto };
     },
 };

@@ -155,6 +155,7 @@ export const changePasswordSchema = z.object({
 
 export const updateProfilePhotoSchema = z.object({
     base64Photo: z.string().min(32).max(7_000_000),
+    thumbnailPhoto: z.string().min(32).max(1_500_000).optional(),
 }).strict();
 
 export const AuthService = {
@@ -199,7 +200,7 @@ export const AuthService = {
     },
 
     async updateProfilePhoto(userId: string, data: z.infer<typeof updateProfilePhotoSchema>) {
-        const photos = await ProfilePhotoService.process(data.base64Photo);
+        const photos = await ProfilePhotoService.process(data.base64Photo, data.thumbnailPhoto);
         const updated = await prisma.$transaction(async (tx) => {
             const current = await tx.user.findUnique({
                 where: { id: userId },

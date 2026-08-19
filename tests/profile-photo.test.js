@@ -7,7 +7,7 @@ const {
 const { AuthService } = require("../dist/modules/auth/services/auth.service");
 const { prisma } = require("../dist/infrastructure/prisma/prisma");
 
-async function pngDataUrl(width = 640, height = 480) {
+async function webpDataUrl(width = 640, height = 480) {
     const content = await sharp({
         create: {
             width,
@@ -15,43 +15,53 @@ async function pngDataUrl(width = 640, height = 480) {
             channels: 3,
             background: { r: 35, g: 125, b: 210 },
         },
-    }).png().toBuffer();
+    }).webp({ quality: 92 }).toBuffer();
 
-    return `data:image/png;base64,${content.toString("base64")}`;
+    return `data:image/webp;base64,${content.toString("base64")}`;
 }
 
 function decodeDataUrl(value) {
     return Buffer.from(value.split(",")[1], "base64");
 }
 
-test("profile photo creates clear WebP and square thumbnail data URLs", async () => {
-    const result = await ProfilePhotoService.process(await pngDataUrl());
+test("profile photo accepts clear and thumbnail WebP data URLs without server processing", async () => {
+    const clearPhoto = await webpDataUrl(1024, 1024);
+    const thumbnailPhoto = await webpDataUrl(256, 256);
+    const result = await ProfilePhotoService.process(clearPhoto, thumbnailPhoto);
 
-    assert.match(result.base64Photo, /^data:image\/webp;base64,/);
-    assert.match(result.thumbnailPhoto, /^data:image\/webp;base64,/);
+    assert.equal(result.base64Photo, clearPhoto);
+    assert.equal(result.thumbnailPhoto, thumbnailPhoto);
 
     const mainMetadata = await sharp(decodeDataUrl(result.base64Photo)).metadata();
     const thumbnailMetadata = await sharp(decodeDataUrl(result.thumbnailPhoto)).metadata();
 
     assert.equal(mainMetadata.format, "webp");
-    assert.equal(mainMetadata.width, 640);
-    assert.equal(mainMetadata.height, 480);
+    assert.equal(mainMetadata.width, 1024);
+    assert.equal(mainMetadata.height, 1024);
     assert.equal(thumbnailMetadata.format, "webp");
-    assert.equal(thumbnailMetadata.width, 96);
-    assert.equal(thumbnailMetadata.height, 96);
+    assert.equal(thumbnailMetadata.width, 256);
+    assert.equal(thumbnailMetadata.height, 256);
 });
 
-test("profile photo downsizes large images without stretching", async () => {
-    const result = await ProfilePhotoService.process(await pngDataUrl(1800, 900));
-    const metadata = await sharp(decodeDataUrl(result.base64Photo)).metadata();
+test("profile photo keeps backward compatibility when thumbnail is omitted", async () => {
+    const clearPhoto = await webpDataUrl(640, 640);
+    const result = await ProfilePhotoService.process(clearPhoto);
 
-    assert.equal(metadata.width, 1400);
-    assert.equal(metadata.height, 700);
+    assert.equal(result.base64Photo, clearPhoto);
+    assert.equal(result.thumbnailPhoto, clearPhoto);
 });
 
 test("profile photo rejects unsupported data URLs", async () => {
     await assert.rejects(
         () => ProfilePhotoService.process("data:image/svg+xml;base64,PHN2Zy8+"),
+        (error) => error.statusCode === 422
+    );
+});
+
+test("profile photo rejects a spoofed image MIME type", async () => {
+    const spoofed = `data:image/webp;base64,${Buffer.from("not-a-webp-image").toString("base64")}`;
+    await assert.rejects(
+        () => ProfilePhotoService.process(spoofed),
         (error) => error.statusCode === 422
     );
 });
@@ -133,12 +143,15 @@ test("replacing a profile photo overwrites both database columns together", asyn
         },
     });
 
+    const clearPhoto = await webpDataUrl(1024, 1024);
+    const thumbnailPhoto = await webpDataUrl(256, 256);
     const result = await AuthService.updateProfilePhoto("user-1", {
-        base64Photo: await pngDataUrl(120, 80),
+        base64Photo: clearPhoto,
+        thumbnailPhoto,
     });
 
-    assert.match(updateArguments.data.base64Photo, /^data:image\/webp;base64,/);
-    assert.match(updateArguments.data.thumbnailPhoto, /^data:image\/webp;base64,/);
+    assert.equal(updateArguments.data.base64Photo, clearPhoto);
+    assert.equal(updateArguments.data.thumbnailPhoto, thumbnailPhoto);
     assert.equal(result.base64Photo, updateArguments.data.base64Photo);
     assert.equal(result.thumbnailPhoto, updateArguments.data.thumbnailPhoto);
 });

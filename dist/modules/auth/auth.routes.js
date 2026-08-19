@@ -132,7 +132,10 @@ router.patch("/profile", auth_middleware_1.authMiddleware, auth_controller_1.Aut
  *             properties:
  *               base64Photo:
  *                 type: string
- *                 description: JPEG, PNG or WebP data URL, maximum 5 MB decoded
+ *                 description: Client-optimized clear JPEG, PNG or WebP data URL, maximum 5 MB decoded
+ *               thumbnailPhoto:
+ *                 type: string
+ *                 description: Client-optimized square thumbnail data URL, maximum 1 MB decoded
  *     responses:
  *       200:
  *         description: Updated current user with clear and thumbnail profile photos

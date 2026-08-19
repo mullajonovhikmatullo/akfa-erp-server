@@ -134,6 +134,7 @@ exports.changePasswordSchema = zod_1.z.object({
 });
 exports.updateProfilePhotoSchema = zod_1.z.object({
     base64Photo: zod_1.z.string().min(32).max(7000000),
+    thumbnailPhoto: zod_1.z.string().min(32).max(1500000).optional(),
 }).strict();
 exports.AuthService = {
     async me(userId) {
@@ -174,7 +175,7 @@ exports.AuthService = {
         return serializeUser(updated);
     },
     async updateProfilePhoto(userId, data) {
-        const photos = await profile_photo_service_1.ProfilePhotoService.process(data.base64Photo);
+        const photos = await profile_photo_service_1.ProfilePhotoService.process(data.base64Photo, data.thumbnailPhoto);
         const updated = await prisma_1.prisma.$transaction(async (tx) => {
             const current = await tx.user.findUnique({
                 where: { id: userId },

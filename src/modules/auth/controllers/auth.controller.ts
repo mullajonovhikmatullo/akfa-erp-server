@@ -1,6 +1,11 @@
 import { NextFunction, Request, Response } from "express";
 import { ApiResponse } from "../../../core/response/ApiResponse";
-import { AuthService, updateProfileSchema, changePasswordSchema } from "../services/auth.service";
+import {
+    AuthService,
+    changePasswordSchema,
+    updateProfilePhotoSchema,
+    updateProfileSchema,
+} from "../services/auth.service";
 import { AppError } from "../../../core/errors/AppError";
 
 export const AuthController = {
@@ -48,6 +53,28 @@ export const AuthController = {
             }
             const result = await AuthService.updateProfile(req.user!.id, parsed.data);
             return ApiResponse.success(res, result, "Profil yangilandi");
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    async updateProfilePhoto(req: Request, res: Response, next: NextFunction) {
+        try {
+            const parsed = updateProfilePhotoSchema.safeParse(req.body);
+            if (!parsed.success) {
+                throw new AppError(422, parsed.error.issues[0]?.message ?? "Validation error");
+            }
+            const result = await AuthService.updateProfilePhoto(req.user!.id, parsed.data);
+            return ApiResponse.success(res, result, "Profil rasmi yangilandi");
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    async deleteProfilePhoto(req: Request, res: Response, next: NextFunction) {
+        try {
+            const result = await AuthService.deleteProfilePhoto(req.user!.id);
+            return ApiResponse.success(res, result, "Profil rasmi o'chirildi");
         } catch (error) {
             next(error);
         }

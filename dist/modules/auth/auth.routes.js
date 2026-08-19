@@ -58,6 +58,14 @@ const router = (0, express_1.Router)();
  *             branchId:
  *               type: string
  *               nullable: true
+ *             base64Photo:
+ *               type: string
+ *               nullable: true
+ *               description: Clear WebP profile photo as a data URL
+ *             thumbnailPhoto:
+ *               type: string
+ *               nullable: true
+ *               description: 96x96 WebP profile thumbnail as a data URL
  *   securitySchemes:
  *     bearerAuth:
  *       type: http
@@ -106,5 +114,40 @@ router.post("/setup/complete", rateLimit_1.handoffRateLimit, (0, validate_1.vali
  */
 router.get("/me", auth_middleware_1.authMiddleware, auth_controller_1.AuthController.me);
 router.patch("/profile", auth_middleware_1.authMiddleware, auth_controller_1.AuthController.updateProfile);
+/**
+ * @openapi
+ * /auth/profile/photo:
+ *   put:
+ *     tags: [Auth]
+ *     summary: Upload or replace the current user's profile photo
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [base64Photo]
+ *             properties:
+ *               base64Photo:
+ *                 type: string
+ *                 description: JPEG, PNG or WebP data URL, maximum 5 MB decoded
+ *     responses:
+ *       200:
+ *         description: Updated current user with clear and thumbnail profile photos
+ *       422:
+ *         description: Unsupported or invalid image
+ *   delete:
+ *     tags: [Auth]
+ *     summary: Remove the current user's profile photo
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Updated current user with cleared profile photos
+ */
+router.put("/profile/photo", auth_middleware_1.authMiddleware, auth_controller_1.AuthController.updateProfilePhoto);
+router.delete("/profile/photo", auth_middleware_1.authMiddleware, auth_controller_1.AuthController.deleteProfilePhoto);
 router.post("/change-password", auth_middleware_1.authMiddleware, auth_controller_1.AuthController.changePassword);
 exports.default = router;

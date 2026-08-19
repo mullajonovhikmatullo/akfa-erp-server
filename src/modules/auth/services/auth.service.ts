@@ -18,6 +18,7 @@ import {
     ExchangeHandoffInput,
     LoginInput,
 } from "../validations/auth.validation";
+import { ProfilePhotoService } from "./profile-photo.service";
 
 const DUMMY_PASSWORD_HASH = "$2b$12$Og2YEkt0glpNIkU9KlJr.erRlnfbMPwycBetIqTqnqWEkiL0ep5DO";
 
@@ -31,6 +32,8 @@ const userProfileSelect = {
     isActive: true,
     mustChangePassword: true,
     authVersion: true,
+    base64Photo: true,
+    thumbnailPhoto: true,
     store: {
         select: {
             id: true,
@@ -69,6 +72,8 @@ function serializeUser(user: any) {
         rawRole: user.role,
         storeId: user.storeId,
         branchId: user.branchId,
+        base64Photo: user.base64Photo,
+        thumbnailPhoto: user.thumbnailPhoto,
         mustChangePassword: user.mustChangePassword,
         store: user.store,
     };
@@ -148,6 +153,10 @@ export const changePasswordSchema = z.object({
     path: ["confirmPassword"],
 });
 
+export const updateProfilePhotoSchema = z.object({
+    base64Photo: z.string().min(32).max(7_000_000),
+}).strict();
+
 export const AuthService = {
     async me(userId: string) {
         const user = await prisma.user.findUnique({
@@ -182,6 +191,49 @@ export const AuthService = {
                     ...(data.fullName && { fullName: data.fullName }),
                     ...(data.username && { username: data.username }),
                 },
+                select: userProfileSelect,
+            });
+        }, transactionOptions);
+
+        return serializeUser(updated);
+    },
+
+    async updateProfilePhoto(userId: string, data: z.infer<typeof updateProfilePhotoSchema>) {
+        const photos = await ProfilePhotoService.process(data.base64Photo);
+        const updated = await prisma.$transaction(async (tx) => {
+            const current = await tx.user.findUnique({
+                where: { id: userId },
+                select: { id: true, storeId: true, isActive: true },
+            });
+            if (!current?.isActive) throw new AppError(401, "Unauthorized");
+            if (current.storeId) {
+                await assertStoreReadableInTransaction(tx, current.storeId);
+            }
+
+            return tx.user.update({
+                where: { id: userId },
+                data: photos,
+                select: userProfileSelect,
+            });
+        }, transactionOptions);
+
+        return serializeUser(updated);
+    },
+
+    async deleteProfilePhoto(userId: string) {
+        const updated = await prisma.$transaction(async (tx) => {
+            const current = await tx.user.findUnique({
+                where: { id: userId },
+                select: { id: true, storeId: true, isActive: true },
+            });
+            if (!current?.isActive) throw new AppError(401, "Unauthorized");
+            if (current.storeId) {
+                await assertStoreReadableInTransaction(tx, current.storeId);
+            }
+
+            return tx.user.update({
+                where: { id: userId },
+                data: { base64Photo: null, thumbnailPhoto: null },
                 select: userProfileSelect,
             });
         }, transactionOptions);

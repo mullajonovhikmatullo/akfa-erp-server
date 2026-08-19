@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AuthService = exports.changePasswordSchema = exports.updateProfileSchema = void 0;
+exports.AuthService = exports.updateProfilePhotoSchema = exports.changePasswordSchema = exports.updateProfileSchema = void 0;
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const client_1 = require("@prisma/client");
 const zod_1 = require("zod");
@@ -15,6 +15,7 @@ const auth_token_1 = require("../../../core/utils/auth-token");
 const role_access_1 = require("../../../core/utils/role-access");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const socket_1 = require("../../../infrastructure/socket");
+const profile_photo_service_1 = require("./profile-photo.service");
 const DUMMY_PASSWORD_HASH = "$2b$12$Og2YEkt0glpNIkU9KlJr.erRlnfbMPwycBetIqTqnqWEkiL0ep5DO";
 const userProfileSelect = {
     id: true,
@@ -26,6 +27,8 @@ const userProfileSelect = {
     isActive: true,
     mustChangePassword: true,
     authVersion: true,
+    base64Photo: true,
+    thumbnailPhoto: true,
     store: {
         select: {
             id: true,
@@ -63,6 +66,8 @@ function serializeUser(user) {
         rawRole: user.role,
         storeId: user.storeId,
         branchId: user.branchId,
+        base64Photo: user.base64Photo,
+        thumbnailPhoto: user.thumbnailPhoto,
         mustChangePassword: user.mustChangePassword,
         store: user.store,
     };
@@ -127,6 +132,9 @@ exports.changePasswordSchema = zod_1.z.object({
     message: "Parollar mos kelmadi",
     path: ["confirmPassword"],
 });
+exports.updateProfilePhotoSchema = zod_1.z.object({
+    base64Photo: zod_1.z.string().min(32).max(7000000),
+}).strict();
 exports.AuthService = {
     async me(userId) {
         const user = await prisma_1.prisma.user.findUnique({
@@ -160,6 +168,45 @@ exports.AuthService = {
                     ...(data.fullName && { fullName: data.fullName }),
                     ...(data.username && { username: data.username }),
                 },
+                select: userProfileSelect,
+            });
+        }, prisma_1.transactionOptions);
+        return serializeUser(updated);
+    },
+    async updateProfilePhoto(userId, data) {
+        const photos = await profile_photo_service_1.ProfilePhotoService.process(data.base64Photo);
+        const updated = await prisma_1.prisma.$transaction(async (tx) => {
+            const current = await tx.user.findUnique({
+                where: { id: userId },
+                select: { id: true, storeId: true, isActive: true },
+            });
+            if (!current?.isActive)
+                throw new AppError_1.AppError(401, "Unauthorized");
+            if (current.storeId) {
+                await (0, billing_state_service_1.assertStoreReadableInTransaction)(tx, current.storeId);
+            }
+            return tx.user.update({
+                where: { id: userId },
+                data: photos,
+                select: userProfileSelect,
+            });
+        }, prisma_1.transactionOptions);
+        return serializeUser(updated);
+    },
+    async deleteProfilePhoto(userId) {
+        const updated = await prisma_1.prisma.$transaction(async (tx) => {
+            const current = await tx.user.findUnique({
+                where: { id: userId },
+                select: { id: true, storeId: true, isActive: true },
+            });
+            if (!current?.isActive)
+                throw new AppError_1.AppError(401, "Unauthorized");
+            if (current.storeId) {
+                await (0, billing_state_service_1.assertStoreReadableInTransaction)(tx, current.storeId);
+            }
+            return tx.user.update({
+                where: { id: userId },
+                data: { base64Photo: null, thumbnailPhoto: null },
                 select: userProfileSelect,
             });
         }, prisma_1.transactionOptions);

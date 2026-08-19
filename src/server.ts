@@ -34,7 +34,7 @@ if (process.env.TRUST_PROXY === "1" || process.env.NODE_ENV === "production") {
     app.set("trust proxy", 1);
 }
 
-app.use(express.json({ limit: "6mb" }));
+app.use(express.json({ limit: "8mb" }));
 const extraOrigins = (process.env.ALLOWED_ORIGINS || "")
     .split(",")
     .map((o) => o.trim())

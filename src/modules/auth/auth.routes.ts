@@ -62,6 +62,14 @@ const router = Router();
  *             branchId:
  *               type: string
  *               nullable: true
+ *             base64Photo:
+ *               type: string
+ *               nullable: true
+ *               description: Clear WebP profile photo as a data URL
+ *             thumbnailPhoto:
+ *               type: string
+ *               nullable: true
+ *               description: 96x96 WebP profile thumbnail as a data URL
  *   securitySchemes:
  *     bearerAuth:
  *       type: http
@@ -123,6 +131,42 @@ router.post(
 router.get("/me", authMiddleware, AuthController.me);
 
 router.patch("/profile", authMiddleware, AuthController.updateProfile);
+
+/**
+ * @openapi
+ * /auth/profile/photo:
+ *   put:
+ *     tags: [Auth]
+ *     summary: Upload or replace the current user's profile photo
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [base64Photo]
+ *             properties:
+ *               base64Photo:
+ *                 type: string
+ *                 description: JPEG, PNG or WebP data URL, maximum 5 MB decoded
+ *     responses:
+ *       200:
+ *         description: Updated current user with clear and thumbnail profile photos
+ *       422:
+ *         description: Unsupported or invalid image
+ *   delete:
+ *     tags: [Auth]
+ *     summary: Remove the current user's profile photo
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Updated current user with cleared profile photos
+ */
+router.put("/profile/photo", authMiddleware, AuthController.updateProfilePhoto);
+router.delete("/profile/photo", authMiddleware, AuthController.deleteProfilePhoto);
 
 router.post("/change-password", authMiddleware, AuthController.changePassword);
 

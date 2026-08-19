@@ -326,6 +326,8 @@ model User {
   isActive           Boolean         @default(true)
   mustChangePassword Boolean         @default(false)
   authVersion        Int             @default(0)
+  base64Photo        String?         @db.Text
+  thumbnailPhoto     String?         @db.Text
   branchId           String?
   branch             Branch?         @relation(fields: [branchId], references: [id])
   stockBatches       StockBatch[]

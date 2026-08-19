@@ -54,6 +54,28 @@ exports.AuthController = {
             next(error);
         }
     },
+    async updateProfilePhoto(req, res, next) {
+        try {
+            const parsed = auth_service_1.updateProfilePhotoSchema.safeParse(req.body);
+            if (!parsed.success) {
+                throw new AppError_1.AppError(422, parsed.error.issues[0]?.message ?? "Validation error");
+            }
+            const result = await auth_service_1.AuthService.updateProfilePhoto(req.user.id, parsed.data);
+            return ApiResponse_1.ApiResponse.success(res, result, "Profil rasmi yangilandi");
+        }
+        catch (error) {
+            next(error);
+        }
+    },
+    async deleteProfilePhoto(req, res, next) {
+        try {
+            const result = await auth_service_1.AuthService.deleteProfilePhoto(req.user.id);
+            return ApiResponse_1.ApiResponse.success(res, result, "Profil rasmi o'chirildi");
+        }
+        catch (error) {
+            next(error);
+        }
+    },
     async changePassword(req, res, next) {
         try {
             const parsed = auth_service_1.changePasswordSchema.safeParse(req.body);

@@ -3,7 +3,7 @@ import { Prisma, StockMovementType } from "@prisma/client";
 import { AppError } from "../../../core/errors/AppError";
 import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
 import { JwtPayload } from "../../../core/types/jwt.types";
-import { branchScope, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
+import { branchScope, requireAssignedBranchId, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
 import { isBranchScopedRole } from "../../../core/utils/role-access";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { emitTransferChanged } from "../../../infrastructure/socket";
@@ -122,12 +122,8 @@ export const TransfersService = {
         if (transfer.status !== "PENDING") {
             throw new AppError(409, `Transfer is already ${transfer.status.toLowerCase()}`);
         }
-        if (!isBranchScopedRole(user.role)) {
-            throw new AppError(403, "Only the receiving branch can confirm this transfer");
-        }
-        if (
-            transfer.toBranch.id !== user.branchId
-        ) {
+        const receiverBranchId = requireAssignedBranchId(user);
+        if (transfer.toBranch.id !== receiverBranchId) {
             throw new AppError(403, "Only the receiving branch can confirm this transfer");
         }
 

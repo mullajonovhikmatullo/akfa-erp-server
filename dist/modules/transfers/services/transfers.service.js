@@ -100,10 +100,8 @@ exports.TransfersService = {
         if (transfer.status !== "PENDING") {
             throw new AppError_1.AppError(409, `Transfer is already ${transfer.status.toLowerCase()}`);
         }
-        if (!(0, role_access_1.isBranchScopedRole)(user.role)) {
-            throw new AppError_1.AppError(403, "Only the receiving branch can confirm this transfer");
-        }
-        if (transfer.toBranch.id !== user.branchId) {
+        const receiverBranchId = (0, branch_access_1.requireAssignedBranchId)(user);
+        if (transfer.toBranch.id !== receiverBranchId) {
             throw new AppError_1.AppError(403, "Only the receiving branch can confirm this transfer");
         }
         const completed = await prisma_1.prisma.$transaction(async (tx) => {

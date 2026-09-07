@@ -1,4 +1,5 @@
 import swaggerJsdoc from "swagger-jsdoc";
+import { DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT } from "../utils/pagination";
 
 const apiEnvelope = (schema: Record<string, unknown>) => ({
     type: "object",
@@ -1195,3 +1196,45 @@ export const swaggerSpec = swaggerJsdoc({
 
     apis: ["./src/modules/**/*.ts"],
 });
+
+// Keep shared runtime limits discoverable in both /openapi.json and the
+// exported client contract without duplicating their definitions per route.
+function documentRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function documentParameter(path: string, method: string, parameter: Record<string, unknown>) {
+    if (!documentRecord(swaggerSpec) || !documentRecord(swaggerSpec.paths)) return;
+    const pathItem = swaggerSpec.paths[path];
+    if (!documentRecord(pathItem)) return;
+    const operation = pathItem[method];
+    if (!documentRecord(operation)) return;
+    const parameters: unknown[] = Array.isArray(operation.parameters) ? operation.parameters : [];
+    operation.parameters = [...parameters.filter((existing) =>
+        !documentRecord(existing) || existing.name !== parameter.name || existing.in !== parameter.in), parameter];
+}
+
+for (const path of ["/products", "/products/categories", "/customers", "/admins", "/branches",
+    "/expenses/categories", "/inventory", "/inventory/low-stock", "/inventory/batches",
+    "/public/plans", "/platform/plans", "/platform/plans/manage"]) {
+    documentParameter(path, "get", { name: "limit", in: "query", required: false,
+        description: "Maximum records in the legacy array response; use offset to read subsequent windows.",
+        schema: { type: "integer", minimum: 1, maximum: MAX_LIST_LIMIT, default: DEFAULT_LIST_LIMIT } });
+    documentParameter(path, "get", { name: "offset", in: "query", required: false,
+        schema: { type: "integer", minimum: 0, maximum: 1000000, default: 0 } });
+}
+
+for (const path of ["/products", "/products/categories", "/admins", "/branches", "/sales", "/inventory/batches"]) {
+    documentParameter(path, "get", { name: "page", in: "query", required: false,
+        description: "When provided, selects the existing paginated response format.",
+        schema: { type: "integer", minimum: 1, maximum: 1000000 } });
+    documentParameter(path, "get", { name: "pageSize", in: "query", required: false,
+        schema: { type: "integer", minimum: 1, maximum: 100, default: 10 } });
+}
+
+for (const path of ["/sales", "/sales/{id}/payments", "/inventory/stock-in",
+    "/inventory/stock-in/batch", "/inventory/adjustment", "/transfers"]) {
+    documentParameter(path, "post", { name: "Idempotency-Key", in: "header", required: false,
+        description: "Reuse the same key and input for retries. Different input conflicts (409). Replays return the existing resource's current fields.",
+        schema: { type: "string", minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9._:-]+$" } });
+}

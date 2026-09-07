@@ -79,6 +79,6 @@ export const debtPaymentQuerySchema = z.object({
     paymentMethod: z.nativeEnum(PaymentMethod).optional(),
     from: z.string().datetime().optional(),
     to: z.string().datetime().optional(),
-    page: z.coerce.number().int().positive().default(1),
-    pageSize: z.coerce.number().int().positive().max(100).default(10),
+    page: queryInteger(1, 1000000),
+    pageSize: queryInteger(10, 100),
 });

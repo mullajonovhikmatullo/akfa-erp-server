@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_controller_1 = require("./controllers/auth.controller");
 const auth_middleware_1 = require("./middleware/auth.middleware");
+const profile_photo_upload_middleware_1 = require("./middleware/profile-photo-upload.middleware");
 const validate_1 = require("../../core/middleware/validate");
 const rateLimit_1 = require("../../core/middleware/rateLimit");
 const auth_validation_1 = require("./validations/auth.validation");
@@ -150,7 +151,7 @@ router.patch("/profile", auth_middleware_1.authMiddleware, auth_controller_1.Aut
  *       200:
  *         description: Updated current user with cleared profile photos
  */
-router.put("/profile/photo", auth_middleware_1.authMiddleware, auth_controller_1.AuthController.updateProfilePhoto);
+router.put("/profile/photo", auth_middleware_1.authMiddleware, profile_photo_upload_middleware_1.profilePhotoUpload, auth_controller_1.AuthController.updateProfilePhoto);
 router.delete("/profile/photo", auth_middleware_1.authMiddleware, auth_controller_1.AuthController.deleteProfilePhoto);
 router.post("/change-password", auth_middleware_1.authMiddleware, auth_controller_1.AuthController.changePassword);
 exports.default = router;

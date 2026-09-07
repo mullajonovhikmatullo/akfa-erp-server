@@ -43,6 +43,7 @@ router.use(authMiddleware);
  *         items:
  *           type: array
  *           minItems: 1
+ *           maxItems: 200
  *           items:
  *             $ref: '#/components/schemas/TransferItem'
  *         note:

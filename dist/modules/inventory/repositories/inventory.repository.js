@@ -89,7 +89,7 @@ exports.InventoryRepository = {
             throw new AppError_1.AppError(409, "Insufficient stock for one or more products");
         return balances;
     },
-    async consumeBatches(storeId, branchId, items, tx) {
+    async consumeBatches(storeId, branchId, items, tx, transferItems) {
         const values = client_1.Prisma.join(items.map((item) => client_1.Prisma.sql `(${item.productId}::text, ${item.quantity}::numeric)`));
         const consumed = await tx.$queryRaw(client_1.Prisma.sql `
             WITH fifo AS (
@@ -109,8 +109,15 @@ exports.InventoryRepository = {
                 UPDATE "StockBatch" sb
                 SET "remainingQty" = sb."remainingQty" - deductions.amount, "updatedAt" = NOW()
                 FROM deductions WHERE sb.id = deductions.id AND sb."remainingQty" >= deductions.amount
-                RETURNING sb."productId", deductions.amount
+                RETURNING sb.id, sb."productId", deductions.amount
             )
+            ${transferItems?.length ? client_1.Prisma.sql `, allocated AS (
+                INSERT INTO "TransferAllocation" (id, "transferItemId", "stockBatchId", quantity, "createdAt")
+                SELECT gen_random_uuid()::text, item.id, changed.id, changed.amount, NOW()
+                FROM changed JOIN (VALUES ${client_1.Prisma.join(transferItems.map((item) => client_1.Prisma.sql `(${item.id}::text, ${item.productId}::text)`))}) AS item(id, "productId")
+                  ON item."productId" = changed."productId"
+                RETURNING id
+            )` : client_1.Prisma.empty}
             SELECT "productId", SUM(amount)::text AS quantity FROM changed GROUP BY "productId"
         `);
         const byProduct = new Map(consumed.map((row) => [row.productId, row.quantity]));
@@ -148,6 +155,27 @@ exports.InventoryRepository = {
             take: filters.limit ?? pagination_1.DEFAULT_LIST_LIMIT,
             skip: ids ? 0 : filters.offset ?? 0,
         });
+    },
+    async restoreTransferBatches(storeId, branchId, transferId, tx) {
+        // Caller holds the transfer transition and all source inventory locks.
+        // Restore the original FIFO batches, not a newly valued receipt.
+        return tx.$queryRaw(client_1.Prisma.sql `
+            WITH reserved AS (
+                SELECT a."stockBatchId", ti."productId", SUM(a.quantity) AS quantity
+                FROM "TransferAllocation" a
+                JOIN "TransferItem" ti ON ti.id = a."transferItemId"
+                JOIN "Transfer" tr ON tr.id = ti."transferId"
+                WHERE tr.id = ${transferId} AND tr."storeId" = ${storeId} AND tr."fromBranchId" = ${branchId}
+                GROUP BY a."stockBatchId", ti."productId"
+            ), restored AS (
+                UPDATE "StockBatch" sb SET "remainingQty" = sb."remainingQty" + r.quantity, "updatedAt" = NOW()
+                FROM reserved r WHERE sb.id = r."stockBatchId" AND sb."productId" = r."productId"
+                  AND sb."storeId" = ${storeId} AND sb."branchId" = ${branchId}
+                  AND sb."remainingQty" + r.quantity <= sb."initialQty"
+                RETURNING sb."productId", r.quantity
+            )
+            SELECT "productId", SUM(quantity)::text AS quantity FROM restored GROUP BY "productId"
+        `);
     },
     findOne(storeId, branchId, productId, tx) {
         const client = tx ?? prisma_1.prisma;

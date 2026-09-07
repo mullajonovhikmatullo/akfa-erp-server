@@ -102,9 +102,9 @@ export const CustomersRepository = {
         });
     },
 
-    recentSales(id: string, storeId: string, limit = 10) {
+    recentSales(id: string, storeId: string, limit = 10, branchId?: string) {
         return prisma.sale.findMany({
-            where: { customerId: id, storeId },
+            where: { customerId: id, storeId, ...(branchId && { branchId }) },
             select: {
                 id: true,
                 saleType: true,

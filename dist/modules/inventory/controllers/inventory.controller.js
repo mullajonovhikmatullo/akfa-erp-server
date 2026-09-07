@@ -83,8 +83,7 @@ exports.InventoryController = {
     async findReceipts(req, res, next) {
         try {
             const query = inventory_validation_1.batchQuerySchema.parse(req.query);
-            const page = Math.max(1, Number(req.query.page) || 1);
-            const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+            const { page, pageSize } = pagination_1.paginationSchema.parse(req.query);
             const result = await inventory_service_1.InventoryService.findReceiptsPaginated(query, page, pageSize, req.user);
             return ApiResponse_1.ApiResponse.success(res, result);
         }
@@ -95,8 +94,7 @@ exports.InventoryController = {
     async findReceiptItems(req, res, next) {
         try {
             const receiptId = zod_1.z.string().uuid().parse(req.params.receiptId);
-            const page = Math.max(1, Number(req.query.page) || 1);
-            const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 25));
+            const { page, pageSize } = pagination_1.paginationSchema.extend({ pageSize: (0, pagination_1.queryInteger)(25, 100) }).parse(req.query);
             const result = await inventory_service_1.InventoryService.findReceiptItems(receiptId, page, pageSize, req.user);
             return ApiResponse_1.ApiResponse.success(res, result);
         }

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AppError } from "../../../core/errors/AppError";
 import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
 import { JwtPayload } from "../../../core/types/jwt.types";
-import { branchScope, requireStoreId } from "../../../core/utils/branch-access";
+import { branchScope, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
 import { isBranchScopedRole } from "../../../core/utils/role-access";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { InventoryService } from "../../inventory/services/inventory.service";
@@ -10,23 +10,8 @@ import { CustomersRepository } from "../../customers/repositories/customers.repo
 import { CreateSaleDto } from "../dto/create-sale.dto";
 import { AddPaymentDto } from "../dto/add-payment.dto";
 import { SalesRepository } from "../repositories/sales.repository";
-import { saleQuerySchema } from "../validations/sale.validation";
+import { debtPaymentQuerySchema, saleQuerySchema } from "../validations/sale.validation";
 import { claimIdempotency, completeIdempotency } from "../../../core/services/idempotency.service";
-
-function resolveSaleBranchId(requestedBranchId: string | undefined, user: JwtPayload): string {
-    if (isBranchScopedRole(user.role)) {
-        if (!user.branchId) {
-            throw new AppError(403, "Your account is not assigned to any branch");
-        }
-        return user.branchId;
-    }
-
-    if (!requestedBranchId) {
-        throw new AppError(400, "branchId is required");
-    }
-
-    return requestedBranchId;
-}
 
 function resolveUnitPriceUzs(priceUzs: unknown, priceUsd: unknown, usdToUzsRate?: number): number {
     const uzs = Number(priceUzs ?? 0);
@@ -48,7 +33,7 @@ export const SalesService = {
 
     async create(dto: CreateSaleDto, user: JwtPayload, idempotencyKey?: string) {
         const storeId = requireStoreId(user);
-        const branchId = resolveSaleBranchId(dto.branchId, user);
+        const branchId = resolveBranchId(dto.branchId, user);
 
         return prisma.$transaction(async (tx) => {
             await assertStoreWritableInTransaction(tx, storeId, "shared");
@@ -69,7 +54,7 @@ export const SalesService = {
             // ── Validate customer (if provided) ──────────────────────────────────
             if (dto.customerId) {
                 const customer = await tx.customer.findFirst({
-                    where: { id: dto.customerId, branchId, storeId },
+                    where: { id: dto.customerId, storeId, branchLinks: { some: { branchId } } },
                     select: { id: true, isActive: true },
                 });
                 if (!customer) throw new AppError(404, "Customer not found in this branch");
@@ -256,6 +241,16 @@ export const SalesService = {
     },
 
     // ─── Queries ──────────────────────────────────────────────────────────────
+
+    async findDebtPayments(query: z.infer<typeof debtPaymentQuerySchema>, user: JwtPayload) {
+        const scope = branchScope(user, query.branchId);
+        const [items, total] = await SalesRepository.findDebtPayments(
+            { ...scope, customerId: query.customerId, paymentMethod: query.paymentMethod,
+                from: query.from, to: query.to },
+            query.page, query.pageSize
+        );
+        return { items, total, page: query.page, pageSize: query.pageSize };
+    },
 
     async findAll(query: z.infer<typeof saleQuerySchema>, user: JwtPayload) {
         const scope = branchScope(user, query.branchId);

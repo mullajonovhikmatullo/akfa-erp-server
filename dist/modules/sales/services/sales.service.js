@@ -10,18 +10,6 @@ const inventory_service_1 = require("../../inventory/services/inventory.service"
 const customers_repository_1 = require("../../customers/repositories/customers.repository");
 const sales_repository_1 = require("../repositories/sales.repository");
 const idempotency_service_1 = require("../../../core/services/idempotency.service");
-function resolveSaleBranchId(requestedBranchId, user) {
-    if ((0, role_access_1.isBranchScopedRole)(user.role)) {
-        if (!user.branchId) {
-            throw new AppError_1.AppError(403, "Your account is not assigned to any branch");
-        }
-        return user.branchId;
-    }
-    if (!requestedBranchId) {
-        throw new AppError_1.AppError(400, "branchId is required");
-    }
-    return requestedBranchId;
-}
 function resolveUnitPriceUzs(priceUzs, priceUsd, usdToUzsRate) {
     const uzs = Number(priceUzs ?? 0);
     const usd = priceUsd == null ? null : Number(priceUsd);
@@ -37,7 +25,7 @@ exports.SalesService = {
     // ─── Create Sale ──────────────────────────────────────────────────────────
     async create(dto, user, idempotencyKey) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
-        const branchId = resolveSaleBranchId(dto.branchId, user);
+        const branchId = (0, branch_access_1.resolveBranchId)(dto.branchId, user);
         return prisma_1.prisma.$transaction(async (tx) => {
             await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId, "shared");
             const claim = await (0, idempotency_service_1.claimIdempotency)(tx, { storeId, userId: user.id, operation: "sale" }, idempotencyKey, { dto, branchId });
@@ -57,7 +45,7 @@ exports.SalesService = {
             // ── Validate customer (if provided) ──────────────────────────────────
             if (dto.customerId) {
                 const customer = await tx.customer.findFirst({
-                    where: { id: dto.customerId, branchId, storeId },
+                    where: { id: dto.customerId, storeId, branchLinks: { some: { branchId } } },
                     select: { id: true, isActive: true },
                 });
                 if (!customer)
@@ -195,6 +183,12 @@ exports.SalesService = {
         }, prisma_1.transactionOptions);
     },
     // ─── Queries ──────────────────────────────────────────────────────────────
+    async findDebtPayments(query, user) {
+        const scope = (0, branch_access_1.branchScope)(user, query.branchId);
+        const [items, total] = await sales_repository_1.SalesRepository.findDebtPayments({ ...scope, customerId: query.customerId, paymentMethod: query.paymentMethod,
+            from: query.from, to: query.to }, query.page, query.pageSize);
+        return { items, total, page: query.page, pageSize: query.pageSize };
+    },
     async findAll(query, user) {
         const scope = (0, branch_access_1.branchScope)(user, query.branchId);
         return sales_repository_1.SalesRepository.findAll({

@@ -21,6 +21,15 @@ SELECT COALESCE(inv."storeId", b."storeId") AS "storeId",
 FROM "Inventory" inv FULL JOIN batches b USING ("storeId", "branchId", "productId")
 WHERE COALESCE(inv.quantity, 0) <> COALESCE(b.quantity, 0);
 
+-- For installations that have applied the existing transfer-allocation migration:
+SELECT tr.id AS "transferId", ti.id AS "transferItemId", ti.quantity AS expected,
+    SUM(a.quantity) AS reserved
+FROM "Transfer" tr JOIN "TransferItem" ti ON ti."transferId" = tr.id
+JOIN "TransferAllocation" a ON a."transferItemId" = ti.id
+WHERE tr.status = 'PENDING'
+GROUP BY tr.id, ti.id, ti.quantity
+HAVING SUM(a.quantity) <> ti.quantity;
+
 -- AFTER explicit reconciliation, validate historical rows in a maintenance step:
 -- ALTER TABLE "Inventory" VALIDATE CONSTRAINT "Inventory_quantity_nonnegative";
 -- ALTER TABLE "StockBatch" VALIDATE CONSTRAINT "StockBatch_quantities_valid";

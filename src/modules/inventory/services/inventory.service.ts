@@ -161,6 +161,7 @@ export const InventoryService = {
             await assertActiveActor(user.id, storeId, tx);
             await assertStockInTargets(items, storeId, tx);
             await InventoryRepository.lockStock(storeId, items.map((item) => ({ branchId: item.branchId, productId: item.dto.productId })), tx);
+            const receiptId = randomUUID();
             const batchIds = items.map(() => randomUUID());
             const balanceIncrements = new Map<string, { storeId: string; branchId: string; productId: string; quantity: number }>();
 
@@ -182,6 +183,7 @@ export const InventoryService = {
             await tx.stockBatch.createMany({
                 data: items.map((item, index) => ({
                     id: batchIds[index],
+                    receiptId,
                     storeId: item.storeId,
                     branchId: item.branchId,
                     productId: item.dto.productId,
@@ -361,8 +363,8 @@ export const InventoryService = {
         });
     },
 
-    async findBatchesSummary(user: JwtPayload) {
-        const scope = branchScope(user);
+    async findBatchesSummary(query: z.infer<typeof batchQuerySchema>, user: JwtPayload) {
+        const scope = branchScope(user, query.branchId);
         return InventoryRepository.batchesSummary(scope.storeId, scope.branchId);
     },
 
@@ -387,6 +389,30 @@ export const InventoryService = {
             hasFilters ? InventoryRepository.countBatches(filters) : Promise.resolve(null),
         ]);
         return { items, total: filteredTotal ?? summary.totalBatches, ...summary };
+    },
+
+    async findReceiptsPaginated(
+        query: z.infer<typeof batchQuerySchema>, page: number, pageSize: number, user: JwtPayload
+    ) {
+        const scope = branchScope(user, query.branchId);
+        const result = await InventoryRepository.findReceiptsPaginated(
+            { ...scope, from: query.from, to: query.to }, page, pageSize
+        );
+        return {
+            total: result.total,
+            items: result.items.map((item) => ({
+                id: item.id, receivedAt: item.receivedAt, productCount: item.productCount,
+                pieceQuantity: Number(item.pieceQuantity), kgQuantity: Number(item.kgQuantity),
+                totalCostUzs: Number(item.totalCostUzs), remainingValueUzs: Number(item.remainingValueUzs),
+                supplierNote: item.supplierNote,
+                branch: { id: item.branchId, name: item.branchName },
+                createdBy: { id: item.createdById, fullName: item.createdByName },
+            })),
+        };
+    },
+
+    async findReceiptItems(receiptId: string, page: number, pageSize: number, user: JwtPayload) {
+        return InventoryRepository.findReceiptItems({ ...branchScope(user), receiptId }, page, pageSize);
     },
 
     // ─── Internal: FIFO deduction ─────────────────────────────────────────────
@@ -416,11 +442,13 @@ export const InventoryService = {
         createdById: string,
         note: string,
         tx: Prisma.TransactionClient,
-        movementType: StockMovementType = StockMovementType.STOCK_OUT
+        movementType: StockMovementType = StockMovementType.STOCK_OUT,
+        transferItems?: Array<{ id: string; productId: string }>
     ) {
+        if (items.length === 0) return [];
         await InventoryRepository.lockStock(storeId, items.map((item) => ({ branchId, productId: item.productId })), tx);
         const balances = await InventoryRepository.deductBalances(storeId, branchId, items, tx);
-        await InventoryRepository.consumeBatches(storeId, branchId, items, tx);
+        await InventoryRepository.consumeBatches(storeId, branchId, items, tx, transferItems);
         const byProduct = new Map(balances.map((row) => [row.productId, row.quantity]));
         await tx.stockMovement.createMany({
             data: items.map((item) => ({
@@ -435,18 +463,44 @@ export const InventoryService = {
     // Creates a new StockBatch at the destination branch so cost price
     // is preserved for future FIFO deductions and COGS calculations.
 
+    async restoreTransferStockBatch(
+        storeId: string, branchId: string, transferId: string,
+        items: Array<{ productId: string; quantity: number }>,
+        createdById: string, note: string, tx: Prisma.TransactionClient
+    ): Promise<void> {
+        if (items.length === 0) return;
+        await InventoryRepository.lockStock(storeId, items.map((item) => ({ branchId, productId: item.productId })), tx);
+        const restored = await InventoryRepository.restoreTransferBatches(storeId, branchId, transferId, tx);
+        const byProduct = new Map(restored.map((row) => [row.productId, row.quantity]));
+        if (restored.length !== items.length || items.some((item) =>
+            !new Prisma.Decimal(byProduct.get(item.productId) ?? 0).equals(item.quantity))) {
+            throw new AppError(409, "Cannot restore transfer reservation; reconcile inventory");
+        }
+        const balances = await InventoryRepository.incrementBalances(items.map((item) => ({
+            storeId, branchId, ...item,
+        })), tx);
+        const balanceByProduct = new Map(balances.map((row) => [row.productId, String(row.quantity)]));
+        await tx.stockMovement.createMany({
+            data: items.map((item) => ({
+                storeId, branchId, ...item, type: StockMovementType.TRANSFER_IN,
+                balanceAfter: balanceByProduct.get(item.productId)!, note, createdById,
+            })),
+        });
+    },
+
     async transferInBatch(
         storeId: string,
         branchId: string,
         items: Array<{ productId: string; quantity: number; costPriceUzs: number }>,
         note: string,
         createdById: string,
-        tx: Prisma.TransactionClient
+        tx: Prisma.TransactionClient,
+        receiptId: string = randomUUID()
     ): Promise<void> {
         await InventoryRepository.lockStock(storeId, items.map((item) => ({ branchId, productId: item.productId })), tx);
         await tx.stockBatch.createMany({
             data: items.map((item) => ({
-                storeId, branchId, productId: item.productId, initialQty: item.quantity,
+                receiptId, storeId, branchId, productId: item.productId, initialQty: item.quantity,
                 remainingQty: item.quantity, costPriceUzs: item.costPriceUzs, supplierNote: note, createdById,
             })),
         });

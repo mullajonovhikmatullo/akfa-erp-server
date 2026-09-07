@@ -6,6 +6,7 @@ import {
     S3Client,
 } from "@aws-sdk/client-s3";
 import { AppError } from "../errors/AppError";
+import { positiveIntegerEnv } from "../config/runtime";
 import {
     FileStorageService,
     SaveFileInput,
@@ -36,6 +37,11 @@ export class R2FileStorageService implements FileStorageService {
         this.client = new S3Client({
             region: "auto",
             endpoint: config.endpoint.replace(/\/+$/, ""),
+            requestHandler: {
+                connectionTimeout: positiveIntegerEnv("STORAGE_CONNECTION_TIMEOUT_MS", 5000),
+                requestTimeout: positiveIntegerEnv("STORAGE_REQUEST_TIMEOUT_MS", 30000),
+                throwOnRequestTimeout: true,
+            },
             credentials: {
                 accessKeyId: config.accessKeyId,
                 secretAccessKey: config.secretAccessKey,
@@ -43,6 +49,10 @@ export class R2FileStorageService implements FileStorageService {
         });
         this.bucketName = config.bucketName;
         this.publicBaseUrl = config.publicBaseUrl.replace(/\/+$/, "");
+    }
+
+    close(): void {
+        this.client.destroy();
     }
 
     private assertStorageKey(storageKey: string): void {

@@ -18,6 +18,7 @@ const socket_1 = require("./infrastructure/socket");
 const prisma_1 = require("./infrastructure/prisma/prisma");
 const runtime_1 = require("./core/config/runtime");
 const requestMetrics_1 = require("./core/middleware/requestMetrics");
+const storage_1 = require("./core/storage");
 const auth_routes_1 = __importDefault(require("./modules/auth/auth.routes"));
 const onboarding_routes_1 = __importDefault(require("./modules/onboarding/onboarding.routes"));
 const platform_routes_1 = __importDefault(require("./modules/platform/platform.routes"));
@@ -37,6 +38,7 @@ const product_image_files_routes_1 = __importDefault(require("./modules/products
 const app = (0, express_1.default)();
 let shuttingDown = false;
 if (process.env.TRUST_PROXY === "1" || process.env.NODE_ENV === "production") {
+    //
     app.set("trust proxy", 1);
 }
 app.use(requestMetrics_1.requestMetrics);
@@ -53,6 +55,7 @@ const extraOrigins = (process.env.ALLOWED_ORIGINS || "")
     .map((o) => o.trim())
     .filter(Boolean);
 const isOriginAllowed = (origin) => {
+    //
     if (!origin)
         return true;
     if (extraOrigins.includes(origin))
@@ -75,6 +78,7 @@ app.use((0, cors_1.default)({
 }));
 const securityHeaders = (0, helmet_1.default)();
 app.use((req, res, next) => {
+    //
     if (req.path.startsWith("/docs") || req.path.startsWith("/api/docs"))
         return next();
     return securityHeaders(req, res, next);
@@ -86,6 +90,10 @@ app.use((0, morgan_1.default)(":method :route :status :response-time ms", {
 const standardJson = express_1.default.json({ limit: "1mb" });
 const receiptJson = express_1.default.json({ limit: "6mb" });
 app.use((req, res, next) => {
+    //
+    // This larger body is parsed by bounded middleware after authentication.
+    if (req.method === "PUT" && /^(?:\/api)?\/auth\/profile\/photo\/?$/.test(req.path))
+        return next();
     const parser = req.method === "POST" && /^(?:\/api)?\/billing\/payments\/?$/.test(req.path)
         ? receiptJson : standardJson;
     parser(req, res, next);
@@ -140,12 +148,14 @@ function shutdown(reason, exitCode = 0) {
     shuttingDown = true;
     console.log(JSON.stringify({ event: "shutdown", reason }));
     const deadline = setTimeout(() => {
+        //
         console.error(JSON.stringify({ event: "shutdown_timeout" }));
         server.closeAllConnections();
         process.exit(1);
     }, (0, runtime_1.positiveIntegerEnv)("SHUTDOWN_TIMEOUT_MS", 75000));
     deadline.unref();
     shutdownPromise = (async () => {
+        //
         const drained = new Promise((resolve, reject) => {
             server.close((error) => {
                 if (error && !("code" in error && error.code === "ERR_SERVER_NOT_RUNNING"))
@@ -156,9 +166,11 @@ function shutdown(reason, exitCode = 0) {
             server.closeIdleConnections();
         });
         try {
+            //
             await Promise.all([drained, (0, socket_1.closeSocketServer)()]);
         }
         finally {
+            storage_1.r2FileStorage?.close();
             // The adapter disposes its owned PostgreSQL pool here.
             await prisma_1.prisma.$disconnect();
             clearTimeout(deadline);
@@ -168,6 +180,7 @@ function shutdown(reason, exitCode = 0) {
 }
 const stop = (reason, exitCode = 0) => {
     void shutdown(reason, exitCode).catch(() => {
+        //
         console.error(JSON.stringify({ event: "shutdown_failed" }));
         process.exit(1);
     });
@@ -185,13 +198,16 @@ function fatal(reason, error) {
 process.once("uncaughtException", (error) => fatal("uncaughtException", error));
 process.once("unhandledRejection", (error) => fatal("unhandledRejection", error));
 function assertRuntimeSecurityConfig() {
+    //
     const secret = process.env.JWT_SECRET;
     const minimumLength = process.env.NODE_ENV === "production" ? 32 : 16;
     if (!secret || secret.length < minimumLength) {
+        //
         throw new Error(`JWT_SECRET must be at least ${minimumLength} characters`);
     }
 }
 async function startServer() {
+    //
     assertRuntimeSecurityConfig();
     await (0, seed_platform_owner_1.seedPlatformOwner)();
     if (shuttingDown)

@@ -14,6 +14,7 @@ import { closeSocketServer, initSocketServer } from "./infrastructure/socket";
 import { prisma } from "./infrastructure/prisma/prisma";
 import { positiveIntegerEnv } from "./core/config/runtime";
 import { requestMetrics, requestRoute } from "./core/middleware/requestMetrics";
+import { r2FileStorage } from "./core/storage";
 
 import authRoutes from "./modules/auth/auth.routes";
 import onboardingRoutes from "./modules/onboarding/onboarding.routes";
@@ -89,6 +90,8 @@ const standardJson = express.json({ limit: "1mb" });
 const receiptJson = express.json({ limit: "6mb" });
 app.use((req, res, next) => {
     //
+    // This larger body is parsed by bounded middleware after authentication.
+    if (req.method === "PUT" && /^(?:\/api)?\/auth\/profile\/photo\/?$/.test(req.path)) return next();
     const parser = req.method === "POST" && /^(?:\/api)?\/billing\/payments\/?$/.test(req.path)
         ? receiptJson : standardJson;
     parser(req, res, next);
@@ -169,6 +172,7 @@ function shutdown(reason: string, exitCode = 0): Promise<void> {
             //
             await Promise.all([drained, closeSocketServer()]);
         } finally {
+            r2FileStorage?.close();
             // The adapter disposes its owned PostgreSQL pool here.
             await prisma.$disconnect();
             clearTimeout(deadline);

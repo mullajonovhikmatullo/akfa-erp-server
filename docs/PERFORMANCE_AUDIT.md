@@ -8,6 +8,8 @@ The existing singleton Prisma/pg adapter, batched product validation and stock-i
 
 ## Prioritized implementation plan
 
+Continuation note: commit `62f6ae7` merged additional receipt grouping, transfer reservations, shared customer/phone identity, debt-payment history, profile photos and R2 storage. Re-inspection found their migrations/controllers had been merged without the matching Prisma fields/service logic. The continuation restores those existing features alongside the optimizations, not a new business model. New tests cover reservation creation/replay/cancellation, legacy transfer completion, main-branch owner confirmation, receipt groups, customer links and debt history. The current 28-migration test database matches Prisma with no detected drift.
+
 | Priority | File / function | Evidence and load effect | Proposed change |
 | --- | --- | --- | --- |
 | P0 | transfers.service.ts / complete, cancel | Reads PENDING before waiting for the store lock; two completions can both move stock, or cancellation overwrite completion | Conditional PENDING transition inside the transaction, before stock changes |

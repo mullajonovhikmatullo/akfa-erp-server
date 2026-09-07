@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { AuthController } from "./controllers/auth.controller";
 import { authMiddleware } from "./middleware/auth.middleware";
+import { profilePhotoUpload } from "./middleware/profile-photo-upload.middleware";
 import { validate } from "../../core/middleware/validate";
 import { handoffRateLimit, loginRateLimit } from "../../core/middleware/rateLimit";
 import {
@@ -168,7 +169,7 @@ router.patch("/profile", authMiddleware, AuthController.updateProfile);
  *       200:
  *         description: Updated current user with cleared profile photos
  */
-router.put("/profile/photo", authMiddleware, AuthController.updateProfilePhoto);
+router.put("/profile/photo", authMiddleware, profilePhotoUpload, AuthController.updateProfilePhoto);
 router.delete("/profile/photo", authMiddleware, AuthController.deleteProfilePhoto);
 
 router.post("/change-password", authMiddleware, AuthController.changePassword);

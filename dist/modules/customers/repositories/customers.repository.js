@@ -77,9 +77,9 @@ exports.CustomersRepository = {
             select: { id: true, balance: true },
         });
     },
-    recentSales(id, storeId, limit = 10) {
+    recentSales(id, storeId, limit = 10, branchId) {
         return prisma_1.prisma.sale.findMany({
-            where: { customerId: id, storeId },
+            where: { customerId: id, storeId, ...(branchId && { branchId }) },
             select: {
                 id: true,
                 saleType: true,

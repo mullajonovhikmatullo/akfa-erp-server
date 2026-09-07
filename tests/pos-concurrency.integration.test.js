@@ -108,7 +108,10 @@ test("PostgreSQL POS concurrency", { skip: !databaseUrl, timeout: 120000 }, asyn
 
         await t.test("concurrent debt collections and retried payments preserve sale/customer balances", async () => {
             const p = await product(f, 1);
-            const customer = await prisma.customer.create({ data: { storeId: f.storeId, branchId: f.branchId, fullName: "Debtor" } });
+            const customer = await prisma.customer.create({ data: {
+                storeId: f.storeId, branchId: f.branchId, fullName: "Debtor",
+                branchLinks: { create: { branchId: f.branchId } },
+            } });
             const sale = await SalesService.create(checkout(f, p, 1, { customerId: customer.id, paidAmountUzs: 0, paymentMethod: "CREDIT" }), f.user);
             const input = { amountUzs: 5, amountUsd: 0, paymentMethod: "CASH_UZS" };
             await Promise.all(Array.from({ length: 6 }, () => SalesService.addPayment(sale.id, input, f.user, randomUUID())));
@@ -119,6 +122,8 @@ test("PostgreSQL POS concurrency", { skip: !databaseUrl, timeout: 120000 }, asyn
             assert.equal(Number(updated.debtAmountUzs), 65);
             assert.equal(Number(updated.customer.balance), 65);
             assert.equal(updated.payments.length, 7);
+            const history = await SalesService.findDebtPayments({ page: 1, pageSize: 10, customerId: customer.id }, f.user);
+            assert.equal(history.total, 7);
             await assert.rejects(() => SalesService.addPayment(sale.id, input, { ...f.user, role: "CASHIER", branchId: f.destinationId }, key), (e) => [403, 409].includes(e.statusCode));
         });
 
@@ -152,6 +157,8 @@ test("PostgreSQL POS concurrency", { skip: !databaseUrl, timeout: 120000 }, asyn
             const receiver = { ...f.user, branchId: f.destinationId, role: "BRANCH_ADMIN" };
             const input = { fromBranchId: f.branchId, toBranchId: f.destinationId, items: [{ productId: p.id, quantity: 2 }] };
             const transfer = await TransfersService.create(input, f.user);
+            await assertStock(f, p, 8);
+            assert.equal(await prisma.transferAllocation.count({ where: { transferItem: { transferId: transfer.id } } }), 1);
             const results = await Promise.allSettled(Array.from({ length: 6 }, () => TransfersService.complete(transfer.id, receiver)));
             assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
             await assertStock(f, p, 8);
@@ -175,6 +182,65 @@ test("PostgreSQL POS concurrency", { skip: !databaseUrl, timeout: 120000 }, asyn
             ]);
             await assertStock(f, p, 10);
             await assertStock(f, p, 10, f.destinationId);
+        });
+
+        await t.test("retried reservations and cancellations restore original FIFO batches exactly once", async () => {
+            const p = await product(f, 1);
+            await InventoryService.stockIn({ branchId: f.branchId, productId: p.id, quantity: 2, costPriceUzs: 70 }, f.user);
+            const original = await prisma.stockBatch.findMany({ where: { productId: p.id }, orderBy: { id: "asc" } });
+            const input = { toBranchId: f.destinationId, items: [{ productId: p.id, quantity: 2 }] };
+            const key = randomUUID();
+            const transfers = await Promise.all(Array.from({ length: 6 }, () => TransfersService.create(input, f.user, key)));
+            assert.equal(new Set(transfers.map((row) => row.id)).size, 1);
+            await assertStock(f, p, 1);
+            await assert.rejects(() => SalesService.create(checkout(f, p, 2), f.user), (e) => e.statusCode === 409);
+            const outcomes = await Promise.allSettled(Array.from({ length: 6 }, () => TransfersService.cancel(transfers[0].id, f.user)));
+            assert.equal(outcomes.filter((row) => row.status === "fulfilled").length, 1);
+            await assertStock(f, p, 3);
+            const restored = await prisma.stockBatch.findMany({ where: { productId: p.id }, orderBy: { id: "asc" } });
+            assert.deepEqual(restored.map((row) => [row.id, String(row.remainingQty), String(row.costPriceUzs)]),
+                original.map((row) => [row.id, String(row.remainingQty), String(row.costPriceUzs)]));
+        });
+
+        await t.test("legacy unreserved transfer and assigned main-branch owner still complete once", async () => {
+            const p = await product(f, 2);
+            const legacy = await prisma.transfer.create({ data: {
+                storeId: f.storeId, fromBranchId: f.branchId, toBranchId: f.destinationId, initiatedById: f.user.id,
+                items: { create: { productId: p.id, quantity: 1, unitCostUzs: 50, totalCostUzs: 50 } },
+            } });
+            await TransfersService.complete(legacy.id, { ...f.user, branchId: f.destinationId });
+            await assertStock(f, p, 1);
+            await assertStock(f, p, 1, f.destinationId);
+            const received = await prisma.stockBatch.findMany({ where: { receiptId: legacy.id } });
+            assert.equal(received.length, 1);
+        });
+
+        await t.test("receipt grouping, customer branch links and bounded read methods survive merge reconciliation", async () => {
+            const p = await product(f);
+            const inputs = [1, 2].map((quantity) => ({ productId: p.id, quantity, costPriceUzs: 50 }));
+            const batches = await InventoryService.stockInBatch(inputs, f.user);
+            assert.equal(new Set(batches.map((row) => row.receiptId)).size, 1);
+            const receipt = await InventoryService.findReceiptItems(batches[0].receiptId, 1, 1, f.user);
+            assert.equal(receipt.total, 2);
+            assert.equal(receipt.items.length, 1);
+            const receipts = await InventoryService.findReceiptsPaginated({}, 1, 1, f.user);
+            assert.equal(receipts.items.length, 1);
+            const customer = await prisma.customer.create({ data: {
+                storeId: f.storeId, branchId: f.destinationId, fullName: "Linked customer",
+                branchLinks: { create: [{ branchId: f.destinationId }, { branchId: f.branchId }] },
+            } });
+            const sale = await SalesService.create(checkout(f, p, 1, { branchId: undefined, customerId: customer.id }), f.user);
+            assert.equal(sale.branch.id, f.branchId);
+            await InventoryService.stockIn({ branchId: f.destinationId, productId: p.id, quantity: 1, costPriceUzs: 50 }, f.user);
+            await SalesService.create(checkout(f, p, 1, { branchId: f.destinationId, customerId: customer.id }), f.user);
+            const { CustomersService } = require("../dist/modules/customers/services/customers.service");
+            const scoped = await CustomersService.findById(customer.id, { ...f.user, role: "BRANCH_ADMIN" });
+            assert.deepEqual(scoped.recentSales.map((row) => row.id), [sale.id]);
+            const foreign = await prisma.customer.create({ data: {
+                storeId: other.storeId, branchId: other.branchId, fullName: "Other tenant",
+                branchLinks: { create: { branchId: other.branchId } },
+            } });
+            await assert.rejects(() => SalesService.create(checkout(f, p, 1, { customerId: foreign.id }), f.user), (e) => e.statusCode === 404);
         });
 
         await t.test("tenant and branch boundaries survive batching and low-stock filtering", async () => {

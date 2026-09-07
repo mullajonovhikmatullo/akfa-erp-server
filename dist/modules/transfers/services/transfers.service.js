@@ -12,6 +12,21 @@ const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const socket_1 = require("../../../infrastructure/socket");
 const inventory_service_1 = require("../../inventory/services/inventory.service");
 const transfers_repository_1 = require("../repositories/transfers.repository");
+async function reservedItemIds(transferId, storeId, items, tx) {
+    const reservations = await tx.transferAllocation.groupBy({
+        by: ["transferItemId"],
+        where: { transferItem: { transferId, transfer: { storeId } } },
+        _sum: { quantity: true },
+    });
+    const quantities = new Map(reservations.map((row) => [row.transferItemId, row._sum.quantity]));
+    for (const item of items) {
+        const quantity = quantities.get(item.id);
+        if (quantity && !quantity.equals(item.quantity)) {
+            throw new AppError_1.AppError(409, "Transfer reservation is incomplete; reconcile inventory");
+        }
+    }
+    return new Set(quantities.keys());
+}
 exports.TransfersService = {
     // ─── Create (PENDING) ─────────────────────────────────────────────────────
     async create(dto, user, idempotencyKey) {
@@ -76,6 +91,9 @@ exports.TransfersService = {
                 initiatedById: user.id,
                 items,
             }, tx);
+            // Preserve the existing reservation model: PENDING transfers remove
+            // source availability immediately and record the exact FIFO batches.
+            await inventory_service_1.InventoryService.deductStockBatch(storeId, fromBranchId, items, user.id, `Transfer ${transfer.id} reserved → ${toBranch.name}`, tx, client_1.StockMovementType.TRANSFER_OUT, transfer.items.map((item) => ({ id: item.id, productId: item.product.id })));
             await (0, idempotency_service_1.completeIdempotency)(tx, claim, [transfer.id]);
             return { transfer, replayed: false };
         }, prisma_1.transactionOptions);
@@ -91,8 +109,8 @@ exports.TransfersService = {
         return created;
     },
     // ─── Complete ─────────────────────────────────────────────────────────────
-    // This is the moment stock actually moves. Everything in one transaction:
-    //   • TRANSFER_OUT from source (FIFO deduction)
+    // Source stock is reserved on creation. Everything below is one transaction:
+    //   • TRANSFER_OUT only for legacy pending transfers without reservations
     //   • TRANSFER_IN to destination (new batch with transfer cost)
     //   • Transfer status → COMPLETED
     // NOT counted in sales figures — uses TRANSFER_OUT / TRANSFER_IN movement types.
@@ -104,10 +122,7 @@ exports.TransfersService = {
         if (transfer.status !== "PENDING") {
             throw new AppError_1.AppError(409, `Transfer is already ${transfer.status.toLowerCase()}`);
         }
-        if (!(0, role_access_1.isBranchScopedRole)(user.role)) {
-            throw new AppError_1.AppError(403, "Only the receiving branch can confirm this transfer");
-        }
-        if (transfer.toBranch.id !== user.branchId) {
+        if (transfer.toBranch.id !== (0, branch_access_1.requireAssignedBranchId)(user)) {
             throw new AppError_1.AppError(403, "Only the receiving branch can confirm this transfer");
         }
         const completed = await prisma_1.prisma.$transaction(async (tx) => {
@@ -117,9 +132,11 @@ exports.TransfersService = {
                 { branchId: transfer.fromBranch.id, productId: item.product.id },
                 { branchId: transfer.toBranch.id, productId: item.product.id },
             ]), tx);
-            await inventory_service_1.InventoryService.deductStockBatch(storeId, transfer.fromBranch.id, transfer.items.map((item) => ({ productId: item.product.id, quantity: Number(item.quantity) })), user.id, `Transfer ${id} → ${transfer.toBranch.name}`, tx, client_1.StockMovementType.TRANSFER_OUT);
+            const reserved = await reservedItemIds(id, storeId, transfer.items, tx);
+            await inventory_service_1.InventoryService.deductStockBatch(storeId, transfer.fromBranch.id, transfer.items.filter((item) => !reserved.has(item.id))
+                .map((item) => ({ productId: item.product.id, quantity: Number(item.quantity) })), user.id, `Transfer ${id} → ${transfer.toBranch.name}`, tx, client_1.StockMovementType.TRANSFER_OUT);
             await inventory_service_1.InventoryService.transferInBatch(storeId, transfer.toBranch.id, transfer.items.map((item) => ({ productId: item.product.id,
-                quantity: Number(item.quantity), costPriceUzs: Number(item.unitCostUzs) })), transfer.fromBranch.name, user.id, tx);
+                quantity: Number(item.quantity), costPriceUzs: Number(item.unitCostUzs) })), transfer.fromBranch.name, user.id, tx, transfer.id);
             return transfers_repository_1.TransfersRepository.updateStatus(id, "COMPLETED", user.id, tx);
         }, prisma_1.transactionOptions);
         (0, socket_1.emitTransferChanged)({
@@ -148,6 +165,12 @@ exports.TransfersService = {
         const cancelled = await prisma_1.prisma.$transaction(async (tx) => {
             await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId, "shared");
             await transfers_repository_1.TransfersRepository.claimPending(id, storeId, "CANCELLED", tx);
+            await inventory_repository_1.InventoryRepository.lockStock(storeId, transfer.items.map((item) => ({
+                branchId: transfer.fromBranch.id, productId: item.product.id,
+            })), tx);
+            const reserved = await reservedItemIds(id, storeId, transfer.items, tx);
+            await inventory_service_1.InventoryService.restoreTransferStockBatch(storeId, transfer.fromBranch.id, id, transfer.items.filter((item) => reserved.has(item.id))
+                .map((item) => ({ productId: item.product.id, quantity: Number(item.quantity) })), user.id, `Cancelled transfer ${id}`, tx);
             return transfers_repository_1.TransfersRepository.updateStatus(id, "CANCELLED", null, tx);
         }, prisma_1.transactionOptions);
         (0, socket_1.emitTransferChanged)({

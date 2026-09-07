@@ -129,7 +129,8 @@ export const InventoryRepository = {
         storeId: string,
         branchId: string,
         items: Array<{ productId: string; quantity: number }>,
-        tx: Tx
+        tx: Tx,
+        transferItems?: Array<{ id: string; productId: string }>
     ): Promise<void> {
         const values = Prisma.join(items.map((item) =>
             Prisma.sql`(${item.productId}::text, ${item.quantity}::numeric)`));
@@ -151,8 +152,16 @@ export const InventoryRepository = {
                 UPDATE "StockBatch" sb
                 SET "remainingQty" = sb."remainingQty" - deductions.amount, "updatedAt" = NOW()
                 FROM deductions WHERE sb.id = deductions.id AND sb."remainingQty" >= deductions.amount
-                RETURNING sb."productId", deductions.amount
+                RETURNING sb.id, sb."productId", deductions.amount
             )
+            ${transferItems?.length ? Prisma.sql`, allocated AS (
+                INSERT INTO "TransferAllocation" (id, "transferItemId", "stockBatchId", quantity, "createdAt")
+                SELECT gen_random_uuid()::text, item.id, changed.id, changed.amount, NOW()
+                FROM changed JOIN (VALUES ${Prisma.join(transferItems.map((item) =>
+                    Prisma.sql`(${item.id}::text, ${item.productId}::text)`))}) AS item(id, "productId")
+                  ON item."productId" = changed."productId"
+                RETURNING id
+            )` : Prisma.empty}
             SELECT "productId", SUM(amount)::text AS quantity FROM changed GROUP BY "productId"
         `);
         const byProduct = new Map(consumed.map((row) => [row.productId, row.quantity]));
@@ -191,6 +200,28 @@ export const InventoryRepository = {
             take: filters.limit ?? DEFAULT_LIST_LIMIT,
             skip: ids ? 0 : filters.offset ?? 0,
         });
+    },
+
+    async restoreTransferBatches(storeId: string, branchId: string, transferId: string, tx: Tx) {
+        // Caller holds the transfer transition and all source inventory locks.
+        // Restore the original FIFO batches, not a newly valued receipt.
+        return tx.$queryRaw<Array<{ productId: string; quantity: string }>>(Prisma.sql`
+            WITH reserved AS (
+                SELECT a."stockBatchId", ti."productId", SUM(a.quantity) AS quantity
+                FROM "TransferAllocation" a
+                JOIN "TransferItem" ti ON ti.id = a."transferItemId"
+                JOIN "Transfer" tr ON tr.id = ti."transferId"
+                WHERE tr.id = ${transferId} AND tr."storeId" = ${storeId} AND tr."fromBranchId" = ${branchId}
+                GROUP BY a."stockBatchId", ti."productId"
+            ), restored AS (
+                UPDATE "StockBatch" sb SET "remainingQty" = sb."remainingQty" + r.quantity, "updatedAt" = NOW()
+                FROM reserved r WHERE sb.id = r."stockBatchId" AND sb."productId" = r."productId"
+                  AND sb."storeId" = ${storeId} AND sb."branchId" = ${branchId}
+                  AND sb."remainingQty" + r.quantity <= sb."initialQty"
+                RETURNING sb."productId", r.quantity
+            )
+            SELECT "productId", SUM(quantity)::text AS quantity FROM restored GROUP BY "productId"
+        `);
     },
 
     findOne(storeId: string, branchId: string, productId: string, tx?: Tx) {

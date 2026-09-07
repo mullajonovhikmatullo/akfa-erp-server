@@ -89,7 +89,7 @@ export const CustomersService = {
             throw new AppError(403, "Forbidden");
         }
 
-        const recentSales = await CustomersRepository.recentSales(id, storeId);
+        const recentSales = await CustomersRepository.recentSales(id, storeId, 10, branchScope(user).branchId);
         return { ...customer, recentSales };
     },
 

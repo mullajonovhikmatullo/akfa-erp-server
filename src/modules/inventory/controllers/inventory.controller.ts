@@ -1,4 +1,4 @@
-import { paginationSchema } from "../../../core/utils/pagination";
+import { paginationSchema, queryInteger } from "../../../core/utils/pagination";
 import { NextFunction, Request, Response } from "express";
 import { ApiResponse } from "../../../core/response/ApiResponse";
 import {
@@ -86,8 +86,7 @@ export const InventoryController = {
     async findReceipts(req: Request, res: Response, next: NextFunction) {
         try {
             const query = batchQuerySchema.parse(req.query);
-            const page = Math.max(1, Number(req.query.page) || 1);
-            const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+            const { page, pageSize } = paginationSchema.parse(req.query);
             const result = await InventoryService.findReceiptsPaginated(query, page, pageSize, req.user!);
             return ApiResponse.success(res, result);
         } catch (error) {
@@ -98,8 +97,7 @@ export const InventoryController = {
     async findReceiptItems(req: Request, res: Response, next: NextFunction) {
         try {
             const receiptId = z.string().uuid().parse(req.params.receiptId);
-            const page = Math.max(1, Number(req.query.page) || 1);
-            const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 25));
+            const { page, pageSize } = paginationSchema.extend({ pageSize: queryInteger(25, 100) }).parse(req.query);
             const result = await InventoryService.findReceiptItems(receiptId, page, pageSize, req.user!);
             return ApiResponse.success(res, result);
         } catch (error) {

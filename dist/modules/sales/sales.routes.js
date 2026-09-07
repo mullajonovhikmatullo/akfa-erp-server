@@ -43,6 +43,7 @@ router.use(auth_middleware_1.authMiddleware);
  *           $ref: '#/components/schemas/SaleType'
  *         items:
  *           type: array
+ *           maxItems: 200
  *           items:
  *             $ref: '#/components/schemas/SaleItemRequest'
  *         paidAmountUzs:

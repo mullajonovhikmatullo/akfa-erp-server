@@ -141,6 +141,30 @@ router.use(authMiddleware);
  *       422:
  *         description: Validation error
  */
+/**
+ * @openapi
+ * /inventory/stock-in/batch:
+ *   post:
+ *     tags: [Inventory]
+ *     summary: Receive a bounded group of stock batches in one receipt
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: array
+ *             minItems: 1
+ *             maxItems: 100
+ *             items:
+ *               $ref: '#/components/schemas/StockInRequest'
+ *     responses:
+ *       201:
+ *         description: Receipt batches created atomically
+ *       409:
+ *         description: Stock or idempotency conflict
+ */
 router.post(
     "/stock-in/batch",
     roleMiddleware("STORE_OWNER", "STORE_ADMIN", "BRANCH_ADMIN", "ADMIN"),

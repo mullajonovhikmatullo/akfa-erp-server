@@ -68,6 +68,9 @@ export const AuthController = {
             return ApiResponse.success(res, result, "Profil rasmi yangilandi");
         } catch (error) {
             next(error);
+        } finally {
+            req.body = undefined;
+            req.releaseImageUpload?.();
         }
     },
 

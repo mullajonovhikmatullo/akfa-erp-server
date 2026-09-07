@@ -7,6 +7,8 @@ const { randomUUID, randomBytes } = require("node:crypto");
 
 test("HTTP server drains requests, closes Socket.IO and disconnects its pool", { skip: !process.env.TEST_DATABASE_URL, timeout: 30000 }, async () => {
     const databaseUrl = process.env.TEST_DATABASE_URL;
+    process.env.DATABASE_URL = databaseUrl;
+    const { prisma } = require("../dist/infrastructure/prisma/prisma");
     assert.match(new URL(databaseUrl).pathname, /_test$/);
     const probe = http.createServer();
     probe.listen(0, "127.0.0.1");
@@ -53,6 +55,23 @@ test("HTTP server drains requests, closes Socket.IO and disconnects its pool", {
         assert.equal(oversized.status, 413);
         await oversized.arrayBuffer();
 
+        // The profile-photo contract permits >1 MB, but only this authenticated,
+        // admission-limited route uses the larger parser.
+        const owner = await prisma.user.upsert({ where: { username },
+            create: { username, fullName: "Runtime test", password: "No password login in this test", role: "PLATFORM_OWNER" },
+            update: {}, select: { id: true, authVersion: true } });
+        const token = require("jsonwebtoken").sign({ id: owner.id, authVersion: owner.authVersion }, secret);
+        const largePhoto = Buffer.alloc(1024 * 1024, 0);
+        largePhoto[0] = 0xff; largePhoto[1] = 0xd8; largePhoto[2] = 0xff;
+        const photoBody = JSON.stringify({ base64Photo: `data:image/jpeg;base64,${largePhoto.toString("base64")}` });
+        const photo = await fetch(`${base}/api/auth/profile/photo`, { method: "PUT",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: photoBody });
+        assert.equal(photo.status, 200);
+        await photo.arrayBuffer();
+        const removedPhoto = await fetch(`${base}/api/auth/profile/photo`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+        assert.equal(removedPhoto.status, 200);
+        await removedPhoto.arrayBuffer();
+
         // Keep an Engine.IO transport alive during shutdown. No account/token
         // is invented for the application namespace.
         socket = new WebSocket(`ws://127.0.0.1:${port}/api/socket.io/?EIO=4&transport=websocket`);
@@ -72,8 +91,6 @@ test("HTTP server drains requests, closes Socket.IO and disconnects its pool", {
     } finally {
         socket?.close();
         if (child.exitCode === null && child.signalCode === null) { child.kill("SIGTERM"); await exited; }
-        process.env.DATABASE_URL = databaseUrl;
-        const { prisma } = require("../dist/infrastructure/prisma/prisma");
         await prisma.user.deleteMany({ where: { username } });
         await prisma.$disconnect();
     }

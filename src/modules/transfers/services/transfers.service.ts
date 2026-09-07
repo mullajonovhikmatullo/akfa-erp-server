@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { StockMovementType } from "@prisma/client";
+import { Prisma, StockMovementType } from "@prisma/client";
 import { AppError } from "../../../core/errors/AppError";
 import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
 import { claimIdempotency, completeIdempotency } from "../../../core/services/idempotency.service";
 import { InventoryRepository } from "../../inventory/repositories/inventory.repository";
 import { JwtPayload } from "../../../core/types/jwt.types";
-import { branchScope, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
+import { branchScope, requireAssignedBranchId, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
 import { isBranchScopedRole } from "../../../core/utils/role-access";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { emitTransferChanged } from "../../../infrastructure/socket";
@@ -13,6 +13,25 @@ import { InventoryService } from "../../inventory/services/inventory.service";
 import { CreateTransferDto } from "../dto/create-transfer.dto";
 import { TransfersRepository } from "../repositories/transfers.repository";
 import { transferQuerySchema } from "../validations/transfer.validation";
+
+async function reservedItemIds(
+    transferId: string, storeId: string,
+    items: Array<{ id: string; quantity: Prisma.Decimal }>, tx: Prisma.TransactionClient
+) {
+    const reservations = await tx.transferAllocation.groupBy({
+        by: ["transferItemId"],
+        where: { transferItem: { transferId, transfer: { storeId } } },
+        _sum: { quantity: true },
+    });
+    const quantities = new Map(reservations.map((row) => [row.transferItemId, row._sum.quantity]));
+    for (const item of items) {
+        const quantity = quantities.get(item.id);
+        if (quantity && !quantity.equals(item.quantity)) {
+            throw new AppError(409, "Transfer reservation is incomplete; reconcile inventory");
+        }
+    }
+    return new Set(quantities.keys());
+}
 
 export const TransfersService = {
     // ─── Create (PENDING) ─────────────────────────────────────────────────────
@@ -83,6 +102,13 @@ export const TransfersService = {
                 initiatedById: user.id,
                 items,
             }, tx);
+            // Preserve the existing reservation model: PENDING transfers remove
+            // source availability immediately and record the exact FIFO batches.
+            await InventoryService.deductStockBatch(
+                storeId, fromBranchId, items, user.id,
+                `Transfer ${transfer.id} reserved → ${toBranch.name}`, tx, StockMovementType.TRANSFER_OUT,
+                transfer.items.map((item) => ({ id: item.id, productId: item.product.id }))
+            );
             await completeIdempotency(tx, claim, [transfer.id]);
             return { transfer, replayed: false };
         }, transactionOptions);
@@ -100,8 +126,8 @@ export const TransfersService = {
     },
 
     // ─── Complete ─────────────────────────────────────────────────────────────
-    // This is the moment stock actually moves. Everything in one transaction:
-    //   • TRANSFER_OUT from source (FIFO deduction)
+    // Source stock is reserved on creation. Everything below is one transaction:
+    //   • TRANSFER_OUT only for legacy pending transfers without reservations
     //   • TRANSFER_IN to destination (new batch with transfer cost)
     //   • Transfer status → COMPLETED
     // NOT counted in sales figures — uses TRANSFER_OUT / TRANSFER_IN movement types.
@@ -113,12 +139,7 @@ export const TransfersService = {
         if (transfer.status !== "PENDING") {
             throw new AppError(409, `Transfer is already ${transfer.status.toLowerCase()}`);
         }
-        if (!isBranchScopedRole(user.role)) {
-            throw new AppError(403, "Only the receiving branch can confirm this transfer");
-        }
-        if (
-            transfer.toBranch.id !== user.branchId
-        ) {
+        if (transfer.toBranch.id !== requireAssignedBranchId(user)) {
             throw new AppError(403, "Only the receiving branch can confirm this transfer");
         }
 
@@ -130,9 +151,11 @@ export const TransfersService = {
                     { branchId: transfer.fromBranch.id, productId: item.product.id },
                     { branchId: transfer.toBranch.id, productId: item.product.id },
                 ]), tx);
+                const reserved = await reservedItemIds(id, storeId, transfer.items, tx);
                 await InventoryService.deductStockBatch(
                     storeId, transfer.fromBranch.id,
-                    transfer.items.map((item) => ({ productId: item.product.id, quantity: Number(item.quantity) })),
+                    transfer.items.filter((item) => !reserved.has(item.id))
+                        .map((item) => ({ productId: item.product.id, quantity: Number(item.quantity) })),
                     user.id, `Transfer ${id} → ${transfer.toBranch.name}`, tx, StockMovementType.TRANSFER_OUT
                 );
 
@@ -140,7 +163,7 @@ export const TransfersService = {
                     storeId, transfer.toBranch.id,
                     transfer.items.map((item) => ({ productId: item.product.id,
                         quantity: Number(item.quantity), costPriceUzs: Number(item.unitCostUzs) })),
-                    transfer.fromBranch.name, user.id, tx
+                    transfer.fromBranch.name, user.id, tx, transfer.id
                 );
 
                 return TransfersRepository.updateStatus(id, "COMPLETED", user.id, tx);
@@ -180,6 +203,16 @@ export const TransfersService = {
         const cancelled = await prisma.$transaction(async (tx) => {
             await assertStoreWritableInTransaction(tx, storeId, "shared");
             await TransfersRepository.claimPending(id, storeId, "CANCELLED", tx);
+            await InventoryRepository.lockStock(storeId, transfer.items.map((item) => ({
+                branchId: transfer.fromBranch.id, productId: item.product.id,
+            })), tx);
+            const reserved = await reservedItemIds(id, storeId, transfer.items, tx);
+            await InventoryService.restoreTransferStockBatch(
+                storeId, transfer.fromBranch.id, id,
+                transfer.items.filter((item) => reserved.has(item.id))
+                    .map((item) => ({ productId: item.product.id, quantity: Number(item.quantity) })),
+                user.id, `Cancelled transfer ${id}`, tx
+            );
             return TransfersRepository.updateStatus(id, "CANCELLED", null, tx);
         }, transactionOptions);
 

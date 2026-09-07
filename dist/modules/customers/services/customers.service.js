@@ -87,7 +87,7 @@ exports.CustomersService = {
         if ((0, role_access_1.isBranchScopedRole)(user.role) && !customer.branchLinks.some((link) => link.branchId === user.branchId)) {
             throw new AppError_1.AppError(403, "Forbidden");
         }
-        const recentSales = await customers_repository_1.CustomersRepository.recentSales(id, storeId);
+        const recentSales = await customers_repository_1.CustomersRepository.recentSales(id, storeId, 10, (0, branch_access_1.branchScope)(user).branchId);
         return { ...customer, recentSales };
     },
     async update(id, dto, user) {

@@ -72,3 +72,12 @@ test("pool exhaustion, transaction conflicts and malformed bodies return predict
     const error = new Error("already streaming");
     errorHandler(error, {}, { headersSent: true }, (forwarded) => assert.equal(forwarded, error));
 });
+
+test("OpenAPI advertises bounded windows and critical retry headers", () => {
+    const { swaggerSpec } = require("../dist/core/config/swagger");
+    const parameters = swaggerSpec.paths["/products"].get.parameters;
+    assert.equal(parameters.find((item) => item.name === "limit").schema.maximum, 500);
+    assert.equal(parameters.find((item) => item.name === "offset").schema.default, 0);
+    assert.equal(swaggerSpec.paths["/sales"].post.parameters.find((item) => item.name === "Idempotency-Key").schema.maxLength, 128);
+    assert.equal(swaggerSpec.components.schemas.CreateSaleRequest.properties.items.maxItems, 200);
+});

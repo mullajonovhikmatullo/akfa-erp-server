@@ -158,7 +158,7 @@ exports.AuthService = {
                 await (0, billing_state_service_1.assertStoreReadableInTransaction)(tx, current.storeId);
             }
             if (data.username) {
-                const existing = await tx.user.findUnique({ where: { username: data.username } });
+                const existing = await tx.user.findUnique({ where: { username: data.username }, select: { id: true } });
                 if (existing && existing.id !== userId) {
                     throw new AppError_1.AppError(409, "Bu foydalanuvchi nomi band");
                 }

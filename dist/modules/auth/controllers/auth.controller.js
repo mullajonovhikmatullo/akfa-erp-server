@@ -66,6 +66,10 @@ exports.AuthController = {
         catch (error) {
             next(error);
         }
+        finally {
+            req.body = undefined;
+            req.releaseImageUpload?.();
+        }
     },
     async deleteProfilePhoto(req, res, next) {
         try {

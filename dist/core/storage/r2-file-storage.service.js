@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.R2FileStorageService = void 0;
 const client_s3_1 = require("@aws-sdk/client-s3");
 const AppError_1 = require("../errors/AppError");
+const runtime_1 = require("../config/runtime");
 const SAFE_SEGMENT = /^[A-Za-z0-9._-]+$/;
 function isNotFound(error) {
     const candidate = error;
@@ -13,6 +14,11 @@ class R2FileStorageService {
         this.client = new client_s3_1.S3Client({
             region: "auto",
             endpoint: config.endpoint.replace(/\/+$/, ""),
+            requestHandler: {
+                connectionTimeout: (0, runtime_1.positiveIntegerEnv)("STORAGE_CONNECTION_TIMEOUT_MS", 5000),
+                requestTimeout: (0, runtime_1.positiveIntegerEnv)("STORAGE_REQUEST_TIMEOUT_MS", 30000),
+                throwOnRequestTimeout: true,
+            },
             credentials: {
                 accessKeyId: config.accessKeyId,
                 secretAccessKey: config.secretAccessKey,
@@ -20,6 +26,9 @@ class R2FileStorageService {
         });
         this.bucketName = config.bucketName;
         this.publicBaseUrl = config.publicBaseUrl.replace(/\/+$/, "");
+    }
+    close() {
+        this.client.destroy();
     }
     assertStorageKey(storageKey) {
         if (!storageKey ||

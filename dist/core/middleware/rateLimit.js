@@ -8,21 +8,27 @@ function positiveInteger(value, fallback) {
 }
 function createRateLimit(options) {
     const buckets = new Map();
+    const maxKeys = options.maxKeys ?? 10000;
     return (req, res, next) => {
         const now = Date.now();
+        // Fixed expiry windows follow insertion order. Each expired bucket is
+        // visited once, instead of scanning the whole map on every request.
+        for (const [bucketKey, value] of buckets) {
+            if (value.resetsAt > now)
+                break;
+            buckets.delete(bucketKey);
+        }
         const key = options.key?.(req) ?? req.ip ?? req.socket.remoteAddress ?? "unknown";
         const existing = buckets.get(key);
+        if (!existing && buckets.size >= maxKeys) {
+            res.setHeader("Retry-After", "1");
+            return res.status(429).json({ success: false, message: "Too many requests. Please try again later." });
+        }
         const bucket = !existing || existing.resetsAt <= now
             ? { count: 0, resetsAt: now + options.windowMs }
             : existing;
         bucket.count += 1;
         buckets.set(key, bucket);
-        if (buckets.size > 5000) {
-            for (const [bucketKey, value] of buckets) {
-                if (value.resetsAt <= now)
-                    buckets.delete(bucketKey);
-            }
-        }
         res.setHeader("RateLimit-Limit", String(options.max));
         res.setHeader("RateLimit-Remaining", String(Math.max(0, options.max - bucket.count)));
         res.setHeader("RateLimit-Reset", String(Math.ceil(bucket.resetsAt / 1000)));

@@ -15,6 +15,8 @@ type ProductFilters = {
     isActive?: boolean;
     priceCurrency?: "UZS" | "USD";
     search?: string;
+    limit?: number;
+    offset?: number;
 };
 
 export const ProductsService = {

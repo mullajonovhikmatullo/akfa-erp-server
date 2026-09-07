@@ -1,3 +1,4 @@
+import { listWindowSchema } from "../../../core/utils/pagination";
 import { z } from "zod";
 
 const ACTIVE_PRODUCT_UNITS = ["KG", "PIECE"] as const;
@@ -64,7 +65,7 @@ export const updateProductSchema = z.object({
     isActive: z.boolean().optional(),
 });
 
-export const listProductsSchema = z.object({
+export const listProductsSchema = listWindowSchema.extend({
     categoryId: z.string().uuid().optional(),
     unit: activeProductUnitSchema.optional(),
     priceCurrency: z.enum(["UZS", "USD"]).optional(),

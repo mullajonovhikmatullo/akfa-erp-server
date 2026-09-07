@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CategoriesController = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const ApiResponse_1 = require("../../../core/response/ApiResponse");
 const categories_service_1 = require("../services/categories.service");
 exports.CategoriesController = {
@@ -17,12 +18,11 @@ exports.CategoriesController = {
         try {
             const isActive = req.query.isActive === undefined ? undefined : req.query.isActive === "true";
             if (req.query.page !== undefined) {
-                const page = Math.max(1, Number(req.query.page) || 1);
-                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const { page, pageSize } = pagination_1.paginationSchema.parse(req.query);
                 const result = await categories_service_1.CategoriesService.findPaginated({ page, pageSize, isActive, user: req.user });
                 return ApiResponse_1.ApiResponse.success(res, result);
             }
-            const categories = await categories_service_1.CategoriesService.findAll(isActive, req.user);
+            const categories = await categories_service_1.CategoriesService.findAll(isActive, req.user, pagination_1.listWindowSchema.parse(req.query));
             return ApiResponse_1.ApiResponse.success(res, categories);
         }
         catch (error) {

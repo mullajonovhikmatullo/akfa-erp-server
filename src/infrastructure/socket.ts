@@ -29,8 +29,10 @@ export function initSocketServer(
     server: HttpServer,
     isOriginAllowed: (origin?: string) => boolean
 ) {
+    if (io) throw new Error("Socket server is already initialized");
     io = new Server(server, {
         path: process.env.SOCKET_IO_PATH || "/api/socket.io",
+        maxHttpBufferSize: 64 * 1024,
         cors: {
             origin: (origin, callback) => {
                 if (isOriginAllowed(origin)) return callback(null, true);
@@ -43,7 +45,7 @@ export function initSocketServer(
     io.use(async (socket, next) => {
         const token = socket.handshake.auth?.token;
         const secret = process.env.JWT_SECRET;
-        if (!token || typeof token !== "string" || !secret) {
+        if (!token || typeof token !== "string" || token.length > 8192 || !secret) {
             return next(new Error("Unauthorized"));
         }
 
@@ -161,6 +163,12 @@ export function initSocketServer(
     });
 
     return io;
+}
+
+export async function closeSocketServer(): Promise<void> {
+    const current = io;
+    io = null;
+    if (current) await new Promise<void>((resolve) => current.close(() => resolve()));
 }
 
 export function disconnectStoreSockets(storeId: string): void {

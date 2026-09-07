@@ -8,11 +8,12 @@ const billing_state_service_1 = require("../../../core/services/billing-state.se
 const branch_access_1 = require("../../../core/utils/branch-access");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const inventory_repository_1 = require("../repositories/inventory.repository");
+const idempotency_service_1 = require("../../../core/services/idempotency.service");
 function stockInKey(branchId, productId) {
     return `${branchId}:${productId}`;
 }
-async function assertActiveActor(userId, storeId) {
-    const actor = await prisma_1.prisma.user.findUnique({
+async function assertActiveActor(userId, storeId, tx) {
+    const actor = await tx.user.findUnique({
         where: { id: userId },
         select: { id: true, storeId: true, isActive: true },
     });
@@ -20,19 +21,17 @@ async function assertActiveActor(userId, storeId) {
         throw new AppError_1.AppError(401, "Unauthorized");
     }
 }
-async function assertStockInTargets(items, storeId) {
+async function assertStockInTargets(items, storeId, tx) {
     const branchIds = [...new Set(items.map((item) => item.branchId))];
     const productIds = [...new Set(items.map((item) => item.dto.productId))];
-    const [branches, products] = await Promise.all([
-        prisma_1.prisma.branch.findMany({
-            where: { id: { in: branchIds }, storeId },
-            select: { id: true },
-        }),
-        prisma_1.prisma.product.findMany({
-            where: { id: { in: productIds }, storeId },
-            select: { id: true, isActive: true },
-        }),
-    ]);
+    const branches = await tx.branch.findMany({
+        where: { id: { in: branchIds }, storeId },
+        select: { id: true },
+    });
+    const products = await tx.product.findMany({
+        where: { id: { in: productIds }, storeId },
+        select: { id: true, isActive: true },
+    });
     const foundBranchIds = new Set(branches.map((branch) => branch.id));
     const productById = new Map(products.map((product) => [product.id, product]));
     for (const item of items) {
@@ -60,8 +59,7 @@ async function createStockInEntry(item, createdById, tx) {
         supplierNote: item.dto.supplierNote,
         createdById,
     }, tx);
-    const availableQty = await inventory_repository_1.InventoryRepository.sumRemainingQty(item.storeId, item.branchId, item.dto.productId, tx);
-    const updatedInventory = await inventory_repository_1.InventoryRepository.setBalance(item.storeId, item.branchId, item.dto.productId, availableQty, tx);
+    const updatedInventory = await inventory_repository_1.InventoryRepository.upsertBalance(item.storeId, item.branchId, item.dto.productId, item.dto.quantity, tx);
     await inventory_repository_1.InventoryRepository.createMovement({
         branchId: item.branchId,
         storeId: item.storeId,
@@ -76,32 +74,50 @@ async function createStockInEntry(item, createdById, tx) {
 }
 exports.InventoryService = {
     // ─── Stock In ─────────────────────────────────────────────────────────────
-    async stockIn(dto, user) {
+    async stockIn(dto, user, idempotencyKey) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
         const branchId = (0, branch_access_1.resolveBranchId)(dto.branchId, user);
         const item = { dto, storeId, branchId };
-        await Promise.all([
-            assertActiveActor(user.id, storeId),
-            assertStockInTargets([item], storeId),
-        ]);
         return prisma_1.prisma.$transaction(async (tx) => {
-            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
-            return createStockInEntry(item, user.id, tx);
+            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId, "shared");
+            const claim = await (0, idempotency_service_1.claimIdempotency)(tx, { storeId, userId: user.id, operation: "stock-in" }, idempotencyKey, { dto, branchId });
+            if (claim?.replay) {
+                const [previous] = await inventory_repository_1.InventoryRepository.findBatchesByIds(claim.resourceIds, storeId, tx);
+                if (!previous)
+                    throw new AppError_1.AppError(409, "Original stock-in result is unavailable");
+                return previous;
+            }
+            await assertActiveActor(user.id, storeId, tx);
+            await assertStockInTargets([item], storeId, tx);
+            await inventory_repository_1.InventoryRepository.lockStock(storeId, [{ branchId, productId: dto.productId }], tx);
+            const batch = await createStockInEntry(item, user.id, tx);
+            await (0, idempotency_service_1.completeIdempotency)(tx, claim, [batch.id]);
+            return batch;
         }, prisma_1.transactionOptions);
     },
-    async stockInBatch(dtos, user) {
+    async stockInBatch(dtos, user, idempotencyKey) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
         const items = dtos.map((dto) => ({
             dto,
             storeId,
             branchId: (0, branch_access_1.resolveBranchId)(dto.branchId, user),
         }));
-        await Promise.all([
-            assertActiveActor(user.id, storeId),
-            assertStockInTargets(items, storeId),
-        ]);
         return prisma_1.prisma.$transaction(async (tx) => {
-            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
+            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId, "shared");
+            const claim = await (0, idempotency_service_1.claimIdempotency)(tx, { storeId, userId: user.id, operation: "stock-in-batch" }, idempotencyKey, items);
+            if (claim?.replay) {
+                const batches = await inventory_repository_1.InventoryRepository.findBatchesByIds(claim.resourceIds, storeId, tx);
+                const byId = new Map(batches.map((batch) => [batch.id, batch]));
+                return claim.resourceIds.map((id) => {
+                    const batch = byId.get(id);
+                    if (!batch)
+                        throw new AppError_1.AppError(409, "Original stock-in result is unavailable");
+                    return batch;
+                });
+            }
+            await assertActiveActor(user.id, storeId, tx);
+            await assertStockInTargets(items, storeId, tx);
+            await inventory_repository_1.InventoryRepository.lockStock(storeId, items.map((item) => ({ branchId: item.branchId, productId: item.dto.productId })), tx);
             const batchIds = items.map(() => (0, crypto_1.randomUUID)());
             const balanceIncrements = new Map();
             items.forEach((item) => {
@@ -159,30 +175,60 @@ exports.InventoryService = {
                 laterQuantityByKey.set(key, Number((laterQuantity + item.dto.quantity).toFixed(4)));
             }
             await tx.stockMovement.createMany({ data: movements });
-            const batches = await inventory_repository_1.InventoryRepository.findBatchesByIds(batchIds, tx);
+            const batches = await inventory_repository_1.InventoryRepository.findBatchesByIds(batchIds, storeId, tx);
             const batchById = new Map(batches.map((batch) => [batch.id, batch]));
+            await (0, idempotency_service_1.completeIdempotency)(tx, claim, batchIds);
             return batchIds
                 .map((id) => batchById.get(id))
                 .filter((batch) => Boolean(batch));
         }, prisma_1.transactionOptions);
     },
     // ─── Manual Adjustment ───────────────────────────────────────────────────
-    async adjust(dto, user) {
+    async adjust(dto, user, idempotencyKey) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
         const branchId = (0, branch_access_1.resolveBranchId)(dto.branchId, user);
         await Promise.all([
             (0, branch_access_1.assertBranchesInStore)([branchId], storeId),
             (0, branch_access_1.assertProductsInStore)([dto.productId], storeId),
         ]);
-        const current = await inventory_repository_1.InventoryRepository.findOne(storeId, branchId, dto.productId);
-        const currentQty = current ? Number(current.quantity) : 0;
-        const delta = dto.newQuantity - currentQty;
-        if (delta === 0) {
-            throw new AppError_1.AppError(400, "New quantity is the same as current stock — no adjustment needed");
-        }
         return prisma_1.prisma.$transaction(async (tx) => {
-            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
-            const updatedInventory = await inventory_repository_1.InventoryRepository.upsertBalance(storeId, branchId, dto.productId, delta, tx);
+            await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId, "shared");
+            const claim = await (0, idempotency_service_1.claimIdempotency)(tx, { storeId, userId: user.id, operation: "stock-adjustment" }, idempotencyKey, { dto, branchId });
+            if (claim?.replay) {
+                const movement = await inventory_repository_1.InventoryRepository.findMovement(claim.resourceIds[0], storeId, tx);
+                if (!movement)
+                    throw new AppError_1.AppError(409, "Original adjustment is unavailable");
+                return {
+                    previousQuantity: new client_1.Prisma.Decimal(movement.balanceAfter).minus(movement.quantity).toNumber(),
+                    newQuantity: Number(movement.balanceAfter), delta: Number(movement.quantity), movement,
+                };
+            }
+            await inventory_repository_1.InventoryRepository.lockStock(storeId, [{ branchId, productId: dto.productId }], tx);
+            const current = await inventory_repository_1.InventoryRepository.findOne(storeId, branchId, dto.productId, tx);
+            const currentQty = Number(current?.quantity ?? 0);
+            const delta = new client_1.Prisma.Decimal(dto.newQuantity).minus(currentQty).toNumber();
+            const batchQty = await inventory_repository_1.InventoryRepository.sumRemainingQty(storeId, branchId, dto.productId, tx);
+            if (delta === 0 && new client_1.Prisma.Decimal(batchQty).equals(dto.newQuantity)) {
+                throw new AppError_1.AppError(400, "New quantity is the same as current stock — no adjustment needed");
+            }
+            const batchDelta = new client_1.Prisma.Decimal(dto.newQuantity).minus(batchQty);
+            if (batchDelta.isNegative()) {
+                await inventory_repository_1.InventoryRepository.consumeBatches(storeId, branchId, [{ productId: dto.productId, quantity: batchDelta.abs().toNumber() }], tx);
+            }
+            else if (batchDelta.isPositive()) {
+                const product = await tx.product.findFirstOrThrow({
+                    where: { id: dto.productId, storeId },
+                    select: { costPriceUzs: true, costPriceUsd: true },
+                });
+                await inventory_repository_1.InventoryRepository.createBatch({
+                    storeId, branchId, productId: dto.productId,
+                    initialQty: batchDelta.toNumber(), remainingQty: batchDelta.toNumber(),
+                    costPriceUzs: Number(product.costPriceUzs),
+                    costPriceUsd: product.costPriceUsd === null ? undefined : Number(product.costPriceUsd),
+                    supplierNote: `Adjustment: ${dto.reason}`, createdById: user.id,
+                }, tx);
+            }
+            const updatedInventory = await inventory_repository_1.InventoryRepository.setBalance(storeId, branchId, dto.productId, dto.newQuantity, tx);
             const movement = await inventory_repository_1.InventoryRepository.createMovement({
                 storeId,
                 branchId,
@@ -193,6 +239,7 @@ exports.InventoryService = {
                 note: dto.reason,
                 createdById: user.id,
             }, tx);
+            await (0, idempotency_service_1.completeIdempotency)(tx, claim, [movement.id]);
             return {
                 previousQuantity: currentQty,
                 newQuantity: dto.newQuantity,
@@ -204,18 +251,13 @@ exports.InventoryService = {
     // ─── Read Operations ─────────────────────────────────────────────────────
     async findAll(query, user) {
         const scope = (0, branch_access_1.branchScope)(user, query.branchId);
-        const records = await inventory_repository_1.InventoryRepository.findAll({
+        return inventory_repository_1.InventoryRepository.findAll({
             ...scope,
             productId: query.productId,
             categoryId: query.categoryId,
-        });
-        if (!query.lowStock)
-            return records;
-        return records.filter((inv) => {
-            const threshold = inv.product.lowStockThreshold;
-            if (threshold === null)
-                return false;
-            return Number(inv.quantity) <= Number(threshold);
+            lowStock: query.lowStock,
+            limit: query.limit,
+            offset: query.offset,
         });
     },
     async findMovements(query, user) {
@@ -237,17 +279,13 @@ exports.InventoryService = {
             depleted: query.depleted,
             from: query.from,
             to: query.to,
+            limit: query.limit,
+            offset: query.offset,
         });
     },
     async findBatchesSummary(user) {
         const scope = (0, branch_access_1.branchScope)(user);
-        const [totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs] = await Promise.all([
-            inventory_repository_1.InventoryRepository.countBatches({ storeId: scope.storeId, branchId: scope.branchId }),
-            inventory_repository_1.InventoryRepository.countBatches({ storeId: scope.storeId, branchId: scope.branchId, depleted: false }),
-            inventory_repository_1.InventoryRepository.sumBatchCostUzs(scope.storeId, scope.branchId),
-            inventory_repository_1.InventoryRepository.sumRemainingValueUzs(scope.storeId, scope.branchId),
-        ]);
-        return { totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs };
+        return inventory_repository_1.InventoryRepository.batchesSummary(scope.storeId, scope.branchId);
     },
     async findBatchesPaginated(query, page, pageSize, user) {
         const scope = (0, branch_access_1.branchScope)(user, query.branchId);
@@ -258,56 +296,58 @@ exports.InventoryService = {
             from: query.from,
             to: query.to,
         };
-        const [items, total, totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs] = await Promise.all([
+        const hasFilters = query.productId || query.depleted !== undefined || query.from || query.to;
+        const [items, summary, filteredTotal] = await Promise.all([
             inventory_repository_1.InventoryRepository.findBatchesPaginated(filters, page, pageSize),
-            inventory_repository_1.InventoryRepository.countBatches(filters),
-            inventory_repository_1.InventoryRepository.countBatches({ storeId: scope.storeId, branchId: scope.branchId }),
-            inventory_repository_1.InventoryRepository.countBatches({ storeId: scope.storeId, branchId: scope.branchId, depleted: false }),
-            inventory_repository_1.InventoryRepository.sumBatchCostUzs(scope.storeId, scope.branchId),
-            inventory_repository_1.InventoryRepository.sumRemainingValueUzs(scope.storeId, scope.branchId),
+            inventory_repository_1.InventoryRepository.batchesSummary(scope.storeId, scope.branchId),
+            hasFilters ? inventory_repository_1.InventoryRepository.countBatches(filters) : Promise.resolve(null),
         ]);
-        return { items, total, totalBatches, totalActive, totalCostUzs, totalRemainingValueUzs };
+        return { items, total: filteredTotal ?? summary.totalBatches, ...summary };
     },
     // ─── Internal: FIFO deduction ─────────────────────────────────────────────
     // Called by SalesService (STOCK_OUT) and TransfersService (TRANSFER_OUT).
     // movementType lets the caller control what gets logged in StockMovement.
     async deductStock(storeId, branchId, productId, quantity, createdById, note, tx, movementType = client_1.StockMovementType.STOCK_OUT) {
-        const batches = await inventory_repository_1.InventoryRepository.findActiveBatches(storeId, branchId, productId, tx);
-        const currentQty = batches.reduce((sum, batch) => sum + Number(batch.remainingQty), 0);
-        if (currentQty < quantity) {
-            const productRecord = await tx.product.findFirst({
-                where: { id: productId, storeId },
-                select: { name: true },
-            });
-            throw new AppError_1.AppError(409, `Insufficient stock for "${productRecord?.name}": available ${currentQty}, requested ${quantity}`);
-        }
-        // FIFO: consume from oldest batches first
-        let remaining = quantity;
-        for (const batch of batches) {
-            if (remaining <= 0)
-                break;
-            const consume = Math.min(Number(batch.remainingQty), remaining);
-            await inventory_repository_1.InventoryRepository.decrementBatch(batch.id, consume, tx);
-            remaining -= consume;
-        }
-        const nextQty = Number(Math.max(0, currentQty - quantity).toFixed(4));
-        const updated = await inventory_repository_1.InventoryRepository.setBalance(storeId, branchId, productId, nextQty, tx);
-        await inventory_repository_1.InventoryRepository.createMovement({
-            storeId,
-            branchId,
-            productId,
-            type: movementType,
-            quantity: -quantity,
-            balanceAfter: Number(updated.quantity),
-            note,
-            createdById,
-        }, tx);
-        return Number(updated.quantity);
+        const balances = await exports.InventoryService.deductStockBatch(storeId, branchId, [{ productId, quantity }], createdById, note, tx, movementType);
+        return Number(balances[0].quantity);
+    },
+    async deductStockBatch(storeId, branchId, items, createdById, note, tx, movementType = client_1.StockMovementType.STOCK_OUT) {
+        await inventory_repository_1.InventoryRepository.lockStock(storeId, items.map((item) => ({ branchId, productId: item.productId })), tx);
+        const balances = await inventory_repository_1.InventoryRepository.deductBalances(storeId, branchId, items, tx);
+        await inventory_repository_1.InventoryRepository.consumeBatches(storeId, branchId, items, tx);
+        const byProduct = new Map(balances.map((row) => [row.productId, row.quantity]));
+        await tx.stockMovement.createMany({
+            data: items.map((item) => ({
+                storeId, branchId, productId: item.productId, type: movementType,
+                quantity: -item.quantity, balanceAfter: byProduct.get(item.productId), note, createdById,
+            })),
+        });
+        return balances;
     },
     // ─── Internal: Transfer-in (called by TransfersService) ──────────────────
     // Creates a new StockBatch at the destination branch so cost price
     // is preserved for future FIFO deductions and COGS calculations.
+    async transferInBatch(storeId, branchId, items, note, createdById, tx) {
+        await inventory_repository_1.InventoryRepository.lockStock(storeId, items.map((item) => ({ branchId, productId: item.productId })), tx);
+        await tx.stockBatch.createMany({
+            data: items.map((item) => ({
+                storeId, branchId, productId: item.productId, initialQty: item.quantity,
+                remainingQty: item.quantity, costPriceUzs: item.costPriceUzs, supplierNote: note, createdById,
+            })),
+        });
+        const balances = await inventory_repository_1.InventoryRepository.incrementBalances(items.map((item) => ({
+            storeId, branchId, productId: item.productId, quantity: item.quantity,
+        })), tx);
+        const byProduct = new Map(balances.map((row) => [row.productId, String(row.quantity)]));
+        await tx.stockMovement.createMany({
+            data: items.map((item) => ({
+                storeId, branchId, productId: item.productId, quantity: item.quantity,
+                type: client_1.StockMovementType.TRANSFER_IN, balanceAfter: byProduct.get(item.productId), note, createdById,
+            })),
+        });
+    },
     async transferIn(storeId, branchId, productId, quantity, costPriceUzs, note, createdById, tx) {
+        await inventory_repository_1.InventoryRepository.lockStock(storeId, [{ branchId, productId }], tx);
         await inventory_repository_1.InventoryRepository.createBatch({
             storeId,
             branchId,
@@ -318,8 +358,7 @@ exports.InventoryService = {
             supplierNote: note,
             createdById,
         }, tx);
-        const availableQty = await inventory_repository_1.InventoryRepository.sumRemainingQty(storeId, branchId, productId, tx);
-        const updated = await inventory_repository_1.InventoryRepository.setBalance(storeId, branchId, productId, availableQty, tx);
+        const updated = await inventory_repository_1.InventoryRepository.upsertBalance(storeId, branchId, productId, quantity, tx);
         await inventory_repository_1.InventoryRepository.createMovement({
             storeId,
             branchId,

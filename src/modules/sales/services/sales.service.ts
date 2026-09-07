@@ -11,6 +11,7 @@ import { CreateSaleDto } from "../dto/create-sale.dto";
 import { AddPaymentDto } from "../dto/add-payment.dto";
 import { SalesRepository } from "../repositories/sales.repository";
 import { saleQuerySchema } from "../validations/sale.validation";
+import { claimIdempotency, completeIdempotency } from "../../../core/services/idempotency.service";
 
 function resolveSaleBranchId(requestedBranchId: string | undefined, user: JwtPayload): string {
     if (isBranchScopedRole(user.role)) {
@@ -45,102 +46,106 @@ function resolveUnitPriceUzs(priceUzs: unknown, priceUsd: unknown, usdToUzsRate?
 export const SalesService = {
     // ─── Create Sale ──────────────────────────────────────────────────────────
 
-    async create(dto: CreateSaleDto, user: JwtPayload) {
+    async create(dto: CreateSaleDto, user: JwtPayload, idempotencyKey?: string) {
         const storeId = requireStoreId(user);
         const branchId = resolveSaleBranchId(dto.branchId, user);
 
-        // ── Validate branch ──────────────────────────────────────────────────
-        const branch = await prisma.branch.findFirst({
-            where: { id: branchId, storeId },
-            select: { id: true },
-        });
-        if (!branch) throw new AppError(404, "Branch not found");
-
-        // ── Validate customer (if provided) ──────────────────────────────────
-        if (dto.customerId) {
-            const customer = await CustomersRepository.findByIdInBranch(
-                dto.customerId,
-                branchId,
-                storeId
-            );
-            if (!customer) throw new AppError(404, "Customer not found in this branch");
-            if (!customer.isActive) throw new AppError(409, "Customer account is inactive");
-        }
-
-        // ── Load all products in one query (avoid N+1) ───────────────────────
-        const productIds = dto.items.map((i) => i.productId);
-        const products = await prisma.product.findMany({
-            where: { id: { in: productIds }, storeId },
-            select: {
-                id: true,
-                name: true,
-                isActive: true,
-                retailPriceUzs: true,
-                wholesalePriceUzs: true,
-                retailPriceUsd: true,
-                wholesalePriceUsd: true,
-            },
-        });
-
-        // All requested products must exist and be active
-        if (products.length !== productIds.length) {
-            const foundIds = new Set(products.map((p) => p.id));
-            const missing = productIds.filter((id) => !foundIds.has(id));
-            throw new AppError(404, `Products not found: ${missing.join(", ")}`);
-        }
-        const inactiveProducts = products.filter((p) => !p.isActive);
-        if (inactiveProducts.length > 0) {
-            throw new AppError(
-                409,
-                `Inactive products cannot be sold: ${inactiveProducts.map((p) => p.name).join(", ")}`
-            );
-        }
-
-        // ── Build line items with price snapshots ────────────────────────────
-        const productMap = new Map(products.map((p) => [p.id, p]));
-        const saleItems = dto.items.map((item) => {
-            const product = productMap.get(item.productId)!;
-            const unitPrice =
-                dto.saleType === "RETAIL"
-                    ? resolveUnitPriceUzs(product.retailPriceUzs, product.retailPriceUsd, dto.usdToUzsRate)
-                    : resolveUnitPriceUzs(product.wholesalePriceUzs, product.wholesalePriceUsd, dto.usdToUzsRate);
-            return {
-                productId: item.productId,
-                quantity: item.quantity,
-                unitPrice,
-                totalPrice: Number((item.quantity * unitPrice).toFixed(2)),
-            };
-        });
-
-        // ── Calculate totals ─────────────────────────────────────────────────
-        const totalAmountUzs = Number(
-            saleItems.reduce((sum, item) => sum + item.totalPrice, 0).toFixed(2)
-        );
-        const paidUzsEquivalent = Number(
-            (
-                dto.paidAmountUzs +
-                dto.paidAmountUsd * (dto.usdToUzsRate ?? 0)
-            ).toFixed(2)
-        );
-        const debtAmountUzs = Number(
-            Math.max(0, totalAmountUzs - paidUzsEquivalent).toFixed(2)
-        );
-
-        // ── Debt requires a customer ─────────────────────────────────────────
-        if (debtAmountUzs > 0 && !dto.customerId) {
-            throw new AppError(
-                400,
-                "A customer must be specified for sales with outstanding debt"
-            );
-        }
-
-        if (dto.debtDueDate && debtAmountUzs <= 0) {
-            throw new AppError(400, "A debt deadline can only be set when there is outstanding debt");
-        }
-
-        // ── Atomic transaction ───────────────────────────────────────────────
         return prisma.$transaction(async (tx) => {
-            await assertStoreWritableInTransaction(tx, storeId);
+            await assertStoreWritableInTransaction(tx, storeId, "shared");
+            const claim = await claimIdempotency(tx, { storeId, userId: user.id, operation: "sale" }, idempotencyKey, { dto, branchId });
+            if (claim?.replay) {
+                const previous = await SalesRepository.findById(claim.resourceIds[0], storeId, tx);
+                if (!previous || previous.branch.id !== branchId) throw new AppError(409, "Original sale is unavailable");
+                return previous;
+            }
+
+            // ── Validate branch ──────────────────────────────────────────────────
+            const branch = await tx.branch.findFirst({
+                where: { id: branchId, storeId },
+                select: { id: true },
+            });
+            if (!branch) throw new AppError(404, "Branch not found");
+
+            // ── Validate customer (if provided) ──────────────────────────────────
+            if (dto.customerId) {
+                const customer = await tx.customer.findFirst({
+                    where: { id: dto.customerId, branchId, storeId },
+                    select: { id: true, isActive: true },
+                });
+                if (!customer) throw new AppError(404, "Customer not found in this branch");
+                if (!customer.isActive) throw new AppError(409, "Customer account is inactive");
+            }
+
+            // ── Load all products in one query (avoid N+1) ───────────────────────
+            const productIds = dto.items.map((i) => i.productId);
+            const products = await tx.product.findMany({
+                where: { id: { in: productIds }, storeId },
+                select: {
+                    id: true,
+                    name: true,
+                    isActive: true,
+                    retailPriceUzs: true,
+                    wholesalePriceUzs: true,
+                    retailPriceUsd: true,
+                    wholesalePriceUsd: true,
+                },
+            });
+
+            // All requested products must exist and be active
+            if (products.length !== productIds.length) {
+                const foundIds = new Set(products.map((p) => p.id));
+                const missing = productIds.filter((id) => !foundIds.has(id));
+                throw new AppError(404, `Products not found: ${missing.join(", ")}`);
+            }
+            const inactiveProducts = products.filter((p) => !p.isActive);
+            if (inactiveProducts.length > 0) {
+                throw new AppError(
+                    409,
+                    `Inactive products cannot be sold: ${inactiveProducts.map((p) => p.name).join(", ")}`
+                );
+            }
+
+            // ── Build line items with price snapshots ────────────────────────────
+            const productMap = new Map(products.map((p) => [p.id, p]));
+            const saleItems = dto.items.map((item) => {
+                const product = productMap.get(item.productId)!;
+                const unitPrice =
+                    dto.saleType === "RETAIL"
+                        ? resolveUnitPriceUzs(product.retailPriceUzs, product.retailPriceUsd, dto.usdToUzsRate)
+                        : resolveUnitPriceUzs(product.wholesalePriceUzs, product.wholesalePriceUsd, dto.usdToUzsRate);
+                return {
+                    productId: item.productId,
+                    quantity: item.quantity,
+                    unitPrice,
+                    totalPrice: Number((item.quantity * unitPrice).toFixed(2)),
+                };
+            });
+
+            // ── Calculate totals ─────────────────────────────────────────────────
+            const totalAmountUzs = Number(
+                saleItems.reduce((sum, item) => sum + item.totalPrice, 0).toFixed(2)
+            );
+            const paidUzsEquivalent = Number(
+                (
+                    dto.paidAmountUzs +
+                    dto.paidAmountUsd * (dto.usdToUzsRate ?? 0)
+                ).toFixed(2)
+            );
+            const debtAmountUzs = Number(
+                Math.max(0, totalAmountUzs - paidUzsEquivalent).toFixed(2)
+            );
+
+            // ── Debt requires a customer ─────────────────────────────────────────
+            if (debtAmountUzs > 0 && !dto.customerId) {
+                throw new AppError(
+                    400,
+                    "A customer must be specified for sales with outstanding debt"
+                );
+            }
+
+            if (dto.debtDueDate && debtAmountUzs <= 0) {
+                throw new AppError(400, "A debt deadline can only be set when there is outstanding debt");
+            }
 
             // 1. Create sale + items + initial payment
             const sale = await SalesRepository.create(
@@ -171,43 +176,34 @@ export const SalesService = {
             );
 
             // 2. FIFO inventory deduction for each line item
-            for (const item of saleItems) {
-                await InventoryService.deductStock(
-                    storeId,
-                    branchId,
-                    item.productId,
-                    item.quantity,
-                    user.id,
-                    `Sale ${sale.id}`,
-                    tx
-                );
-            }
+            await InventoryService.deductStockBatch(
+                storeId, branchId, saleItems, user.id, `Sale ${sale.id}`, tx
+            );
 
             // 3. Update customer balance if debt exists
             if (dto.customerId && debtAmountUzs > 0) {
                 await CustomersRepository.adjustBalance(dto.customerId, storeId, debtAmountUzs, tx);
             }
 
+            await completeIdempotency(tx, claim, [sale.id]);
             return sale;
         }, transactionOptions);
     },
 
     // ─── Add Payment to Existing Sale ─────────────────────────────────────────
 
-    async addPayment(saleId: string, dto: AddPaymentDto, user: JwtPayload) {
+    async addPayment(saleId: string, dto: AddPaymentDto, user: JwtPayload, idempotencyKey?: string) {
         const storeId = requireStoreId(user);
-        const sale = await SalesRepository.findById(saleId, storeId);
-        if (!sale) throw new AppError(404, "Sale not found");
-
-        // Branch isolation check
-        if (isBranchScopedRole(user.role) && sale.branch.id !== user.branchId) {
-            throw new AppError(403, "Forbidden");
-        }
 
         return prisma.$transaction(async (tx) => {
-            await assertStoreWritableInTransaction(tx, storeId);
-            const currentSale = await SalesRepository.findById(saleId, storeId, tx);
+            await assertStoreWritableInTransaction(tx, storeId, "shared");
+            const claim = await claimIdempotency(tx, { storeId, userId: user.id, operation: "sale-payment" }, idempotencyKey, { saleId, dto, branchId: user.branchId });
+            const currentSale = await SalesRepository.lockForPayment(saleId, storeId, tx);
             if (!currentSale) throw new AppError(404, "Sale not found");
+            if (isBranchScopedRole(user.role) && currentSale.branchId !== user.branchId) {
+                throw new AppError(403, "Forbidden");
+            }
+            if (claim?.replay) return SalesRepository.findById(saleId, storeId, tx);
 
             const currentDebt = Number(currentSale.debtAmountUzs);
             if (currentDebt <= 0) {
@@ -217,6 +213,9 @@ export const SalesService = {
             const paymentUzsEquivalent = Number(
                 (dto.amountUzs + dto.amountUsd * (dto.usdToUzsRate ?? 0)).toFixed(2)
             );
+            if (paymentUzsEquivalent <= 0) {
+                throw new AppError(400, "Payment must be at least 0.01 UZS after conversion");
+            }
             const newPaidAmountUzs = Number(
                 (Number(currentSale.paidAmountUzs) + paymentUzsEquivalent).toFixed(2)
             );
@@ -242,15 +241,16 @@ export const SalesService = {
             );
 
             // Reduce customer balance by however much debt was cleared
-            if (currentSale.customer && debtReduced > 0) {
+            if (currentSale.customerId && debtReduced > 0) {
                 await CustomersRepository.adjustBalance(
-                    currentSale.customer.id,
+                    currentSale.customerId,
                     storeId,
                     -debtReduced,
                     tx
                 );
             }
 
+            await completeIdempotency(tx, claim, [saleId]);
             return updated;
         }, transactionOptions);
     },

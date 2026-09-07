@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TransfersRepository = void 0;
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
+const AppError_1 = require("../../../core/errors/AppError");
 const transferItemSelect = {
     id: true,
     quantity: true,
@@ -24,6 +25,14 @@ const transferSelect = {
     items: { select: transferItemSelect },
 };
 exports.TransfersRepository = {
+    async claimPending(id, storeId, status, tx) {
+        const changed = await tx.transfer.updateMany({
+            where: { id, storeId, status: "PENDING" },
+            data: { status },
+        });
+        if (changed.count !== 1)
+            throw new AppError_1.AppError(409, "Transfer has already been processed");
+    },
     create(data, tx) {
         return tx.transfer.create({
             data: {

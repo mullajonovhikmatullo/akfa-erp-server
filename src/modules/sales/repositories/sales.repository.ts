@@ -1,4 +1,4 @@
-import { Prisma, SaleType } from "@prisma/client";
+import { PaymentMethod, Prisma, SaleType } from "@prisma/client";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
@@ -82,7 +82,7 @@ type CreateSaleData = {
         amountUzs: number;
         amountUsd: number;
         usdToUzsRate?: number;
-        paymentMethod: string;
+        paymentMethod: PaymentMethod;
         receivedById: string;
         note?: string;
     };
@@ -113,6 +113,17 @@ function buildWhere(filters: Omit<SaleFilters, 'limit'>) {
 // ─── Repository ───────────────────────────────────────────────────────────────
 
 export const SalesRepository = {
+    async lockForPayment(id: string, storeId: string, tx: Prisma.TransactionClient) {
+        const rows = await tx.$queryRaw<Array<{
+            id: string; branchId: string; customerId: string | null;
+            totalAmountUzs: string; paidAmountUzs: string; debtAmountUzs: string;
+        }>>(Prisma.sql`
+            SELECT id, "branchId", "customerId", "totalAmountUzs"::text,
+                "paidAmountUzs"::text, "debtAmountUzs"::text
+            FROM "Sale" WHERE id = ${id} AND "storeId" = ${storeId} FOR UPDATE
+        `);
+        return rows[0] ?? null;
+    },
     create(data: CreateSaleData, tx: Prisma.TransactionClient) {
         return tx.sale.create({
             data: {
@@ -135,7 +146,7 @@ export const SalesRepository = {
                             amountUzs: data.initialPayment.amountUzs,
                             amountUsd: data.initialPayment.amountUsd,
                             usdToUzsRate: data.initialPayment.usdToUzsRate,
-                            paymentMethod: data.initialPayment.paymentMethod as any,
+                            paymentMethod: data.initialPayment.paymentMethod,
                             note: data.initialPayment.note,
                             receivedById: data.initialPayment.receivedById,
                         },
@@ -197,7 +208,7 @@ export const SalesRepository = {
             amountUzs: number;
             amountUsd: number;
             usdToUzsRate?: number;
-            paymentMethod: string;
+            paymentMethod: PaymentMethod;
             note?: string;
             receivedById: string;
             newPaidAmountUzs: number;
@@ -215,7 +226,7 @@ export const SalesRepository = {
                         amountUzs: data.amountUzs,
                         amountUsd: data.amountUsd,
                         usdToUzsRate: data.usdToUzsRate,
-                        paymentMethod: data.paymentMethod as any,
+                        paymentMethod: data.paymentMethod,
                         note: data.note,
                         receivedById: data.receivedById,
                     },

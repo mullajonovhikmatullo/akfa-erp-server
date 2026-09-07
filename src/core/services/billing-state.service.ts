@@ -104,7 +104,7 @@ export async function refreshStoreBillingState(storeId: string): Promise<StoreBi
     }, transactionOptions);
 }
 
-export async function refreshDueBillingStates(limit = 200): Promise<void> {
+async function runDueBillingRefresh(limit: number): Promise<void> {
     const now = new Date();
     const dueStores = await prisma.store.findMany({
         where: {
@@ -135,7 +135,17 @@ export async function refreshDueBillingStates(limit = 200): Promise<void> {
         take: Math.max(1, Math.min(limit, 1000)),
     });
 
-    await Promise.all(dueStores.map((store) => refreshStoreBillingState(store.id)));
+    for (let offset = 0; offset < dueStores.length; offset += 4) {
+        await Promise.all(dueStores.slice(offset, offset + 4).map((store) => refreshStoreBillingState(store.id)));
+    }
+}
+
+let dueBillingRefresh: Promise<void> | undefined;
+export function refreshDueBillingStates(limit = 200): Promise<void> {
+    if (!dueBillingRefresh) {
+        dueBillingRefresh = runDueBillingRefresh(limit).finally(() => { dueBillingRefresh = undefined; });
+    }
+    return dueBillingRefresh;
 }
 
 export function assertStoreReadable(state: StoreBillingState): void {
@@ -191,9 +201,10 @@ export function assertStoreWritable(state: StoreBillingState): void {
 
 async function readLockedStoreBillingState(
     tx: Prisma.TransactionClient,
-    storeId: string
+    storeId: string,
+    mode: "exclusive" | "shared" = "exclusive"
 ): Promise<StoreBillingState> {
-    await lockStore(tx, storeId);
+    await lockStore(tx, storeId, mode);
 
     const current = await tx.store.findUnique({
         where: { id: storeId },
@@ -214,8 +225,9 @@ export async function assertStoreReadableInTransaction(
 
 export async function assertStoreWritableInTransaction(
     tx: Prisma.TransactionClient,
-    storeId: string
+    storeId: string,
+    mode: "exclusive" | "shared" = "exclusive"
 ): Promise<void> {
-    const current = await readLockedStoreBillingState(tx, storeId);
+    const current = await readLockedStoreBillingState(tx, storeId, mode);
     assertStoreWritable(current);
 }

@@ -3,8 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.OnboardingService = void 0;
 const tenant_provisioning_service_1 = require("./tenant-provisioning.service");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
+const pagination_1 = require("../../../core/utils/pagination");
 exports.OnboardingService = {
-    async listPublicPlans() {
+    async listPublicPlans(window = pagination_1.listWindowSchema.parse({})) {
         const plans = await prisma_1.prisma.plan.findMany({
             where: { isActive: true, isPublic: true },
             select: {
@@ -15,7 +16,9 @@ exports.OnboardingService = {
                 maxUsers: true,
                 maxProducts: true,
             },
-            orderBy: { monthlyPriceUzs: "asc" },
+            orderBy: [{ monthlyPriceUzs: "asc" }, { id: "asc" }],
+            take: window.limit,
+            skip: window.offset,
         });
         return plans.map((plan) => ({
             ...plan,

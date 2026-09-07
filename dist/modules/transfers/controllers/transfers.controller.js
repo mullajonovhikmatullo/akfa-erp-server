@@ -3,10 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.TransfersController = void 0;
 const transfer_validation_1 = require("../validations/transfer.validation");
 const transfers_service_1 = require("../services/transfers.service");
+const idempotency_service_1 = require("../../../core/services/idempotency.service");
 exports.TransfersController = {
     async create(req, res, next) {
         try {
-            const transfer = await transfers_service_1.TransfersService.create(req.body, req.user);
+            const transfer = await transfers_service_1.TransfersService.create(req.body, req.user, idempotency_service_1.idempotencyKeySchema.parse(req.get("Idempotency-Key")));
             res.status(201).json({ success: true, data: transfer });
         }
         catch (err) {

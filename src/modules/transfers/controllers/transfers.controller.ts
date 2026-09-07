@@ -1,11 +1,12 @@
 import { NextFunction, Request, Response } from "express";
 import { transferQuerySchema } from "../validations/transfer.validation";
 import { TransfersService } from "../services/transfers.service";
+import { idempotencyKeySchema } from "../../../core/services/idempotency.service";
 
 export const TransfersController = {
     async create(req: Request, res: Response, next: NextFunction) {
         try {
-            const transfer = await TransfersService.create(req.body, req.user!);
+            const transfer = await TransfersService.create(req.body, req.user!, idempotencyKeySchema.parse(req.get("Idempotency-Key")));
             res.status(201).json({ success: true, data: transfer });
         } catch (err) {
             next(err);

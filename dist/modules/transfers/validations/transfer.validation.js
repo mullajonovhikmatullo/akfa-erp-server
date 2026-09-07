@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.transferQuerySchema = exports.createTransferSchema = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const zod_1 = require("zod");
 const client_1 = require("@prisma/client");
 const transferItemSchema = zod_1.z.object({
@@ -20,7 +21,7 @@ exports.createTransferSchema = zod_1.z
     toBranchId: zod_1.z.string().uuid(),
     items: zod_1.z
         .array(transferItemSchema)
-        .min(1, "Transfer must include at least one item"),
+        .min(1, "Transfer must include at least one item").max(200),
     note: zod_1.z.string().max(500).optional(),
 })
     .refine((d) => {
@@ -32,8 +33,5 @@ exports.transferQuerySchema = zod_1.z.object({
     status: zod_1.z.nativeEnum(client_1.TransferStatus).optional(),
     from: zod_1.z.string().datetime().optional(),
     to: zod_1.z.string().datetime().optional(),
-    limit: zod_1.z
-        .string()
-        .optional()
-        .transform((v) => (v ? Math.min(parseInt(v, 10), 200) : 50)),
+    limit: (0, pagination_1.queryInteger)(50, 200),
 });

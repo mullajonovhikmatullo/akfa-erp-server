@@ -6,6 +6,7 @@ import { CreateCategoryDto } from "../dto/create-category.dto";
 import { UpdateCategoryDto } from "../dto/update-category.dto";
 import { CategoriesRepository } from "../repositories/categories.repository";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
+import { ListWindow } from "../../../core/utils/pagination";
 
 export const CategoriesService = {
     async create(dto: CreateCategoryDto, user: JwtPayload) {
@@ -20,9 +21,9 @@ export const CategoriesService = {
         }, transactionOptions);
     },
 
-    async findAll(isActive: boolean | undefined, user: JwtPayload) {
+    async findAll(isActive: boolean | undefined, user: JwtPayload, window?: ListWindow) {
         const storeId = requireStoreId(user);
-        return CategoriesRepository.findAll(storeId, isActive);
+        return CategoriesRepository.findAll(storeId, isActive, window);
     },
 
     async findPaginated({ page, pageSize, isActive, user }: { page: number; pageSize: number; isActive?: boolean; user: JwtPayload }) {

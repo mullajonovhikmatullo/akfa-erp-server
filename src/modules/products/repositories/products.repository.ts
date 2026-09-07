@@ -6,6 +6,7 @@ import { assertPlanCapacity } from "../../../core/services/plan-limit.service";
 import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
 import { AppError } from "../../../core/errors/AppError";
 import { productImageSelect } from "../images/repositories/product-images.repository";
+import { DEFAULT_LIST_LIMIT } from "../../../core/utils/pagination";
 
 type ProductFilters = {
     storeId: string;
@@ -14,6 +15,8 @@ type ProductFilters = {
     isActive?: boolean;
     priceCurrency?: "UZS" | "USD";
     search?: string;
+    limit?: number;
+    offset?: number;
 };
 
 const productBaseSelect = {
@@ -118,7 +121,9 @@ export const ProductsRepository = {
         return prisma.product.findMany({
             where: buildWhere(filters),
             select: productListSelect,
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            take: filters.limit ?? DEFAULT_LIST_LIMIT,
+            skip: filters.offset ?? 0,
         });
     },
 
@@ -126,7 +131,7 @@ export const ProductsRepository = {
         return prisma.product.findMany({
             where: buildWhere(filters),
             select: productListSelect,
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
             skip: (page - 1) * pageSize,
             take: pageSize,
         });

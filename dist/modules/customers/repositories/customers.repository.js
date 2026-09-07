@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CustomersRepository = void 0;
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
+const pagination_1 = require("../../../core/utils/pagination");
 const customerSelect = {
     id: true,
     storeId: true,
@@ -34,7 +35,9 @@ exports.CustomersRepository = {
                 }),
             },
             select: customerSelect,
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            take: filters.limit ?? pagination_1.DEFAULT_LIST_LIMIT,
+            skip: filters.offset ?? 0,
         });
     },
     findById(id, storeId, client = prisma_1.prisma) {

@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ExpenseCategoriesRepository = void 0;
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
+const pagination_1 = require("../../../core/utils/pagination");
 const categorySelect = {
     id: true,
     storeId: true,
@@ -19,11 +20,13 @@ exports.ExpenseCategoriesRepository = {
             select: categorySelect,
         });
     },
-    findAll(storeId, includeInactive = false) {
+    findAll(storeId, includeInactive = false, window = pagination_1.listWindowSchema.parse({})) {
         return prisma_1.prisma.expenseCategory.findMany({
             where: { storeId, ...(includeInactive ? {} : { isActive: true }) },
             select: categorySelect,
-            orderBy: { name: "asc" },
+            orderBy: [{ name: "asc" }, { id: "asc" }],
+            take: window.limit,
+            skip: window.offset,
         });
     },
     findById(id, storeId, client = prisma_1.prisma) {

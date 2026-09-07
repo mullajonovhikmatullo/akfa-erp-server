@@ -1,3 +1,4 @@
+import { listWindowSchema, queryInteger } from "../../../core/utils/pagination";
 import { z } from "zod";
 import { StockMovementType } from "@prisma/client";
 
@@ -37,7 +38,7 @@ export const adjustmentSchema = z.object({
     reason: z.string().min(3, "Reason is required").max(500),
 });
 
-export const inventoryQuerySchema = z.object({
+export const inventoryQuerySchema = listWindowSchema.extend({
     branchId: z.string().uuid().optional(),
     productId: z.string().uuid().optional(),
     categoryId: z.string().uuid().optional(),
@@ -53,13 +54,10 @@ export const movementQuerySchema = z.object({
     type: z.nativeEnum(StockMovementType).optional(),
     from: z.string().datetime({ message: "from must be ISO datetime" }).optional(),
     to: z.string().datetime({ message: "to must be ISO datetime" }).optional(),
-    limit: z
-        .string()
-        .optional()
-        .transform((v) => (v ? Math.min(parseInt(v, 10), 500) : 100)),
+    limit: queryInteger(100, 500),
 });
 
-export const batchQuerySchema = z.object({
+export const batchQuerySchema = listWindowSchema.extend({
     branchId: z.string().uuid().optional(),
     productId: z.string().uuid().optional(),
     from: z.string().datetime({ message: "from must be ISO datetime" }).optional(),

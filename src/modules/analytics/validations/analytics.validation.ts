@@ -1,3 +1,4 @@
+import { queryInteger } from "../../../core/utils/pagination";
 import { z } from "zod";
 
 const dateParamSchema = z
@@ -10,10 +11,7 @@ export const analyticsQuerySchema = z.object({
     from: dateParamSchema,
     to: dateParamSchema,
     period: z.enum(["day", "week", "month"]).default("day"),
-    limit: z
-        .string()
-        .optional()
-        .transform((v) => (v ? Math.min(parseInt(v, 10), 100) : 10)),
+    limit: queryInteger(10, 100),
     lowStockThreshold: z
         .string()
         .optional()

@@ -85,7 +85,7 @@ async function refreshStoreBillingState(storeId) {
         });
     }, prisma_1.transactionOptions);
 }
-async function refreshDueBillingStates(limit = 200) {
+async function runDueBillingRefresh(limit) {
     const now = new Date();
     const dueStores = await prisma_1.prisma.store.findMany({
         where: {
@@ -115,7 +115,16 @@ async function refreshDueBillingStates(limit = 200) {
         select: { id: true },
         take: Math.max(1, Math.min(limit, 1000)),
     });
-    await Promise.all(dueStores.map((store) => refreshStoreBillingState(store.id)));
+    for (let offset = 0; offset < dueStores.length; offset += 4) {
+        await Promise.all(dueStores.slice(offset, offset + 4).map((store) => refreshStoreBillingState(store.id)));
+    }
+}
+let dueBillingRefresh;
+function refreshDueBillingStates(limit = 200) {
+    if (!dueBillingRefresh) {
+        dueBillingRefresh = runDueBillingRefresh(limit).finally(() => { dueBillingRefresh = undefined; });
+    }
+    return dueBillingRefresh;
 }
 function assertStoreReadable(state) {
     if (!state.subscription) {
@@ -150,8 +159,8 @@ function assertStoreWritable(state) {
         throw new AppError_1.AppError(402, "Subscription payment is required");
     }
 }
-async function readLockedStoreBillingState(tx, storeId) {
-    await (0, store_lock_service_1.lockStore)(tx, storeId);
+async function readLockedStoreBillingState(tx, storeId, mode = "exclusive") {
+    await (0, store_lock_service_1.lockStore)(tx, storeId, mode);
     const current = await tx.store.findUnique({
         where: { id: storeId },
         select: billingStateSelect,
@@ -164,7 +173,7 @@ async function assertStoreReadableInTransaction(tx, storeId) {
     const current = await readLockedStoreBillingState(tx, storeId);
     assertStoreReadable(current);
 }
-async function assertStoreWritableInTransaction(tx, storeId) {
-    const current = await readLockedStoreBillingState(tx, storeId);
+async function assertStoreWritableInTransaction(tx, storeId, mode = "exclusive") {
+    const current = await readLockedStoreBillingState(tx, storeId, mode);
     assertStoreWritable(current);
 }

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.saleQuerySchema = exports.addPaymentSchema = exports.createSaleSchema = exports.setDebtDeadlineSchema = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const zod_1 = require("zod");
 const client_1 = require("@prisma/client");
 const saleItemSchema = zod_1.z.object({
@@ -18,7 +19,7 @@ exports.createSaleSchema = zod_1.z
     branchId: zod_1.z.string().uuid().optional(),
     customerId: zod_1.z.string().uuid().optional(),
     saleType: zod_1.z.nativeEnum(client_1.SaleType),
-    items: zod_1.z.array(saleItemSchema).min(1, "Sale must have at least one item"),
+    items: zod_1.z.array(saleItemSchema).min(1, "Sale must have at least one item").max(200),
     paidAmountUzs: zod_1.z.number().nonnegative().default(0),
     paidAmountUsd: zod_1.z.number().nonnegative().default(0),
     usdToUzsRate: zod_1.z.number().positive("Exchange rate must be positive").optional(),
@@ -55,8 +56,5 @@ exports.saleQuerySchema = zod_1.z.object({
         .transform((v) => v === "true"),
     from: zod_1.z.string().datetime().optional(),
     to: zod_1.z.string().datetime().optional(),
-    limit: zod_1.z
-        .string()
-        .optional()
-        .transform((v) => (v ? Math.min(parseInt(v, 10), 200) : 50)),
+    limit: (0, pagination_1.queryInteger)(50, 200),
 });

@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.initSocketServer = initSocketServer;
+exports.closeSocketServer = closeSocketServer;
 exports.disconnectStoreSockets = disconnectStoreSockets;
 exports.disconnectUserSockets = disconnectUserSockets;
 exports.emitTransferChanged = emitTransferChanged;
@@ -19,8 +20,11 @@ const storeManagersRoom = (storeId) => `store-managers:${storeId}`;
 const branchRoom = (branchId) => `branch:${branchId}`;
 const userRoom = (userId) => `user:${userId}`;
 function initSocketServer(server, isOriginAllowed) {
+    if (io)
+        throw new Error("Socket server is already initialized");
     io = new socket_io_1.Server(server, {
         path: process.env.SOCKET_IO_PATH || "/api/socket.io",
+        maxHttpBufferSize: 64 * 1024,
         cors: {
             origin: (origin, callback) => {
                 if (isOriginAllowed(origin))
@@ -33,7 +37,7 @@ function initSocketServer(server, isOriginAllowed) {
     io.use(async (socket, next) => {
         const token = socket.handshake.auth?.token;
         const secret = process.env.JWT_SECRET;
-        if (!token || typeof token !== "string" || !secret) {
+        if (!token || typeof token !== "string" || token.length > 8192 || !secret) {
             return next(new Error("Unauthorized"));
         }
         try {
@@ -138,6 +142,12 @@ function initSocketServer(server, isOriginAllowed) {
         })().catch(() => socket.disconnect(true));
     });
     return io;
+}
+async function closeSocketServer() {
+    const current = io;
+    io = null;
+    if (current)
+        await new Promise((resolve) => current.close(() => resolve()));
 }
 function disconnectStoreSockets(storeId) {
     io?.in(tenantLifecycleRoom(storeId)).disconnectSockets(true);

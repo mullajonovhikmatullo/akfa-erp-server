@@ -1,3 +1,4 @@
+import { listWindowSchema, paginationSchema } from "../../../core/utils/pagination";
 import { NextFunction, Request, Response } from "express";
 import { ApiResponse } from "../../../core/response/ApiResponse";
 import { CategoriesService } from "../services/categories.service";
@@ -18,13 +19,12 @@ export const CategoriesController = {
                 req.query.isActive === undefined ? undefined : req.query.isActive === "true";
 
             if (req.query.page !== undefined) {
-                const page = Math.max(1, Number(req.query.page) || 1);
-                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const { page, pageSize } = paginationSchema.parse(req.query);
                 const result = await CategoriesService.findPaginated({ page, pageSize, isActive, user: req.user! });
                 return ApiResponse.success(res, result);
             }
 
-            const categories = await CategoriesService.findAll(isActive, req.user!);
+            const categories = await CategoriesService.findAll(isActive, req.user!, listWindowSchema.parse(req.query));
             return ApiResponse.success(res, categories);
         } catch (error) {
             next(error);

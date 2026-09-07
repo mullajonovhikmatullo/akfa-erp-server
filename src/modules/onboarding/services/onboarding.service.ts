@@ -1,9 +1,10 @@
 import { TenantProvisioningService } from "./tenant-provisioning.service";
 import { RegisterStoreInput } from "../validations/onboarding.validation";
 import { prisma } from "../../../infrastructure/prisma/prisma";
+import { ListWindow, listWindowSchema } from "../../../core/utils/pagination";
 
 export const OnboardingService = {
-    async listPublicPlans() {
+    async listPublicPlans(window: ListWindow = listWindowSchema.parse({})) {
         const plans = await prisma.plan.findMany({
             where: { isActive: true, isPublic: true },
             select: {
@@ -14,7 +15,9 @@ export const OnboardingService = {
                 maxUsers: true,
                 maxProducts: true,
             },
-            orderBy: { monthlyPriceUzs: "asc" },
+            orderBy: [{ monthlyPriceUzs: "asc" }, { id: "asc" }],
+            take: window.limit,
+            skip: window.offset,
         });
 
         return plans.map((plan) => ({

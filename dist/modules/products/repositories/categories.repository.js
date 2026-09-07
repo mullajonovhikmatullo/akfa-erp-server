@@ -2,14 +2,17 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CategoriesRepository = void 0;
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
+const pagination_1 = require("../../../core/utils/pagination");
 exports.CategoriesRepository = {
     create(data, client = prisma_1.prisma) {
         return client.productCategory.create({ data });
     },
-    findAll(storeId, isActive) {
+    findAll(storeId, isActive, window = pagination_1.listWindowSchema.parse({})) {
         return prisma_1.prisma.productCategory.findMany({
             where: { storeId, ...(isActive !== undefined && { isActive }) },
             orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            take: window.limit,
+            skip: window.offset,
         });
     },
     findPaginated({ storeId, page, pageSize, isActive }) {

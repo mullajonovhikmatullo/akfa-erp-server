@@ -268,6 +268,8 @@ exports.AnalyticsService = {
                         SUM(sb."remainingQty" * sb."costPriceUzs") / NULLIF(SUM(sb."remainingQty"), 0) AS unit_cost
                     FROM "StockBatch" sb
                     WHERE sb."remainingQty" > 0
+                      AND sb."storeId" = ${storeId}
+                      ${branchId ? client_1.Prisma.sql `AND sb."branchId" = ${branchId}` : client_1.Prisma.empty}
                     GROUP BY sb."branchId", sb."productId"
                 ) batch_cost ON batch_cost."branchId" = inv."branchId" AND batch_cost."productId" = inv."productId"
                 WHERE inv.quantity > 0

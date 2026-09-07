@@ -4,6 +4,7 @@ type RateLimitOptions = {
     windowMs: number;
     max: number;
     key?: (req: Request) => string;
+    maxKeys?: number;
 };
 
 type Bucket = {
@@ -18,11 +19,22 @@ function positiveInteger(value: string | undefined, fallback: number): number {
 
 export function createRateLimit(options: RateLimitOptions) {
     const buckets = new Map<string, Bucket>();
+    const maxKeys = options.maxKeys ?? 10000;
 
     return (req: Request, res: Response, next: NextFunction) => {
         const now = Date.now();
+        // Fixed expiry windows follow insertion order. Each expired bucket is
+        // visited once, instead of scanning the whole map on every request.
+        for (const [bucketKey, value] of buckets) {
+            if (value.resetsAt > now) break;
+            buckets.delete(bucketKey);
+        }
         const key = options.key?.(req) ?? req.ip ?? req.socket.remoteAddress ?? "unknown";
         const existing = buckets.get(key);
+        if (!existing && buckets.size >= maxKeys) {
+            res.setHeader("Retry-After", "1");
+            return res.status(429).json({ success: false, message: "Too many requests. Please try again later." });
+        }
         const bucket =
             !existing || existing.resetsAt <= now
                 ? { count: 0, resetsAt: now + options.windowMs }
@@ -30,12 +42,6 @@ export function createRateLimit(options: RateLimitOptions) {
 
         bucket.count += 1;
         buckets.set(key, bucket);
-
-        if (buckets.size > 5000) {
-            for (const [bucketKey, value] of buckets) {
-                if (value.resetsAt <= now) buckets.delete(bucketKey);
-            }
-        }
 
         res.setHeader("RateLimit-Limit", String(options.max));
         res.setHeader("RateLimit-Remaining", String(Math.max(0, options.max - bucket.count)));

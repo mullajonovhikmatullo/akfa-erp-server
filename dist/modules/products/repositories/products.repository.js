@@ -6,6 +6,7 @@ const plan_limit_service_1 = require("../../../core/services/plan-limit.service"
 const billing_state_service_1 = require("../../../core/services/billing-state.service");
 const AppError_1 = require("../../../core/errors/AppError");
 const product_images_repository_1 = require("../images/repositories/product-images.repository");
+const pagination_1 = require("../../../core/utils/pagination");
 const productBaseSelect = {
     id: true,
     storeId: true,
@@ -100,14 +101,16 @@ exports.ProductsRepository = {
         return prisma_1.prisma.product.findMany({
             where: buildWhere(filters),
             select: productListSelect,
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            take: filters.limit ?? pagination_1.DEFAULT_LIST_LIMIT,
+            skip: filters.offset ?? 0,
         });
     },
     findPaginated(filters, page, pageSize) {
         return prisma_1.prisma.product.findMany({
             where: buildWhere(filters),
             select: productListSelect,
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
             skip: (page - 1) * pageSize,
             take: pageSize,
         });

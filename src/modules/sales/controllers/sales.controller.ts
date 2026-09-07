@@ -1,12 +1,14 @@
+import { paginationSchema } from "../../../core/utils/pagination";
 import { NextFunction, Request, Response } from "express";
 import { ApiResponse } from "../../../core/response/ApiResponse";
 import { saleQuerySchema } from "../validations/sale.validation";
 import { SalesService } from "../services/sales.service";
+import { idempotencyKeySchema } from "../../../core/services/idempotency.service";
 
 export const SalesController = {
     async create(req: Request, res: Response, next: NextFunction) {
         try {
-            const sale = await SalesService.create(req.body, req.user!);
+            const sale = await SalesService.create(req.body, req.user!, idempotencyKeySchema.parse(req.get("Idempotency-Key")));
             return ApiResponse.created(res, sale, "Sale recorded successfully");
         } catch (error) {
             next(error);
@@ -17,8 +19,7 @@ export const SalesController = {
         try {
             const query = saleQuerySchema.parse(req.query);
             if (req.query.page !== undefined) {
-                const page = Math.max(1, Number(req.query.page) || 1);
-                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const { page, pageSize } = paginationSchema.parse(req.query);
                 const result = await SalesService.findPaginated(query, page, pageSize, req.user!);
                 return ApiResponse.success(res, result);
             }
@@ -43,7 +44,8 @@ export const SalesController = {
             const sale = await SalesService.addPayment(
                 req.params.id as string,
                 req.body,
-                req.user!
+                req.user!,
+                idempotencyKeySchema.parse(req.get("Idempotency-Key"))
             );
             return ApiResponse.success(res, sale, "Payment recorded successfully");
         } catch (error) {

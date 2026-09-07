@@ -1,3 +1,4 @@
+import { paginationSchema } from "../../../core/utils/pagination";
 import { NextFunction, Request, Response } from "express";
 import { ApiResponse } from "../../../core/response/ApiResponse";
 import { listAdminsSchema } from "../validations/admin.validation";
@@ -17,8 +18,7 @@ export const AdminsController = {
         try {
             const filters = listAdminsSchema.parse(req.query);
             if (req.query.page !== undefined) {
-                const page = Math.max(1, Number(req.query.page) || 1);
-                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const { page, pageSize } = paginationSchema.parse(req.query);
                 const result = await AdminsService.findPaginated({ ...filters, page, pageSize }, req.user!);
                 return ApiResponse.success(res, result);
             }

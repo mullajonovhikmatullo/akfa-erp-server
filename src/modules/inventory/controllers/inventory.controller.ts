@@ -1,3 +1,4 @@
+import { paginationSchema } from "../../../core/utils/pagination";
 import { NextFunction, Request, Response } from "express";
 import { ApiResponse } from "../../../core/response/ApiResponse";
 import {
@@ -6,11 +7,12 @@ import {
     movementQuerySchema,
 } from "../validations/inventory.validation";
 import { InventoryService } from "../services/inventory.service";
+import { idempotencyKeySchema } from "../../../core/services/idempotency.service";
 
 export const InventoryController = {
     async stockIn(req: Request, res: Response, next: NextFunction) {
         try {
-            const batch = await InventoryService.stockIn(req.body, req.user!);
+            const batch = await InventoryService.stockIn(req.body, req.user!, idempotencyKeySchema.parse(req.get("Idempotency-Key")));
             return ApiResponse.created(res, batch, "Stock received successfully");
         } catch (error) {
             next(error);
@@ -19,7 +21,7 @@ export const InventoryController = {
 
     async stockInBatch(req: Request, res: Response, next: NextFunction) {
         try {
-            const batches = await InventoryService.stockInBatch(req.body, req.user!);
+            const batches = await InventoryService.stockInBatch(req.body, req.user!, idempotencyKeySchema.parse(req.get("Idempotency-Key")));
             return ApiResponse.created(res, batches, "Stock received successfully");
         } catch (error) {
             next(error);
@@ -28,7 +30,7 @@ export const InventoryController = {
 
     async adjust(req: Request, res: Response, next: NextFunction) {
         try {
-            const result = await InventoryService.adjust(req.body, req.user!);
+            const result = await InventoryService.adjust(req.body, req.user!, idempotencyKeySchema.parse(req.get("Idempotency-Key")));
             return ApiResponse.success(res, result, "Stock adjusted successfully");
         } catch (error) {
             next(error);
@@ -37,7 +39,7 @@ export const InventoryController = {
 
     async findAll(req: Request, res: Response, next: NextFunction) {
         try {
-            const query = inventoryQuerySchema.parse(req.query);
+            const query = inventoryQuerySchema.parse({ ...req.query, ...(req.path === "/low-stock" && { lowStock: "true" }) });
             const records = await InventoryService.findAll(query, req.user!);
             return ApiResponse.success(res, records);
         } catch (error) {
@@ -68,8 +70,7 @@ export const InventoryController = {
         try {
             const query = batchQuerySchema.parse(req.query);
             if (req.query.page !== undefined) {
-                const page = Math.max(1, Number(req.query.page) || 1);
-                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const { page, pageSize } = paginationSchema.parse(req.query);
                 const result = await InventoryService.findBatchesPaginated(query, page, pageSize, req.user!);
                 return ApiResponse.success(res, result);
             }

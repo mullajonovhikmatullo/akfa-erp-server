@@ -1,3 +1,4 @@
+import { listWindowSchema } from "../../../core/utils/pagination";
 import { z } from "zod";
 
 export const createCustomerSchema = z.object({
@@ -21,7 +22,7 @@ export const updateCustomerSchema = z.object({
     isActive: z.boolean().optional(),
 });
 
-export const customerQuerySchema = z.object({
+export const customerQuerySchema = listWindowSchema.extend({
     branchId: z.string().uuid().optional(),
     search: z.string().max(100).optional(),
     isActive: z

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 import { CreateCategoryDto } from "../dto/create-category.dto";
 import { UpdateCategoryDto } from "../dto/update-category.dto";
+import { ListWindow, listWindowSchema } from "../../../core/utils/pagination";
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -10,10 +11,12 @@ export const CategoriesRepository = {
         return client.productCategory.create({ data });
     },
 
-    findAll(storeId: string, isActive?: boolean) {
+    findAll(storeId: string, isActive?: boolean, window: ListWindow = listWindowSchema.parse({})) {
         return prisma.productCategory.findMany({
             where: { storeId, ...(isActive !== undefined && { isActive }) },
             orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            take: window.limit,
+            skip: window.offset,
         });
     },
 

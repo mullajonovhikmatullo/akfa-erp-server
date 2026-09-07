@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 import { CreateExpenseCategoryDto, UpdateExpenseCategoryDto } from "../dto/create-expense-category.dto";
+import { ListWindow, listWindowSchema } from "../../../core/utils/pagination";
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -23,11 +24,13 @@ export const ExpenseCategoriesRepository = {
         });
     },
 
-    findAll(storeId: string, includeInactive = false) {
+    findAll(storeId: string, includeInactive = false, window: ListWindow = listWindowSchema.parse({})) {
         return prisma.expenseCategory.findMany({
             where: { storeId, ...(includeInactive ? {} : { isActive: true }) },
             select: categorySelect,
-            orderBy: { name: "asc" },
+            orderBy: [{ name: "asc" }, { id: "asc" }],
+            take: window.limit,
+            skip: window.offset,
         });
     },
 

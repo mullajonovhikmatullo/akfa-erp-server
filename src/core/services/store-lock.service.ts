@@ -3,10 +3,12 @@ import { AppError } from "../errors/AppError";
 
 export async function lockStore(
     tx: Prisma.TransactionClient,
-    storeId: string
+    storeId: string,
+    mode: "exclusive" | "shared" = "exclusive"
 ): Promise<void> {
     const rows = await tx.$queryRaw<Array<{ id: string }>>(
-        Prisma.sql`SELECT "id" FROM "Store" WHERE "id" = ${storeId} FOR UPDATE`
+        Prisma.sql`SELECT "id" FROM "Store" WHERE "id" = ${storeId}
+            ${mode === "shared" ? Prisma.sql`FOR SHARE` : Prisma.sql`FOR UPDATE`}`
     );
 
     if (rows.length !== 1) {

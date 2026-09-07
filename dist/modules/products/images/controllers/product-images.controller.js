@@ -13,6 +13,10 @@ exports.ProductImagesController = {
         catch (error) {
             next(error);
         }
+        finally {
+            req.files = [];
+            req.releaseImageUpload?.();
+        }
     },
     async list(req, res, next) {
         try {
@@ -31,6 +35,10 @@ exports.ProductImagesController = {
         }
         catch (error) {
             next(error);
+        }
+        finally {
+            req.files = [];
+            req.releaseImageUpload?.();
         }
     },
     async setPrimary(req, res, next) {

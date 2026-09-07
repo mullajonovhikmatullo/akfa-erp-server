@@ -14,6 +14,7 @@ const plan_limit_service_1 = require("../../../core/services/plan-limit.service"
 const socket_1 = require("../../../infrastructure/socket");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const tenant_provisioning_service_1 = require("../../onboarding/services/tenant-provisioning.service");
+const pagination_1 = require("../../../core/utils/pagination");
 function parseOptionalDate(value) {
     return value ? new Date(value) : undefined;
 }
@@ -150,7 +151,7 @@ async function selectStore(id) {
 async function assertPlatformOwnerPassword(actor, currentPassword) {
     const account = await prisma_1.prisma.user.findUnique({
         where: { id: actor.id },
-        select: { password: true, isActive: true, role: true },
+        select: { password: true, isActive: true, role: true, authVersion: true },
     });
     if (!account?.isActive || account.role !== client_1.UserRole.PLATFORM_OWNER) {
         throw new AppError_1.AppError(403, "Platform owner account is not active");
@@ -159,6 +160,7 @@ async function assertPlatformOwnerPassword(actor, currentPassword) {
     if (!passwordMatches) {
         throw new AppError_1.AppError(403, "Current password is incorrect");
     }
+    return account;
 }
 exports.PlatformService = {
     async dashboard() {
@@ -166,25 +168,23 @@ exports.PlatformService = {
         const now = new Date();
         const inSevenDays = new Date(now);
         inSevenDays.setDate(inSevenDays.getDate() + 7);
-        const [storesByStatus, pendingPayments, overdueStores, renewalsDueSoon, activeStores] = await Promise.all([
+        const [storesByStatus, pendingPayments, renewalsDueSoon] = await Promise.all([
             prisma_1.prisma.store.groupBy({ by: ["status"], _count: { id: true } }),
             prisma_1.prisma.payment.count({ where: { status: client_1.PaymentStatus.PENDING } }),
-            prisma_1.prisma.store.count({ where: { status: client_1.StoreStatus.PAST_DUE } }),
             prisma_1.prisma.subscription.count({
                 where: {
                     nextPaymentDueAt: { gte: now, lte: inSevenDays },
                     status: { in: [client_1.SubscriptionStatus.TRIALING, client_1.SubscriptionStatus.ACTIVE] },
                 },
             }),
-            prisma_1.prisma.store.count({ where: { status: client_1.StoreStatus.ACTIVE } }),
         ]);
         return {
             storesByStatus: storesByStatus.reduce((acc, item) => {
                 acc[item.status] = item._count.id;
                 return acc;
             }, {}),
-            activeStores,
-            overdueStores,
+            activeStores: storesByStatus.find((item) => item.status === client_1.StoreStatus.ACTIVE)?._count.id ?? 0,
+            overdueStores: storesByStatus.find((item) => item.status === client_1.StoreStatus.PAST_DUE)?._count.id ?? 0,
             pendingPayments,
             renewalsDueSoon,
         };
@@ -203,7 +203,7 @@ exports.PlatformService = {
         await assertPlatformOwnerPassword(actor, input.currentPassword);
         return tenant_provisioning_service_1.TenantProvisioningService.regenerateOwnerSetup(id, actor);
     },
-    async listPlans() {
+    async listPlans(window = pagination_1.listWindowSchema.parse({})) {
         const plans = await prisma_1.prisma.plan.findMany({
             where: { isActive: true },
             select: {
@@ -216,16 +216,20 @@ exports.PlatformService = {
                 maxProducts: true,
             },
             orderBy: [{ monthlyPriceUzs: "asc" }, { code: "asc" }],
+            take: window.limit,
+            skip: window.offset,
         });
         return plans.map((plan) => ({
             ...plan,
             monthlyPriceUzs: Number(plan.monthlyPriceUzs),
         }));
     },
-    async listManagedPlans() {
+    async listManagedPlans(window = pagination_1.listWindowSchema.parse({})) {
         const plans = await prisma_1.prisma.plan.findMany({
             select: managedPlanSelect,
             orderBy: [{ isActive: "desc" }, { monthlyPriceUzs: "asc" }, { code: "asc" }],
+            take: window.limit,
+            skip: window.offset,
         });
         return plans.map(serializePlan);
     },
@@ -413,9 +417,15 @@ exports.PlatformService = {
         return selectStore(id);
     },
     async updateStoreStatus(id, input, actor) {
-        if (input.status === client_1.StoreStatus.CANCELLED) {
-            await assertPlatformOwnerPassword(actor, input.currentPassword);
-        }
+        const reference = await prisma_1.prisma.store.findUnique({ where: { id }, select: { status: true } });
+        if (!reference)
+            throw new AppError_1.AppError(404, "Store not found");
+        const requiresPassword = input.status === client_1.StoreStatus.CANCELLED ||
+            (reference.status === client_1.StoreStatus.CANCELLED && (input.status === client_1.StoreStatus.ACTIVE || input.status === client_1.StoreStatus.TRIALING));
+        if (requiresPassword && !input.currentPassword)
+            throw new AppError_1.AppError(422, "Current platform owner password is required");
+        const verifiedAccount = requiresPassword
+            ? await assertPlatformOwnerPassword(actor, input.currentPassword) : null;
         await (0, billing_state_service_1.refreshStoreBillingState)(id);
         const updated = await prisma_1.prisma.$transaction(async (tx) => {
             await (0, plan_limit_service_1.lockStore)(tx, id);
@@ -443,10 +453,17 @@ exports.PlatformService = {
                 throw new AppError_1.AppError(409, "Store subscription is not configured");
             if (store.status === client_1.StoreStatus.CANCELLED &&
                 (input.status === client_1.StoreStatus.ACTIVE || input.status === client_1.StoreStatus.TRIALING)) {
-                if (!input.currentPassword) {
-                    throw new AppError_1.AppError(422, "Current platform owner password is required");
-                }
-                await assertPlatformOwnerPassword(actor, input.currentPassword);
+                if (!verifiedAccount)
+                    throw new AppError_1.AppError(409, "Store status changed. Refresh and try again.");
+            }
+            if (verifiedAccount) {
+                const stillValid = await tx.user.findFirst({
+                    where: { id: actor.id, isActive: true, role: client_1.UserRole.PLATFORM_OWNER,
+                        password: verifiedAccount.password, authVersion: verifiedAccount.authVersion },
+                    select: { id: true },
+                });
+                if (!stillValid)
+                    throw new AppError_1.AppError(409, "Platform account changed. Sign in and try again.");
             }
             if (store.billingVersion !== input.expectedVersion) {
                 throw new AppError_1.AppError(409, "Store billing state changed. Refresh and try again.");

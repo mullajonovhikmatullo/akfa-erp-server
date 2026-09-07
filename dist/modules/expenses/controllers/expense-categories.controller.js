@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ExpenseCategoriesController = void 0;
 const ApiResponse_1 = require("../../../core/response/ApiResponse");
 const expense_categories_service_1 = require("../services/expense-categories.service");
+const pagination_1 = require("../../../core/utils/pagination");
 exports.ExpenseCategoriesController = {
     async create(req, res, next) {
         try {
@@ -16,7 +17,7 @@ exports.ExpenseCategoriesController = {
     async findAll(req, res, next) {
         try {
             const includeInactive = req.query.includeInactive === "true";
-            const categories = await expense_categories_service_1.ExpenseCategoriesService.findAll(includeInactive, req.user);
+            const categories = await expense_categories_service_1.ExpenseCategoriesService.findAll(includeInactive, req.user, pagination_1.listWindowSchema.parse(req.query));
             return ApiResponse_1.ApiResponse.success(res, categories);
         }
         catch (err) {

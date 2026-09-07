@@ -19,6 +19,7 @@ import { JwtPayload } from "../../../core/types/jwt.types";
 import { disconnectStoreSockets } from "../../../infrastructure/socket";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { TenantProvisioningService } from "../../onboarding/services/tenant-provisioning.service";
+import { ListWindow, listWindowSchema } from "../../../core/utils/pagination";
 import {
     CreatePaymentInput,
     CreatePlanInput,
@@ -177,7 +178,7 @@ async function selectStore(id: string) {
 async function assertPlatformOwnerPassword(actor: JwtPayload, currentPassword: string) {
     const account = await prisma.user.findUnique({
         where: { id: actor.id },
-        select: { password: true, isActive: true, role: true },
+        select: { password: true, isActive: true, role: true, authVersion: true },
     });
     if (!account?.isActive || account.role !== UserRole.PLATFORM_OWNER) {
         throw new AppError(403, "Platform owner account is not active");
@@ -186,6 +187,7 @@ async function assertPlatformOwnerPassword(actor: JwtPayload, currentPassword: s
     if (!passwordMatches) {
         throw new AppError(403, "Current password is incorrect");
     }
+    return account;
 }
 
 export const PlatformService = {
@@ -196,17 +198,15 @@ export const PlatformService = {
         const inSevenDays = new Date(now);
         inSevenDays.setDate(inSevenDays.getDate() + 7);
 
-        const [storesByStatus, pendingPayments, overdueStores, renewalsDueSoon, activeStores] = await Promise.all([
+        const [storesByStatus, pendingPayments, renewalsDueSoon] = await Promise.all([
             prisma.store.groupBy({ by: ["status"], _count: { id: true } }),
             prisma.payment.count({ where: { status: PaymentStatus.PENDING } }),
-            prisma.store.count({ where: { status: StoreStatus.PAST_DUE } }),
             prisma.subscription.count({
                 where: {
                     nextPaymentDueAt: { gte: now, lte: inSevenDays },
                     status: { in: [SubscriptionStatus.TRIALING, SubscriptionStatus.ACTIVE] },
                 },
             }),
-            prisma.store.count({ where: { status: StoreStatus.ACTIVE } }),
         ]);
 
         return {
@@ -214,8 +214,8 @@ export const PlatformService = {
                 acc[item.status] = item._count.id;
                 return acc;
             }, {}),
-            activeStores,
-            overdueStores,
+            activeStores: storesByStatus.find((item) => item.status === StoreStatus.ACTIVE)?._count.id ?? 0,
+            overdueStores: storesByStatus.find((item) => item.status === StoreStatus.PAST_DUE)?._count.id ?? 0,
             pendingPayments,
             renewalsDueSoon,
         };
@@ -242,7 +242,7 @@ export const PlatformService = {
         return TenantProvisioningService.regenerateOwnerSetup(id, actor);
     },
 
-    async listPlans() {
+    async listPlans(window: ListWindow = listWindowSchema.parse({})) {
         const plans = await prisma.plan.findMany({
             where: { isActive: true },
             select: {
@@ -255,6 +255,8 @@ export const PlatformService = {
                 maxProducts: true,
             },
             orderBy: [{ monthlyPriceUzs: "asc" }, { code: "asc" }],
+            take: window.limit,
+            skip: window.offset,
         });
 
         return plans.map((plan) => ({
@@ -263,10 +265,12 @@ export const PlatformService = {
         }));
     },
 
-    async listManagedPlans() {
+    async listManagedPlans(window: ListWindow = listWindowSchema.parse({})) {
         const plans = await prisma.plan.findMany({
             select: managedPlanSelect,
             orderBy: [{ isActive: "desc" }, { monthlyPriceUzs: "asc" }, { code: "asc" }],
+            take: window.limit,
+            skip: window.offset,
         });
         return plans.map(serializePlan);
     },
@@ -471,9 +475,13 @@ export const PlatformService = {
     },
 
     async updateStoreStatus(id: string, input: UpdateStoreStatusInput, actor: JwtPayload) {
-        if (input.status === StoreStatus.CANCELLED) {
-            await assertPlatformOwnerPassword(actor, input.currentPassword!);
-        }
+        const reference = await prisma.store.findUnique({ where: { id }, select: { status: true } });
+        if (!reference) throw new AppError(404, "Store not found");
+        const requiresPassword = input.status === StoreStatus.CANCELLED ||
+            (reference.status === StoreStatus.CANCELLED && (input.status === StoreStatus.ACTIVE || input.status === StoreStatus.TRIALING));
+        if (requiresPassword && !input.currentPassword) throw new AppError(422, "Current platform owner password is required");
+        const verifiedAccount = requiresPassword
+            ? await assertPlatformOwnerPassword(actor, input.currentPassword!) : null;
         await refreshStoreBillingState(id);
 
         const updated = await prisma.$transaction(async (tx) => {
@@ -502,10 +510,15 @@ export const PlatformService = {
                 store.status === StoreStatus.CANCELLED &&
                 (input.status === StoreStatus.ACTIVE || input.status === StoreStatus.TRIALING)
             ) {
-                if (!input.currentPassword) {
-                    throw new AppError(422, "Current platform owner password is required");
-                }
-                await assertPlatformOwnerPassword(actor, input.currentPassword!);
+                if (!verifiedAccount) throw new AppError(409, "Store status changed. Refresh and try again.");
+            }
+            if (verifiedAccount) {
+                const stillValid = await tx.user.findFirst({
+                    where: { id: actor.id, isActive: true, role: UserRole.PLATFORM_OWNER,
+                        password: verifiedAccount.password, authVersion: verifiedAccount.authVersion },
+                    select: { id: true },
+                });
+                if (!stillValid) throw new AppError(409, "Platform account changed. Sign in and try again.");
             }
             if (store.billingVersion !== input.expectedVersion) {
                 throw new AppError(409, "Store billing state changed. Refresh and try again.");

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminsController = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const ApiResponse_1 = require("../../../core/response/ApiResponse");
 const admin_validation_1 = require("../validations/admin.validation");
 const admins_service_1 = require("../services/admins.service");
@@ -18,8 +19,7 @@ exports.AdminsController = {
         try {
             const filters = admin_validation_1.listAdminsSchema.parse(req.query);
             if (req.query.page !== undefined) {
-                const page = Math.max(1, Number(req.query.page) || 1);
-                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const { page, pageSize } = pagination_1.paginationSchema.parse(req.query);
                 const result = await admins_service_1.AdminsService.findPaginated({ ...filters, page, pageSize }, req.user);
                 return ApiResponse_1.ApiResponse.success(res, result);
             }

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SalesRepository = void 0;
+const client_1 = require("@prisma/client");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 // ─── Select shapes ────────────────────────────────────────────────────────────
 const saleListSelect = {
@@ -65,6 +66,14 @@ function buildWhere(filters) {
 }
 // ─── Repository ───────────────────────────────────────────────────────────────
 exports.SalesRepository = {
+    async lockForPayment(id, storeId, tx) {
+        const rows = await tx.$queryRaw(client_1.Prisma.sql `
+            SELECT id, "branchId", "customerId", "totalAmountUzs"::text,
+                "paidAmountUzs"::text, "debtAmountUzs"::text
+            FROM "Sale" WHERE id = ${id} AND "storeId" = ${storeId} FOR UPDATE
+        `);
+        return rows[0] ?? null;
+    },
     create(data, tx) {
         return tx.sale.create({
             data: {

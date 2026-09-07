@@ -6,6 +6,7 @@ const branch_access_1 = require("../../../core/utils/branch-access");
 const AppError_1 = require("../../../core/errors/AppError");
 const plan_limit_service_1 = require("../../../core/services/plan-limit.service");
 const billing_state_service_1 = require("../../../core/services/billing-state.service");
+const pagination_1 = require("../../../core/utils/pagination");
 class BranchesService {
     static async create(data, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
@@ -21,11 +22,13 @@ class BranchesService {
             });
         }, prisma_1.transactionOptions);
     }
-    static async findAll(user) {
+    static async findAll(user, window = pagination_1.listWindowSchema.parse({})) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
         return prisma_1.prisma.branch.findMany({
             where: { storeId },
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            take: window.limit,
+            skip: window.offset,
         });
     }
     static async findPaginated({ page, pageSize, user }) {

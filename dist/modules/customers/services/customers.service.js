@@ -24,6 +24,8 @@ exports.CustomersService = {
             search: query.search,
             isActive: query.isActive,
             hasDebt: query.hasDebt,
+            limit: query.limit,
+            offset: query.offset,
         });
     },
     async findById(id, user) {

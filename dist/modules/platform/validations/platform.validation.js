@@ -1,18 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.provisionStoreSchema = exports.deletePlanSchema = exports.updatePlanSchema = exports.createPlanSchema = exports.rejectPaymentSchema = exports.paymentStatusQuerySchema = exports.regenerateOwnerSetupSchema = exports.createPaymentSchema = exports.updateStoreStatusSchema = exports.listStoresQuerySchema = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const zod_1 = require("zod");
 exports.listStoresQuerySchema = zod_1.z.object({
     status: zod_1.z.enum(["TRIALING", "ACTIVE", "PAST_DUE", "SUSPENDED", "CANCELLED"]).optional(),
     search: zod_1.z.string().max(120).optional(),
-    page: zod_1.z
-        .string()
-        .optional()
-        .transform((v) => Math.max(1, Number(v) || 1)),
-    pageSize: zod_1.z
-        .string()
-        .optional()
-        .transform((v) => Math.min(100, Math.max(1, Number(v) || 20))),
+    page: (0, pagination_1.queryInteger)(1, 1000000),
+    pageSize: (0, pagination_1.queryInteger)(20, 100),
 });
 exports.updateStoreStatusSchema = zod_1.z.object({
     status: zod_1.z.enum(["TRIALING", "ACTIVE", "PAST_DUE", "SUSPENDED", "CANCELLED"]),

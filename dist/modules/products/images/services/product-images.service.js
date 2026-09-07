@@ -44,19 +44,13 @@ function createProductImagesService(dependencies = {}) {
         return product;
     }
     async function processAndStore(productId, storeId, files) {
-        const processed = await Promise.all(files.map(async (file) => {
-            const imageId = (0, crypto_1.randomUUID)();
-            const keys = storageKeys(storeId, productId, imageId);
-            const result = await processor.process(file);
-            return {
-                id: imageId,
-                ...keys,
-                ...result,
-            };
-        }));
+        const candidates = [];
         const savedKeys = [];
         try {
-            for (const image of processed) {
+            for (const file of files) {
+                const imageId = (0, crypto_1.randomUUID)();
+                const keys = storageKeys(storeId, productId, imageId);
+                const image = { id: imageId, ...keys, ...await processor.process(file) };
                 await storage.save({
                     storageKey: image.storageKey,
                     content: image.main,
@@ -67,13 +61,17 @@ function createProductImagesService(dependencies = {}) {
                     content: image.thumbnail,
                 });
                 savedKeys.push(image.thumbnailStorageKey);
+                const { main: _main, thumbnail: _thumbnail, ...candidate } = image;
+                candidates.push(candidate);
             }
         }
         catch (error) {
-            await deleteStoredFiles(storage, savedKeys).catch(() => undefined);
+            await deleteStoredFiles(storage, savedKeys).catch(() => {
+                console.error("[ProductImageCleanup] Failed to delete files after processing failure");
+            });
             throw error;
         }
-        return processed.map(({ main: _main, thumbnail: _thumbnail, ...candidate }) => candidate);
+        return candidates;
     }
     return {
         async upload(productId, files, user) {

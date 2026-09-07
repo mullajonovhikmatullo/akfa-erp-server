@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.analyticsQuerySchema = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const zod_1 = require("zod");
 const dateParamSchema = zod_1.z
     .string()
@@ -11,10 +12,7 @@ exports.analyticsQuerySchema = zod_1.z.object({
     from: dateParamSchema,
     to: dateParamSchema,
     period: zod_1.z.enum(["day", "week", "month"]).default("day"),
-    limit: zod_1.z
-        .string()
-        .optional()
-        .transform((v) => (v ? Math.min(parseInt(v, 10), 100) : 10)),
+    limit: (0, pagination_1.queryInteger)(10, 100),
     lowStockThreshold: zod_1.z
         .string()
         .optional()

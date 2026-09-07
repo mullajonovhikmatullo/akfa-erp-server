@@ -1,13 +1,15 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.InventoryController = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const ApiResponse_1 = require("../../../core/response/ApiResponse");
 const inventory_validation_1 = require("../validations/inventory.validation");
 const inventory_service_1 = require("../services/inventory.service");
+const idempotency_service_1 = require("../../../core/services/idempotency.service");
 exports.InventoryController = {
     async stockIn(req, res, next) {
         try {
-            const batch = await inventory_service_1.InventoryService.stockIn(req.body, req.user);
+            const batch = await inventory_service_1.InventoryService.stockIn(req.body, req.user, idempotency_service_1.idempotencyKeySchema.parse(req.get("Idempotency-Key")));
             return ApiResponse_1.ApiResponse.created(res, batch, "Stock received successfully");
         }
         catch (error) {
@@ -16,7 +18,7 @@ exports.InventoryController = {
     },
     async stockInBatch(req, res, next) {
         try {
-            const batches = await inventory_service_1.InventoryService.stockInBatch(req.body, req.user);
+            const batches = await inventory_service_1.InventoryService.stockInBatch(req.body, req.user, idempotency_service_1.idempotencyKeySchema.parse(req.get("Idempotency-Key")));
             return ApiResponse_1.ApiResponse.created(res, batches, "Stock received successfully");
         }
         catch (error) {
@@ -25,7 +27,7 @@ exports.InventoryController = {
     },
     async adjust(req, res, next) {
         try {
-            const result = await inventory_service_1.InventoryService.adjust(req.body, req.user);
+            const result = await inventory_service_1.InventoryService.adjust(req.body, req.user, idempotency_service_1.idempotencyKeySchema.parse(req.get("Idempotency-Key")));
             return ApiResponse_1.ApiResponse.success(res, result, "Stock adjusted successfully");
         }
         catch (error) {
@@ -34,7 +36,7 @@ exports.InventoryController = {
     },
     async findAll(req, res, next) {
         try {
-            const query = inventory_validation_1.inventoryQuerySchema.parse(req.query);
+            const query = inventory_validation_1.inventoryQuerySchema.parse({ ...req.query, ...(req.path === "/low-stock" && { lowStock: "true" }) });
             const records = await inventory_service_1.InventoryService.findAll(query, req.user);
             return ApiResponse_1.ApiResponse.success(res, records);
         }
@@ -65,8 +67,7 @@ exports.InventoryController = {
         try {
             const query = inventory_validation_1.batchQuerySchema.parse(req.query);
             if (req.query.page !== undefined) {
-                const page = Math.max(1, Number(req.query.page) || 1);
-                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const { page, pageSize } = pagination_1.paginationSchema.parse(req.query);
                 const result = await inventory_service_1.InventoryService.findBatchesPaginated(query, page, pageSize, req.user);
                 return ApiResponse_1.ApiResponse.success(res, result);
             }

@@ -7,6 +7,7 @@ import { requireStoreId } from "../../../core/utils/branch-access";
 import { AppError } from "../../../core/errors/AppError";
 import { assertPlanCapacity } from "../../../core/services/plan-limit.service";
 import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
+import { ListWindow, listWindowSchema } from "../../../core/utils/pagination";
 
 export class BranchesService {
     static async create(data: CreateBranchDto, user: JwtPayload) {
@@ -24,11 +25,13 @@ export class BranchesService {
         }, transactionOptions);
     }
 
-    static async findAll(user: JwtPayload) {
+    static async findAll(user: JwtPayload, window: ListWindow = listWindowSchema.parse({})) {
         const storeId = requireStoreId(user);
         return prisma.branch.findMany({
             where: { storeId },
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            take: window.limit,
+            skip: window.offset,
         });
     }
 

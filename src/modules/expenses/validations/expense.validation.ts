@@ -1,3 +1,4 @@
+import { queryInteger } from "../../../core/utils/pagination";
 import { z } from "zod";
 
 export const createExpenseSchema = z.object({
@@ -30,10 +31,7 @@ export const expenseQuerySchema = z.object({
     categoryId: z.string().uuid().optional(),
     from: z.string().datetime().optional(),
     to: z.string().datetime().optional(),
-    limit: z
-        .string()
-        .optional()
-        .transform((v) => (v ? Math.min(parseInt(v, 10), 500) : 100)),
+    limit: queryInteger(100, 500),
 });
 
 export const expenseCategorySummaryQuerySchema = expenseQuerySchema.extend({

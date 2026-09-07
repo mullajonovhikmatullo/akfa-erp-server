@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.listAdminsSchema = exports.updateAdminSchema = exports.createAdminSchema = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const zod_1 = require("zod");
 exports.createAdminSchema = zod_1.z.object({
     fullName: zod_1.z.string().min(2).max(100),
@@ -16,7 +17,7 @@ exports.updateAdminSchema = zod_1.z.object({
     fullName: zod_1.z.string().min(2).max(100).optional(),
     branchId: zod_1.z.string().uuid("branchId must be a valid UUID").nullable().optional(),
 }).strict();
-exports.listAdminsSchema = zod_1.z.object({
+exports.listAdminsSchema = pagination_1.listWindowSchema.extend({
     branchId: zod_1.z.string().uuid().optional(),
     isActive: zod_1.z
         .string()

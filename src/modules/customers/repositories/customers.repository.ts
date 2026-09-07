@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../../infrastructure/prisma/prisma";
 import { CreateCustomerDto } from "../dto/create-customer.dto";
 import { UpdateCustomerDto } from "../dto/update-customer.dto";
+import { DEFAULT_LIST_LIMIT } from "../../../core/utils/pagination";
 
 const customerSelect = {
     id: true,
@@ -23,6 +24,8 @@ type CustomerFilters = {
     search?: string;
     isActive?: boolean;
     hasDebt?: boolean;
+    limit?: number;
+    offset?: number;
 };
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
@@ -50,7 +53,9 @@ export const CustomersRepository = {
                 }),
             },
             select: customerSelect,
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            take: filters.limit ?? DEFAULT_LIST_LIMIT,
+            skip: filters.offset ?? 0,
         });
     },
 

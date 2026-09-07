@@ -1,3 +1,4 @@
+import { listWindowSchema } from "../../../core/utils/pagination";
 import { z } from "zod";
 
 export const createAdminSchema = z.object({
@@ -16,7 +17,7 @@ export const updateAdminSchema = z.object({
     branchId: z.string().uuid("branchId must be a valid UUID").nullable().optional(),
 }).strict();
 
-export const listAdminsSchema = z.object({
+export const listAdminsSchema = listWindowSchema.extend({
     branchId: z.string().uuid().optional(),
     isActive: z
         .string()

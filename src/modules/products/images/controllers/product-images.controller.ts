@@ -14,6 +14,9 @@ export const ProductImagesController = {
             return ApiResponse.created(res, images, "Product images uploaded");
         } catch (error) {
             next(error);
+        } finally {
+            req.files = [];
+            req.releaseImageUpload?.();
         }
     },
 
@@ -41,6 +44,9 @@ export const ProductImagesController = {
             return ApiResponse.success(res, images, "Product image replaced");
         } catch (error) {
             next(error);
+        } finally {
+            req.files = [];
+            req.releaseImageUpload?.();
         }
     },
 

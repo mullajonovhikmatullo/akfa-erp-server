@@ -1,5 +1,6 @@
 import { Prisma, TransferStatus } from "@prisma/client";
 import { prisma } from "../../../infrastructure/prisma/prisma";
+import { AppError } from "../../../core/errors/AppError";
 
 type Tx = Prisma.TransactionClient;
 
@@ -50,6 +51,13 @@ type TransferFilters = {
 };
 
 export const TransfersRepository = {
+    async claimPending(id: string, storeId: string, status: TransferStatus, tx: Tx): Promise<void> {
+        const changed = await tx.transfer.updateMany({
+            where: { id, storeId, status: "PENDING" },
+            data: { status },
+        });
+        if (changed.count !== 1) throw new AppError(409, "Transfer has already been processed");
+    },
     create(data: CreateTransferData, tx: Tx) {
         return tx.transfer.create({
             data: {

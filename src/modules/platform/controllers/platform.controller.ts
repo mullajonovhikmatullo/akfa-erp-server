@@ -14,6 +14,7 @@ import {
     updatePlanSchema,
 } from "../validations/platform.validation";
 import { AuthService } from "../../auth/services/auth.service";
+import { listWindowSchema } from "../../../core/utils/pagination";
 
 export const PlatformController = {
     async login(req: Request, res: Response, next: NextFunction) {
@@ -76,18 +77,18 @@ export const PlatformController = {
         }
     },
 
-    async listPlans(_req: Request, res: Response, next: NextFunction) {
+    async listPlans(req: Request, res: Response, next: NextFunction) {
         try {
-            const data = await PlatformService.listPlans();
+            const data = await PlatformService.listPlans(listWindowSchema.parse(req.query));
             return ApiResponse.success(res, data);
         } catch (error) {
             return next(error);
         }
     },
 
-    async listManagedPlans(_req: Request, res: Response, next: NextFunction) {
+    async listManagedPlans(req: Request, res: Response, next: NextFunction) {
         try {
-            return ApiResponse.success(res, await PlatformService.listManagedPlans());
+            return ApiResponse.success(res, await PlatformService.listManagedPlans(listWindowSchema.parse(req.query)));
         } catch (error) {
             return next(error);
         }

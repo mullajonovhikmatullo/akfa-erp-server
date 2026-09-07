@@ -1,13 +1,15 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SalesController = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const ApiResponse_1 = require("../../../core/response/ApiResponse");
 const sale_validation_1 = require("../validations/sale.validation");
 const sales_service_1 = require("../services/sales.service");
+const idempotency_service_1 = require("../../../core/services/idempotency.service");
 exports.SalesController = {
     async create(req, res, next) {
         try {
-            const sale = await sales_service_1.SalesService.create(req.body, req.user);
+            const sale = await sales_service_1.SalesService.create(req.body, req.user, idempotency_service_1.idempotencyKeySchema.parse(req.get("Idempotency-Key")));
             return ApiResponse_1.ApiResponse.created(res, sale, "Sale recorded successfully");
         }
         catch (error) {
@@ -18,8 +20,7 @@ exports.SalesController = {
         try {
             const query = sale_validation_1.saleQuerySchema.parse(req.query);
             if (req.query.page !== undefined) {
-                const page = Math.max(1, Number(req.query.page) || 1);
-                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const { page, pageSize } = pagination_1.paginationSchema.parse(req.query);
                 const result = await sales_service_1.SalesService.findPaginated(query, page, pageSize, req.user);
                 return ApiResponse_1.ApiResponse.success(res, result);
             }
@@ -41,7 +42,7 @@ exports.SalesController = {
     },
     async addPayment(req, res, next) {
         try {
-            const sale = await sales_service_1.SalesService.addPayment(req.params.id, req.body, req.user);
+            const sale = await sales_service_1.SalesService.addPayment(req.params.id, req.body, req.user, idempotency_service_1.idempotencyKeySchema.parse(req.get("Idempotency-Key")));
             return ApiResponse_1.ApiResponse.success(res, sale, "Payment recorded successfully");
         }
         catch (error) {

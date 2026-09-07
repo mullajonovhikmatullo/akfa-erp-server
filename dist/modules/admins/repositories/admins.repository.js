@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AdminsRepository = void 0;
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
+const pagination_1 = require("../../../core/utils/pagination");
 const adminSelect = {
     id: true,
     storeId: true,
@@ -31,7 +32,9 @@ exports.AdminsRepository = {
                 ...(filters.isActive !== undefined && { isActive: filters.isActive }),
             },
             select: adminSelect,
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            take: filters.limit ?? pagination_1.DEFAULT_LIST_LIMIT,
+            skip: filters.offset ?? 0,
         });
     },
     findPaginated(filters, page, pageSize) {

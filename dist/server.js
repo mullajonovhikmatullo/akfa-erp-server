@@ -15,6 +15,9 @@ const AppError_1 = require("./core/errors/AppError");
 const errorHandler_1 = require("./core/errors/errorHandler");
 const seed_platform_owner_1 = require("./bootstrap/seed-platform-owner");
 const socket_1 = require("./infrastructure/socket");
+const prisma_1 = require("./infrastructure/prisma/prisma");
+const runtime_1 = require("./core/config/runtime");
+const requestMetrics_1 = require("./core/middleware/requestMetrics");
 const auth_routes_1 = __importDefault(require("./modules/auth/auth.routes"));
 const onboarding_routes_1 = __importDefault(require("./modules/onboarding/onboarding.routes"));
 const platform_routes_1 = __importDefault(require("./modules/platform/platform.routes"));
@@ -32,10 +35,19 @@ const billing_routes_1 = __importDefault(require("./modules/billing/billing.rout
 const media_routes_1 = __importDefault(require("./modules/media/media.routes"));
 const product_image_files_routes_1 = __importDefault(require("./modules/products/images/product-image-files.routes"));
 const app = (0, express_1.default)();
+let shuttingDown = false;
 if (process.env.TRUST_PROXY === "1" || process.env.NODE_ENV === "production") {
     app.set("trust proxy", 1);
 }
-app.use(express_1.default.json({ limit: "6mb" }));
+app.use(requestMetrics_1.requestMetrics);
+app.use((_req, res, next) => {
+    if (shuttingDown) {
+        res.setHeader("Connection", "close");
+        res.status(503).json({ success: false, message: "Server is shutting down" });
+        return;
+    }
+    next();
+});
 const extraOrigins = (process.env.ALLOWED_ORIGINS || "")
     .split(",")
     .map((o) => o.trim())
@@ -67,7 +79,17 @@ app.use((req, res, next) => {
         return next();
     return securityHeaders(req, res, next);
 });
-app.use((0, morgan_1.default)("dev"));
+morgan_1.default.token("route", (req) => (0, requestMetrics_1.requestRoute)(req));
+app.use((0, morgan_1.default)(":method :route :status :response-time ms", {
+    skip: (req, res) => (req.url === "/health" || req.url === "/api/health") && res.statusCode < 400,
+}));
+const standardJson = express_1.default.json({ limit: "1mb" });
+const receiptJson = express_1.default.json({ limit: "6mb" });
+app.use((req, res, next) => {
+    const parser = req.method === "POST" && /^(?:\/api)?\/billing\/payments\/?$/.test(req.path)
+        ? receiptJson : standardJson;
+    parser(req, res, next);
+});
 const apiRouter = express_1.default.Router();
 apiRouter.use("/docs", swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(swagger_1.swaggerSpec));
 apiRouter.get("/openapi.json", (_req, res) => {
@@ -105,7 +127,63 @@ app.use("/api", apiRouter);
 app.use(errorHandler_1.errorHandler);
 const PORT = process.env.PORT || 3000;
 const server = http_1.default.createServer(app);
+server.requestTimeout = (0, runtime_1.positiveIntegerEnv)("HTTP_REQUEST_TIMEOUT_MS", 120000);
+server.headersTimeout = Math.min(server.requestTimeout, (0, runtime_1.positiveIntegerEnv)("HTTP_HEADERS_TIMEOUT_MS", 60000));
+server.keepAliveTimeout = (0, runtime_1.positiveIntegerEnv)("HTTP_KEEP_ALIVE_TIMEOUT_MS", 5000);
 (0, socket_1.initSocketServer)(server, isOriginAllowed);
+let shutdownPromise;
+function shutdown(reason, exitCode = 0) {
+    if (exitCode)
+        process.exitCode = exitCode;
+    if (shutdownPromise)
+        return shutdownPromise;
+    shuttingDown = true;
+    console.log(JSON.stringify({ event: "shutdown", reason }));
+    const deadline = setTimeout(() => {
+        console.error(JSON.stringify({ event: "shutdown_timeout" }));
+        server.closeAllConnections();
+        process.exit(1);
+    }, (0, runtime_1.positiveIntegerEnv)("SHUTDOWN_TIMEOUT_MS", 75000));
+    deadline.unref();
+    shutdownPromise = (async () => {
+        const drained = new Promise((resolve, reject) => {
+            server.close((error) => {
+                if (error && !("code" in error && error.code === "ERR_SERVER_NOT_RUNNING"))
+                    reject(error);
+                else
+                    resolve();
+            });
+            server.closeIdleConnections();
+        });
+        try {
+            await Promise.all([drained, (0, socket_1.closeSocketServer)()]);
+        }
+        finally {
+            // The adapter disposes its owned PostgreSQL pool here.
+            await prisma_1.prisma.$disconnect();
+            clearTimeout(deadline);
+        }
+    })();
+    return shutdownPromise;
+}
+const stop = (reason, exitCode = 0) => {
+    void shutdown(reason, exitCode).catch(() => {
+        console.error(JSON.stringify({ event: "shutdown_failed" }));
+        process.exit(1);
+    });
+};
+process.once("SIGTERM", () => stop("SIGTERM"));
+process.once("SIGINT", () => stop("SIGINT"));
+function fatal(reason, error) {
+    console.error(JSON.stringify({
+        event: reason,
+        errorType: error instanceof Error ? error.name : typeof error,
+        stack: error instanceof Error ? error.stack?.split("\n").filter((line) => /^\s+at /.test(line)).join("\n") : undefined,
+    }));
+    stop(reason, 1);
+}
+process.once("uncaughtException", (error) => fatal("uncaughtException", error));
+process.once("unhandledRejection", (error) => fatal("unhandledRejection", error));
 function assertRuntimeSecurityConfig() {
     const secret = process.env.JWT_SECRET;
     const minimumLength = process.env.NODE_ENV === "production" ? 32 : 16;
@@ -116,11 +194,10 @@ function assertRuntimeSecurityConfig() {
 async function startServer() {
     assertRuntimeSecurityConfig();
     await (0, seed_platform_owner_1.seedPlatformOwner)();
+    if (shuttingDown)
+        return;
     server.listen(PORT, () => {
         console.log(`SERVER RUNNING ON ${PORT}`);
     });
 }
-startServer().catch((error) => {
-    console.error("Server startup failed:", error);
-    process.exitCode = 1;
-});
+startServer().catch((error) => fatal("startup_failed", error));

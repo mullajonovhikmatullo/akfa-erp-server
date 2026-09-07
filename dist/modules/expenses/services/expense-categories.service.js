@@ -17,9 +17,9 @@ exports.ExpenseCategoriesService = {
             return expense_categories_repository_1.ExpenseCategoriesRepository.create({ ...dto, storeId }, tx);
         }, prisma_1.transactionOptions);
     },
-    findAll(includeInactive, user) {
+    findAll(includeInactive, user, window) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
-        return expense_categories_repository_1.ExpenseCategoriesRepository.findAll(storeId, includeInactive);
+        return expense_categories_repository_1.ExpenseCategoriesRepository.findAll(storeId, includeInactive, window);
     },
     async findById(id, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);

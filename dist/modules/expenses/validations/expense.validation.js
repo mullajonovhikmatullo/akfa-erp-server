@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.expenseCategorySummaryQuerySchema = exports.expenseQuerySchema = exports.createExpenseSchema = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const zod_1 = require("zod");
 exports.createExpenseSchema = zod_1.z.object({
     branchId: zod_1.z.string().uuid().optional(),
@@ -31,10 +32,7 @@ exports.expenseQuerySchema = zod_1.z.object({
     categoryId: zod_1.z.string().uuid().optional(),
     from: zod_1.z.string().datetime().optional(),
     to: zod_1.z.string().datetime().optional(),
-    limit: zod_1.z
-        .string()
-        .optional()
-        .transform((v) => (v ? Math.min(parseInt(v, 10), 500) : 100)),
+    limit: (0, pagination_1.queryInteger)(100, 500),
 });
 exports.expenseCategorySummaryQuerySchema = exports.expenseQuerySchema.extend({
     limit: zod_1.z

@@ -2,6 +2,7 @@ import { prisma } from "../../../infrastructure/prisma/prisma";
 import { CreateAdminDto } from "../dto/create-admin.dto";
 import { UpdateAdminDto } from "../dto/update-admin.dto";
 import { Prisma } from "@prisma/client";
+import { DEFAULT_LIST_LIMIT } from "../../../core/utils/pagination";
 
 const adminSelect = {
     id: true,
@@ -18,7 +19,7 @@ const adminSelect = {
 
 const STORE_ADMIN_ROLES = ["ADMIN", "BRANCH_ADMIN", "STORE_ADMIN", "CASHIER"] as const;
 
-type AdminFilters = { storeId: string; branchId?: string; isActive?: boolean };
+type AdminFilters = { storeId: string; branchId?: string; isActive?: boolean; limit?: number; offset?: number };
 type DbClient = typeof prisma | Prisma.TransactionClient;
 type AdminUpdateData = UpdateAdminDto & {
     isActive?: boolean;
@@ -45,7 +46,9 @@ export const AdminsRepository = {
                 ...(filters.isActive !== undefined && { isActive: filters.isActive }),
             },
             select: adminSelect,
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+            take: filters.limit ?? DEFAULT_LIST_LIMIT,
+            skip: filters.offset ?? 0,
         });
     },
 

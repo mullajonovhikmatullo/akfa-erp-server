@@ -1,3 +1,4 @@
+import { listWindowSchema, paginationSchema } from "../../../core/utils/pagination";
 import { NextFunction, Request, Response } from "express";
 
 import { BranchesService } from "../services/branches.service";
@@ -22,12 +23,11 @@ export class BranchesController {
     static async findAll(req: Request, res: Response, next: NextFunction) {
         try {
             if (req.query.page !== undefined) {
-                const page = Math.max(1, Number(req.query.page) || 1);
-                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const { page, pageSize } = paginationSchema.parse(req.query);
                 const result = await BranchesService.findPaginated({ page, pageSize, user: req.user! });
                 return res.json(result);
             }
-            const branches = await BranchesService.findAll(req.user!);
+            const branches = await BranchesService.findAll(req.user!, listWindowSchema.parse(req.query));
             return res.json(branches);
         } catch (error) {
             return next(error);

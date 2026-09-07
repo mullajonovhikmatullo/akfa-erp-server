@@ -1,3 +1,4 @@
+import { queryInteger } from "../../../core/utils/pagination";
 import { z } from "zod";
 import { TransferStatus } from "@prisma/client";
 
@@ -19,7 +20,7 @@ export const createTransferSchema = z
         toBranchId: z.string().uuid(),
         items: z
             .array(transferItemSchema)
-            .min(1, "Transfer must include at least one item"),
+            .min(1, "Transfer must include at least one item").max(200),
         note: z.string().max(500).optional(),
     })
     .refine(
@@ -35,8 +36,5 @@ export const transferQuerySchema = z.object({
     status: z.nativeEnum(TransferStatus).optional(),
     from: z.string().datetime().optional(),
     to: z.string().datetime().optional(),
-    limit: z
-        .string()
-        .optional()
-        .transform((v) => (v ? Math.min(parseInt(v, 10), 200) : 50)),
+    limit: queryInteger(50, 200),
 });

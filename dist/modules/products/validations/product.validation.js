@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.listProductsSchema = exports.updateProductSchema = exports.createProductSchema = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const zod_1 = require("zod");
 const ACTIVE_PRODUCT_UNITS = ["KG", "PIECE"];
 const activeProductUnitSchema = zod_1.z.enum(ACTIVE_PRODUCT_UNITS);
@@ -48,7 +49,7 @@ exports.updateProductSchema = zod_1.z.object({
     wholesalePriceUsd: priceField.optional(),
     isActive: zod_1.z.boolean().optional(),
 });
-exports.listProductsSchema = zod_1.z.object({
+exports.listProductsSchema = pagination_1.listWindowSchema.extend({
     categoryId: zod_1.z.string().uuid().optional(),
     unit: activeProductUnitSchema.optional(),
     priceCurrency: zod_1.z.enum(["UZS", "USD"]).optional(),

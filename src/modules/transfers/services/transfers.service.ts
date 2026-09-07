@@ -2,6 +2,8 @@ import { z } from "zod";
 import { StockMovementType } from "@prisma/client";
 import { AppError } from "../../../core/errors/AppError";
 import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
+import { claimIdempotency, completeIdempotency } from "../../../core/services/idempotency.service";
+import { InventoryRepository } from "../../inventory/repositories/inventory.repository";
 import { JwtPayload } from "../../../core/types/jwt.types";
 import { branchScope, requireStoreId, resolveBranchId } from "../../../core/utils/branch-access";
 import { isBranchScopedRole } from "../../../core/utils/role-access";
@@ -15,7 +17,7 @@ import { transferQuerySchema } from "../validations/transfer.validation";
 export const TransfersService = {
     // ─── Create (PENDING) ─────────────────────────────────────────────────────
 
-    async create(dto: CreateTransferDto, user: JwtPayload) {
+    async create(dto: CreateTransferDto, user: JwtPayload, idempotencyKey?: string) {
         const storeId = requireStoreId(user);
         const fromBranchId = resolveBranchId(dto.fromBranchId, user);
 
@@ -23,49 +25,57 @@ export const TransfersService = {
             throw new AppError(400, "Source and destination branch must be different");
         }
 
-        // Validate both branches exist
-        const [fromBranch, toBranch] = await Promise.all([
-            prisma.branch.findFirst({ where: { id: fromBranchId, storeId }, select: { id: true, name: true } }),
-            prisma.branch.findFirst({ where: { id: dto.toBranchId, storeId }, select: { id: true, name: true } }),
-        ]);
-        if (!fromBranch) throw new AppError(404, "Source branch not found");
-        if (!toBranch) throw new AppError(404, "Destination branch not found");
-
-        // Load all products in one query
-        const productIds = dto.items.map((i) => i.productId);
-        const products = await prisma.product.findMany({
-            where: { id: { in: productIds }, storeId },
-            select: { id: true, name: true, isActive: true, wholesalePriceUzs: true, wholesalePriceUsd: true },
-        });
-
-        if (products.length !== productIds.length) {
-            const found = new Set(products.map((p) => p.id));
-            const missing = productIds.filter((id) => !found.has(id));
-            throw new AppError(404, `Products not found: ${missing.join(", ")}`);
-        }
-
-        const productMap = new Map(products.map((p) => [p.id, p]));
-
-        // Build items — default cost to wholesale price when not supplied
-        const items = dto.items.map((item) => {
-            const product = productMap.get(item.productId)!;
-            const wholesalePriceUzs = Number(product.wholesalePriceUzs);
-            const wholesalePriceUsd = product.wholesalePriceUsd == null ? null : Number(product.wholesalePriceUsd);
-            if (item.unitCostUzs === undefined && wholesalePriceUzs <= 0 && wholesalePriceUsd) {
-                throw new AppError(400, `unitCostUzs is required when transferring USD-priced product "${product.name}"`);
+        const result = await prisma.$transaction(async (tx) => {
+            await assertStoreWritableInTransaction(tx, storeId, "shared");
+            const claim = await claimIdempotency(tx, { storeId, userId: user.id, operation: "transfer" }, idempotencyKey, { dto, fromBranchId });
+            if (claim?.replay) {
+                const previous = await TransfersRepository.findById(claim.resourceIds[0], storeId, tx);
+                if (!previous) throw new AppError(409, "Original transfer is unavailable");
+                return { transfer: previous, replayed: true };
             }
-            const unitCostUzs = item.unitCostUzs ?? wholesalePriceUzs;
-            return {
-                productId: item.productId,
-                quantity: item.quantity,
-                unitCostUzs,
-                totalCostUzs: Number((item.quantity * unitCostUzs).toFixed(2)),
-            };
-        });
+            // Validate both branches in one query under the tenant guard.
+            const branches = await tx.branch.findMany({
+                where: { id: { in: [fromBranchId, dto.toBranchId] }, storeId },
+                select: { id: true, name: true },
+            });
+            const fromBranch = branches.find((branch) => branch.id === fromBranchId);
+            const toBranch = branches.find((branch) => branch.id === dto.toBranchId);
+            if (!fromBranch) throw new AppError(404, "Source branch not found");
+            if (!toBranch) throw new AppError(404, "Destination branch not found");
 
-        const created = await prisma.$transaction(async (tx) => {
-            await assertStoreWritableInTransaction(tx, storeId);
-            return TransfersRepository.create({
+            // Load all products in one query
+            const productIds = dto.items.map((i) => i.productId);
+            const products = await tx.product.findMany({
+                where: { id: { in: productIds }, storeId },
+                select: { id: true, name: true, isActive: true, wholesalePriceUzs: true, wholesalePriceUsd: true },
+            });
+
+            if (products.length !== productIds.length) {
+                const found = new Set(products.map((p) => p.id));
+                const missing = productIds.filter((id) => !found.has(id));
+                throw new AppError(404, `Products not found: ${missing.join(", ")}`);
+            }
+
+            const productMap = new Map(products.map((p) => [p.id, p]));
+
+            // Build items — default cost to wholesale price when not supplied
+            const items = dto.items.map((item) => {
+                const product = productMap.get(item.productId)!;
+                const wholesalePriceUzs = Number(product.wholesalePriceUzs);
+                const wholesalePriceUsd = product.wholesalePriceUsd == null ? null : Number(product.wholesalePriceUsd);
+                if (item.unitCostUzs === undefined && wholesalePriceUzs <= 0 && wholesalePriceUsd) {
+                    throw new AppError(400, `unitCostUzs is required when transferring USD-priced product "${product.name}"`);
+                }
+                const unitCostUzs = item.unitCostUzs ?? wholesalePriceUzs;
+                return {
+                    productId: item.productId,
+                    quantity: item.quantity,
+                    unitCostUzs,
+                    totalCostUzs: Number((item.quantity * unitCostUzs).toFixed(2)),
+                };
+            });
+
+            const transfer = await TransfersRepository.create({
                 storeId,
                 fromBranchId,
                 toBranchId: dto.toBranchId,
@@ -73,9 +83,12 @@ export const TransfersService = {
                 initiatedById: user.id,
                 items,
             }, tx);
+            await completeIdempotency(tx, claim, [transfer.id]);
+            return { transfer, replayed: false };
         }, transactionOptions);
 
-        emitTransferChanged({
+        const created = result.transfer;
+        if (!result.replayed) emitTransferChanged({
             storeId,
             transferId: created.id,
             status: created.status,
@@ -111,36 +124,24 @@ export const TransfersService = {
 
         const completed = await prisma.$transaction(
             async (tx) => {
-                await assertStoreWritableInTransaction(tx, storeId);
+                await assertStoreWritableInTransaction(tx, storeId, "shared");
+                await TransfersRepository.claimPending(id, storeId, "COMPLETED", tx);
+                await InventoryRepository.lockStock(storeId, transfer.items.flatMap((item) => [
+                    { branchId: transfer.fromBranch.id, productId: item.product.id },
+                    { branchId: transfer.toBranch.id, productId: item.product.id },
+                ]), tx);
+                await InventoryService.deductStockBatch(
+                    storeId, transfer.fromBranch.id,
+                    transfer.items.map((item) => ({ productId: item.product.id, quantity: Number(item.quantity) })),
+                    user.id, `Transfer ${id} → ${transfer.toBranch.name}`, tx, StockMovementType.TRANSFER_OUT
+                );
 
-                for (const item of transfer.items) {
-                    const qty = Number(item.quantity);
-                    const cost = Number(item.unitCostUzs);
-
-                    // 1. Deduct from source branch (TRANSFER_OUT + FIFO)
-                    await InventoryService.deductStock(
-                        storeId,
-                        transfer.fromBranch.id,
-                        item.product.id,
-                        qty,
-                        user.id,
-                        `Transfer ${id} → ${transfer.toBranch.name}`,
-                        tx,
-                        StockMovementType.TRANSFER_OUT
-                    );
-
-                    // 2. Add to destination branch (TRANSFER_IN + new batch)
-                    await InventoryService.transferIn(
-                        storeId,
-                        transfer.toBranch.id,
-                        item.product.id,
-                        qty,
-                        cost,
-                        transfer.fromBranch.name,
-                        user.id,
-                        tx
-                    );
-                }
+                await InventoryService.transferInBatch(
+                    storeId, transfer.toBranch.id,
+                    transfer.items.map((item) => ({ productId: item.product.id,
+                        quantity: Number(item.quantity), costPriceUzs: Number(item.unitCostUzs) })),
+                    transfer.fromBranch.name, user.id, tx
+                );
 
                 return TransfersRepository.updateStatus(id, "COMPLETED", user.id, tx);
             },
@@ -177,7 +178,8 @@ export const TransfersService = {
         }
 
         const cancelled = await prisma.$transaction(async (tx) => {
-            await assertStoreWritableInTransaction(tx, storeId);
+            await assertStoreWritableInTransaction(tx, storeId, "shared");
+            await TransfersRepository.claimPending(id, storeId, "CANCELLED", tx);
             return TransfersRepository.updateStatus(id, "CANCELLED", null, tx);
         }, transactionOptions);
 

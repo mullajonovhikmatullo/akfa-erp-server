@@ -60,8 +60,10 @@ export function prepareReceipt(input: {
 
 export const MediaService = {
     async download(id: string, actor: JwtPayload) {
-        const media = await prisma.mediaObject.findUnique({
-            where: { id },
+        const isPlatformOwner = actor.role === UserRole.PLATFORM_OWNER;
+        if (!isPlatformOwner && !actor.storeId) throw new AppError(404, "Media not found");
+        const media = await prisma.mediaObject.findFirst({
+            where: { id, ...(!isPlatformOwner && { storeId: actor.storeId! }) },
             select: {
                 id: true,
                 storeId: true,
@@ -74,7 +76,6 @@ export const MediaService = {
         });
         if (!media) throw new AppError(404, "Media not found");
 
-        const isPlatformOwner = actor.role === UserRole.PLATFORM_OWNER;
         if (!isPlatformOwner && actor.storeId !== media.storeId) {
             throw new AppError(404, "Media not found");
         }

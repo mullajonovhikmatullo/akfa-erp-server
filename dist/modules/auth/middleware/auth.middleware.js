@@ -14,7 +14,7 @@ function isAuthSelfServicePath(path) {
     return ["/profile", "/change-password", "/me", "/auth/profile", "/auth/change-password", "/auth/me"].some((prefix) => path.startsWith(prefix));
 }
 function isBillingRecoveryPath(req) {
-    return req.method === "POST" && /^\/billing\/payments\/?$/.test(req.originalUrl.split("?")[0] ?? "");
+    return req.method === "POST" && /^(?:\/api)?\/billing\/payments\/?$/.test(req.originalUrl.split("?")[0] ?? "");
 }
 async function authMiddleware(req, res, next) {
     try {
@@ -66,6 +66,9 @@ async function authMiddleware(req, res, next) {
     catch (error) {
         if (error instanceof AppError_1.AppError)
             return next(error);
-        next(new AppError_1.AppError(401, "Invalid or expired token"));
+        if (error instanceof jsonwebtoken_1.default.JsonWebTokenError) {
+            return next(new AppError_1.AppError(401, "Invalid or expired token"));
+        }
+        next(error);
     }
 }

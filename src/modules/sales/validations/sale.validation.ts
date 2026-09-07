@@ -1,3 +1,4 @@
+import { queryInteger } from "../../../core/utils/pagination";
 import { z } from "zod";
 import { PaymentMethod, SaleType } from "@prisma/client";
 
@@ -18,7 +19,7 @@ export const createSaleSchema = z
         branchId: z.string().uuid().optional(),
         customerId: z.string().uuid().optional(),
         saleType: z.nativeEnum(SaleType),
-        items: z.array(saleItemSchema).min(1, "Sale must have at least one item"),
+        items: z.array(saleItemSchema).min(1, "Sale must have at least one item").max(200),
         paidAmountUzs: z.number().nonnegative().default(0),
         paidAmountUsd: z.number().nonnegative().default(0),
         usdToUzsRate: z.number().positive("Exchange rate must be positive").optional(),
@@ -69,8 +70,5 @@ export const saleQuerySchema = z.object({
         .transform((v) => v === "true"),
     from: z.string().datetime().optional(),
     to: z.string().datetime().optional(),
-    limit: z
-        .string()
-        .optional()
-        .transform((v) => (v ? Math.min(parseInt(v, 10), 200) : 50)),
+    limit: queryInteger(50, 200),
 });

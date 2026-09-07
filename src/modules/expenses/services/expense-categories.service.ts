@@ -5,6 +5,7 @@ import { requireStoreId } from "../../../core/utils/branch-access";
 import { CreateExpenseCategoryDto, UpdateExpenseCategoryDto } from "../dto/create-expense-category.dto";
 import { ExpenseCategoriesRepository } from "../repositories/expense-categories.repository";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
+import { ListWindow } from "../../../core/utils/pagination";
 
 export const ExpenseCategoriesService = {
     async create(dto: CreateExpenseCategoryDto, user: JwtPayload) {
@@ -17,9 +18,9 @@ export const ExpenseCategoriesService = {
         }, transactionOptions);
     },
 
-    findAll(includeInactive: boolean | undefined, user: JwtPayload) {
+    findAll(includeInactive: boolean | undefined, user: JwtPayload, window?: ListWindow) {
         const storeId = requireStoreId(user);
-        return ExpenseCategoriesRepository.findAll(storeId, includeInactive);
+        return ExpenseCategoriesRepository.findAll(storeId, includeInactive, window);
     },
 
     async findById(id: string, user: JwtPayload) {

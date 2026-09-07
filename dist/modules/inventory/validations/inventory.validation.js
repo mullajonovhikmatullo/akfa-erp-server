@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.batchQuerySchema = exports.movementQuerySchema = exports.inventoryQuerySchema = exports.adjustmentSchema = exports.stockInBatchSchema = exports.stockInSchema = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const zod_1 = require("zod");
 const client_1 = require("@prisma/client");
 const quantityField = zod_1.z
@@ -35,7 +36,7 @@ exports.adjustmentSchema = zod_1.z.object({
         .multipleOf(0.0001),
     reason: zod_1.z.string().min(3, "Reason is required").max(500),
 });
-exports.inventoryQuerySchema = zod_1.z.object({
+exports.inventoryQuerySchema = pagination_1.listWindowSchema.extend({
     branchId: zod_1.z.string().uuid().optional(),
     productId: zod_1.z.string().uuid().optional(),
     categoryId: zod_1.z.string().uuid().optional(),
@@ -50,12 +51,9 @@ exports.movementQuerySchema = zod_1.z.object({
     type: zod_1.z.nativeEnum(client_1.StockMovementType).optional(),
     from: zod_1.z.string().datetime({ message: "from must be ISO datetime" }).optional(),
     to: zod_1.z.string().datetime({ message: "to must be ISO datetime" }).optional(),
-    limit: zod_1.z
-        .string()
-        .optional()
-        .transform((v) => (v ? Math.min(parseInt(v, 10), 500) : 100)),
+    limit: (0, pagination_1.queryInteger)(100, 500),
 });
-exports.batchQuerySchema = zod_1.z.object({
+exports.batchQuerySchema = pagination_1.listWindowSchema.extend({
     branchId: zod_1.z.string().uuid().optional(),
     productId: zod_1.z.string().uuid().optional(),
     from: zod_1.z.string().datetime({ message: "from must be ISO datetime" }).optional(),

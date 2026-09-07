@@ -1,16 +1,11 @@
+import { queryInteger } from "../../../core/utils/pagination";
 import { z } from "zod";
 
 export const listStoresQuerySchema = z.object({
     status: z.enum(["TRIALING", "ACTIVE", "PAST_DUE", "SUSPENDED", "CANCELLED"]).optional(),
     search: z.string().max(120).optional(),
-    page: z
-        .string()
-        .optional()
-        .transform((v) => Math.max(1, Number(v) || 1)),
-    pageSize: z
-        .string()
-        .optional()
-        .transform((v) => Math.min(100, Math.max(1, Number(v) || 20))),
+    page: queryInteger(1, 1_000_000),
+    pageSize: queryInteger(20, 100),
 });
 
 export const updateStoreStatusSchema = z.object({

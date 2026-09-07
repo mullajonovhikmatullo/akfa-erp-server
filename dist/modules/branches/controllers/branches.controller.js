@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BranchesController = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const branches_service_1 = require("../services/branches.service");
 class BranchesController {
     static async create(req, res, next) {
@@ -20,12 +21,11 @@ class BranchesController {
     static async findAll(req, res, next) {
         try {
             if (req.query.page !== undefined) {
-                const page = Math.max(1, Number(req.query.page) || 1);
-                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const { page, pageSize } = pagination_1.paginationSchema.parse(req.query);
                 const result = await branches_service_1.BranchesService.findPaginated({ page, pageSize, user: req.user });
                 return res.json(result);
             }
-            const branches = await branches_service_1.BranchesService.findAll(req.user);
+            const branches = await branches_service_1.BranchesService.findAll(req.user, pagination_1.listWindowSchema.parse(req.query));
             return res.json(branches);
         }
         catch (error) {

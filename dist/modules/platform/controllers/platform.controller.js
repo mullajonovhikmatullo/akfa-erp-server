@@ -5,6 +5,7 @@ const ApiResponse_1 = require("../../../core/response/ApiResponse");
 const platform_service_1 = require("../services/platform.service");
 const platform_validation_1 = require("../validations/platform.validation");
 const auth_service_1 = require("../../auth/services/auth.service");
+const pagination_1 = require("../../../core/utils/pagination");
 exports.PlatformController = {
     async login(req, res, next) {
         try {
@@ -62,18 +63,18 @@ exports.PlatformController = {
             return next(error);
         }
     },
-    async listPlans(_req, res, next) {
+    async listPlans(req, res, next) {
         try {
-            const data = await platform_service_1.PlatformService.listPlans();
+            const data = await platform_service_1.PlatformService.listPlans(pagination_1.listWindowSchema.parse(req.query));
             return ApiResponse_1.ApiResponse.success(res, data);
         }
         catch (error) {
             return next(error);
         }
     },
-    async listManagedPlans(_req, res, next) {
+    async listManagedPlans(req, res, next) {
         try {
-            return ApiResponse_1.ApiResponse.success(res, await platform_service_1.PlatformService.listManagedPlans());
+            return ApiResponse_1.ApiResponse.success(res, await platform_service_1.PlatformService.listManagedPlans(pagination_1.listWindowSchema.parse(req.query)));
         }
         catch (error) {
             return next(error);

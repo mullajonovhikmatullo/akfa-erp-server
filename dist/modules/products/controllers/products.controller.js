@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProductsController = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const ApiResponse_1 = require("../../../core/response/ApiResponse");
 const product_validation_1 = require("../validations/product.validation");
 const products_service_1 = require("../services/products.service");
@@ -18,8 +19,7 @@ exports.ProductsController = {
         try {
             const filters = product_validation_1.listProductsSchema.parse(req.query);
             if (req.query.page !== undefined) {
-                const page = Math.max(1, Number(req.query.page) || 1);
-                const pageSize = Math.min(100, Math.max(1, Number(req.query.pageSize) || 10));
+                const { page, pageSize } = pagination_1.paginationSchema.parse(req.query);
                 const result = await products_service_1.ProductsService.findPaginated({ ...filters, page, pageSize }, req.user);
                 return ApiResponse_1.ApiResponse.success(res, result);
             }

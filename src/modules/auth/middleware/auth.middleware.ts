@@ -19,7 +19,7 @@ function isAuthSelfServicePath(path: string): boolean {
 }
 
 function isBillingRecoveryPath(req: Request): boolean {
-    return req.method === "POST" && /^\/billing\/payments\/?$/.test(req.originalUrl.split("?")[0] ?? "");
+    return req.method === "POST" && /^(?:\/api)?\/billing\/payments\/?$/.test(req.originalUrl.split("?")[0] ?? "");
 }
 
 export async function authMiddleware(
@@ -88,6 +88,9 @@ export async function authMiddleware(
         next();
     } catch (error) {
         if (error instanceof AppError) return next(error);
-        next(new AppError(401, "Invalid or expired token"));
+        if (error instanceof jwt.JsonWebTokenError) {
+            return next(new AppError(401, "Invalid or expired token"));
+        }
+        next(error);
     }
 }

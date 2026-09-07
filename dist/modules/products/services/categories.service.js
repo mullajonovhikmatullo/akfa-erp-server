@@ -18,9 +18,9 @@ exports.CategoriesService = {
             return categories_repository_1.CategoriesRepository.create({ ...dto, storeId }, tx);
         }, prisma_1.transactionOptions);
     },
-    async findAll(isActive, user) {
+    async findAll(isActive, user, window) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
-        return categories_repository_1.CategoriesRepository.findAll(storeId, isActive);
+        return categories_repository_1.CategoriesRepository.findAll(storeId, isActive, window);
     },
     async findPaginated({ page, pageSize, isActive, user }) {
         const storeId = (0, branch_access_1.requireStoreId)(user);

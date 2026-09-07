@@ -167,6 +167,7 @@ model Store {
   mediaObjects      MediaObject[]
   productImages     ProductImage[]
   auditLogs         AuditLog[]
+  idempotencyRecords IdempotencyRecord[]
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
@@ -286,6 +287,21 @@ model AuthHandoff {
   @@index([expiresAt])
 }
 
+model IdempotencyRecord {
+  id          String   @id @default(uuid())
+  storeId     String
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  userId      String
+  operation   String
+  key         String   @db.VarChar(128)
+  requestHash String   @db.VarChar(64)
+  resourceIds String[] @default([])
+  createdAt   DateTime @default(now())
+
+  @@unique([storeId, userId, operation, key])
+  @@index([createdAt])
+}
+
 // ─── Branch ───────────────────────────────────────────────────────────────────
 
 model Branch {
@@ -400,6 +416,7 @@ model Product {
   @@index([categoryId])
   @@index([isActive])
   @@index([sku])
+  @@index([storeId, createdAt, id])
 }
 
 model ProductImage {
@@ -442,6 +459,7 @@ model Inventory {
   @@index([storeId])
   @@index([branchId])
   @@index([productId])
+  @@index([storeId, updatedAt, id])
 }
 
 // ─── StockBatch ───────────────────────────────────────────────────────────────
@@ -469,6 +487,9 @@ model StockBatch {
   @@index([branchId, productId])
   @@index([remainingQty])
   @@index([receivedAt])
+  @@index([storeId, receivedAt, id])
+  @@index([branchId, receivedAt, id])
+  @@index([branchId, productId, receivedAt, id])
 }
 
 // ─── StockMovement ────────────────────────────────────────────────────────────
@@ -494,6 +515,9 @@ model StockMovement {
   @@index([branchId])
   @@index([type])
   @@index([createdAt])
+  @@index([storeId, createdAt, id])
+  @@index([branchId, productId, createdAt, id])
+  @@index([branchId, createdAt, id])
 }
 
 // ─── Customer ─────────────────────────────────────────────────────────────────
@@ -516,6 +540,8 @@ model Customer {
   @@index([storeId])
   @@index([branchId])
   @@index([phone])
+  @@index([storeId, createdAt, id])
+  @@index([branchId, createdAt, id])
 }
 
 // ─── Sale ─────────────────────────────────────────────────────────────────────
@@ -547,6 +573,8 @@ model Sale {
   @@index([soldById])
   @@index([createdAt])
   @@index([debtDueDate])
+  @@index([storeId, createdAt, id])
+  @@index([branchId, createdAt, id])
 }
 
 // ─── SaleItem ─────────────────────────────────────────────────────────────────
@@ -624,6 +652,7 @@ model Expense {
   @@index([expenseDate])
   @@index([categoryId])
   @@index([branchId, expenseDate])
+  @@index([storeId, expenseDate])
 }
 
 // ─── Transfer ─────────────────────────────────────────────────────────────────
@@ -652,6 +681,9 @@ model Transfer {
   @@index([toBranchId])
   @@index([status])
   @@index([createdAt])
+  @@index([storeId, createdAt, id])
+  @@index([fromBranchId, status, createdAt])
+  @@index([toBranchId, status, createdAt])
 }
 
 // ─── TransferItem ─────────────────────────────────────────────────────────────

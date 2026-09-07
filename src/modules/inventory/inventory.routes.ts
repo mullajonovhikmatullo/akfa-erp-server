@@ -249,10 +249,7 @@ router.get("/", InventoryController.findAll);
  *       200:
  *         description: Low-stock inventory records
  */
-router.get("/low-stock", (req, res, next) => {
-    req.query.lowStock = "true";
-    InventoryController.findAll(req, res, next);
-});
+router.get("/low-stock", InventoryController.findAll);
 
 // ─── Movement History ─────────────────────────────────────────────────────────
 

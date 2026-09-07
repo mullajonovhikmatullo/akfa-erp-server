@@ -11,7 +11,7 @@ exports.exchangeHandoffSchema = zod_1.z.object({
 }).strict();
 exports.completeAccountSetupSchema = zod_1.z.object({
     setupCode: zod_1.z.string().min(32).max(200),
-    newPassword: zod_1.z.string().min(10).max(100),
+    newPassword: zod_1.z.string().min(6).max(100),
     confirmPassword: zod_1.z.string().min(1).max(100),
 }).strict().refine((data) => data.newPassword === data.confirmPassword, {
     message: "Passwords do not match",

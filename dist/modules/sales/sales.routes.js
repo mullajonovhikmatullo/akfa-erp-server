@@ -197,6 +197,41 @@ router.post("/", (0, validate_1.validate)(sale_validation_1.createSaleSchema), s
 router.get("/", sales_controller_1.SalesController.findAll);
 /**
  * @swagger
+ * /sales/payments:
+ *   get:
+ *     summary: List debt repayment transactions
+ *     tags: [Sales]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: branchId
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: customerId
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: paymentMethod
+ *         schema: { $ref: '#/components/schemas/PaymentMethod' }
+ *       - in: query
+ *         name: from
+ *         schema: { type: string, format: date-time }
+ *       - in: query
+ *         name: to
+ *         schema: { type: string, format: date-time }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, default: 1 }
+ *       - in: query
+ *         name: pageSize
+ *         schema: { type: integer, default: 10, maximum: 100 }
+ *     responses:
+ *       200:
+ *         description: Paginated debt repayment list
+ */
+router.get("/payments", sales_controller_1.SalesController.findDebtPayments);
+/**
+ * @swagger
  * /sales/{id}:
  *   get:
  *     summary: Get full sale detail including all items and payments

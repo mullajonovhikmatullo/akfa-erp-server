@@ -26,13 +26,8 @@ exports.AnalyticsService = {
     async dashboard(query, user) {
         const { storeId, branchId } = (0, branch_access_1.branchScope)(user, query.branchId);
         const { start, end } = resolveRange(query.from, query.to);
-        const lowStockThreshold = query.lowStockThreshold;
-        const lowStockThresholdSql = lowStockThreshold
-            ? client_1.Prisma.sql `${lowStockThreshold}`
-            : client_1.Prisma.sql `p."lowStockThreshold"`;
-        const lowStockThresholdRequiredSql = lowStockThreshold
-            ? client_1.Prisma.empty
-            : client_1.Prisma.sql `AND p."lowStockThreshold" IS NOT NULL`;
+        const lowStockThresholdSql = client_1.Prisma.sql `p."lowStockThreshold"`;
+        const lowStockThresholdRequiredSql = client_1.Prisma.sql `AND p."lowStockThreshold" IS NOT NULL`;
         const saleWhere = {
             storeId,
             ...(branchId && { branchId }),
@@ -131,6 +126,9 @@ exports.AnalyticsService = {
             ? client_1.Prisma.sql `AND "branchId" = ${branchId}`
             : client_1.Prisma.empty;
         const saleTableStoreCond = client_1.Prisma.sql `AND "storeId" = ${storeId}`;
+        const topProductsOrder = query.topProductsSort === "quantity"
+            ? client_1.Prisma.sql `SUM(si.quantity) DESC`
+            : client_1.Prisma.sql `SUM(si."totalPrice") DESC`;
         const periodTrunc = client_1.Prisma.raw(`DATE_TRUNC('${query.period}', "createdAt")`);
         const expensePeriodTrunc = client_1.Prisma.raw(`DATE_TRUNC('${query.period}', "expenseDate")`);
         const [summary, byPeriod, byType, byPaymentMethod, debtPaymentMethod, topProducts] = await Promise.all([
@@ -191,7 +189,7 @@ exports.AnalyticsService = {
                   ${saleStoreCond}
                   ${branchCond}
                 GROUP BY p.id, p.name, p.sku, p.unit
-                ORDER BY SUM(si."totalPrice") DESC
+                ORDER BY ${topProductsOrder}
                 LIMIT ${query.limit}
             `,
         ]);
@@ -243,13 +241,8 @@ exports.AnalyticsService = {
     async inventoryReport(query, user) {
         const { storeId, branchId } = (0, branch_access_1.branchScope)(user, query.branchId);
         const { start, end } = resolveRange(query.from, query.to);
-        const lowStockThreshold = query.lowStockThreshold;
-        const lowStockThresholdSql = lowStockThreshold
-            ? client_1.Prisma.sql `${lowStockThreshold}`
-            : client_1.Prisma.sql `p."lowStockThreshold"`;
-        const lowStockThresholdRequiredSql = lowStockThreshold
-            ? client_1.Prisma.empty
-            : client_1.Prisma.sql `AND p."lowStockThreshold" IS NOT NULL`;
+        const lowStockThresholdSql = client_1.Prisma.sql `p."lowStockThreshold"`;
+        const lowStockThresholdRequiredSql = client_1.Prisma.sql `AND p."lowStockThreshold" IS NOT NULL`;
         const [stockByBranch, lowStock, movementSummary] = await Promise.all([
             prisma_1.prisma.$queryRaw `
                 SELECT

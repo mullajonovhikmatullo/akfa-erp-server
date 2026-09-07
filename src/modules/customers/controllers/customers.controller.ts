@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { ApiResponse } from "../../../core/response/ApiResponse";
-import { customerQuerySchema } from "../validations/customer.validation";
+import { customerPhoneCheckSchema, customerQuerySchema, linkCustomerBranchSchema } from "../validations/customer.validation";
 import { CustomersService } from "../services/customers.service";
 
 export const CustomersController = {
@@ -18,6 +18,24 @@ export const CustomersController = {
             const query = customerQuerySchema.parse(req.query);
             const customers = await CustomersService.findAll(query, req.user!);
             return ApiResponse.success(res, customers);
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    async checkPhone(req: Request, res: Response, next: NextFunction) {
+        try {
+            const query = customerPhoneCheckSchema.parse(req.query);
+            return ApiResponse.success(res, await CustomersService.checkPhone(query.phone, query.branchId, req.user!));
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    async linkBranch(req: Request, res: Response, next: NextFunction) {
+        try {
+            const body = linkCustomerBranchSchema.parse(req.body);
+            return ApiResponse.success(res, await CustomersService.linkBranch(req.params.id as string, body.branchId, req.user!));
         } catch (error) {
             next(error);
         }

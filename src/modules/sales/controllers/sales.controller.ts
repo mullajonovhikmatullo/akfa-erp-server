@@ -1,7 +1,7 @@
 import { paginationSchema } from "../../../core/utils/pagination";
 import { NextFunction, Request, Response } from "express";
 import { ApiResponse } from "../../../core/response/ApiResponse";
-import { saleQuerySchema } from "../validations/sale.validation";
+import { debtPaymentQuerySchema, saleQuerySchema } from "../validations/sale.validation";
 import { SalesService } from "../services/sales.service";
 import { idempotencyKeySchema } from "../../../core/services/idempotency.service";
 
@@ -34,6 +34,16 @@ export const SalesController = {
         try {
             const sale = await SalesService.findById(req.params.id as string, req.user!);
             return ApiResponse.success(res, sale);
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    async findDebtPayments(req: Request, res: Response, next: NextFunction) {
+        try {
+            const query = debtPaymentQuerySchema.parse(req.query);
+            const result = await SalesService.findDebtPayments(query, req.user!);
+            return ApiResponse.success(res, result);
         } catch (error) {
             next(error);
         }

@@ -2,8 +2,8 @@ import bcrypt from "bcrypt";
 import { prisma } from "../infrastructure/prisma/prisma";
 
 const PLAN_SEEDS = [
-    { code: "START", name: "Start", monthlyPriceUzs: 199000, maxBranches: 1, maxUsers: 3, maxProducts: 1000, isPublic: true },
-    { code: "BUSINESS", name: "Business", monthlyPriceUzs: 399000, maxBranches: 5, maxUsers: 20, maxProducts: 10000, isPublic: true },
+    { code: "START", name: "Start", monthlyPriceUzs: 199000, maxBranches: 3, maxUsers: 3, maxProducts: 1000, isPublic: true },
+    { code: "BUSINESS", name: "Business", monthlyPriceUzs: 399000, maxBranches: 6, maxUsers: 20, maxProducts: 10000, isPublic: true },
     { code: "NETWORK", name: "Network", monthlyPriceUzs: 0, maxBranches: null, maxUsers: null, maxProducts: null, isPublic: false },
 ];
 
@@ -13,7 +13,7 @@ async function seedPlans(): Promise<void> {
             prisma.plan.upsert({
                 where: { code: plan.code },
                 create: plan,
-                update: {},
+                update: { maxBranches: plan.maxBranches },
             })
         )
     );

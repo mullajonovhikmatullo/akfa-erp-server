@@ -110,7 +110,8 @@ async function provision(
     }
 
     const now = new Date();
-    const trialDays = input.trialDays ?? getTrialDays();
+    // Trial length is controlled by the server environment, not by clients.
+    const trialDays = getTrialDays();
     const trialEndsAt = addDays(now, trialDays);
     const hashedPassword = await bcrypt.hash(input.password, 12);
     let slug = await initialSlug(input.storeName);

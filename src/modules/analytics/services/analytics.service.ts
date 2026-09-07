@@ -30,13 +30,8 @@ export const AnalyticsService = {
     async dashboard(query: AnalyticsQuery, user: JwtPayload) {
         const { storeId, branchId } = branchScope(user, query.branchId);
         const { start, end } = resolveRange(query.from, query.to);
-        const lowStockThreshold = query.lowStockThreshold;
-        const lowStockThresholdSql = lowStockThreshold
-            ? Prisma.sql`${lowStockThreshold}`
-            : Prisma.sql`p."lowStockThreshold"`;
-        const lowStockThresholdRequiredSql = lowStockThreshold
-            ? Prisma.empty
-            : Prisma.sql`AND p."lowStockThreshold" IS NOT NULL`;
+        const lowStockThresholdSql = Prisma.sql`p."lowStockThreshold"`;
+        const lowStockThresholdRequiredSql = Prisma.sql`AND p."lowStockThreshold" IS NOT NULL`;
 
         const saleWhere: Prisma.SaleWhereInput = {
             storeId,
@@ -147,6 +142,9 @@ export const AnalyticsService = {
             ? Prisma.sql`AND "branchId" = ${branchId}`
             : Prisma.empty;
         const saleTableStoreCond = Prisma.sql`AND "storeId" = ${storeId}`;
+        const topProductsOrder = query.topProductsSort === "quantity"
+            ? Prisma.sql`SUM(si.quantity) DESC`
+            : Prisma.sql`SUM(si."totalPrice") DESC`;
 
         const periodTrunc = Prisma.raw(`DATE_TRUNC('${query.period}', "createdAt")`);
         const expensePeriodTrunc = Prisma.raw(`DATE_TRUNC('${query.period}', "expenseDate")`);
@@ -230,7 +228,7 @@ export const AnalyticsService = {
                   ${saleStoreCond}
                   ${branchCond}
                 GROUP BY p.id, p.name, p.sku, p.unit
-                ORDER BY SUM(si."totalPrice") DESC
+                ORDER BY ${topProductsOrder}
                 LIMIT ${query.limit}
             `,
         ]);
@@ -286,13 +284,8 @@ export const AnalyticsService = {
     async inventoryReport(query: AnalyticsQuery, user: JwtPayload) {
         const { storeId, branchId } = branchScope(user, query.branchId);
         const { start, end } = resolveRange(query.from, query.to);
-        const lowStockThreshold = query.lowStockThreshold;
-        const lowStockThresholdSql = lowStockThreshold
-            ? Prisma.sql`${lowStockThreshold}`
-            : Prisma.sql`p."lowStockThreshold"`;
-        const lowStockThresholdRequiredSql = lowStockThreshold
-            ? Prisma.empty
-            : Prisma.sql`AND p."lowStockThreshold" IS NOT NULL`;
+        const lowStockThresholdSql = Prisma.sql`p."lowStockThreshold"`;
+        const lowStockThresholdRequiredSql = Prisma.sql`AND p."lowStockThreshold" IS NOT NULL`;
 
         const [stockByBranch, lowStock, movementSummary] = await Promise.all([
             prisma.$queryRaw<{

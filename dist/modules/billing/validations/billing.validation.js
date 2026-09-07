@@ -8,7 +8,6 @@ const receiptSchema = zod_1.z.object({
     base64: zod_1.z.string().min(16).max(5600000),
 }).strict();
 exports.submitTenantPaymentSchema = zod_1.z.object({
-    branchId: zod_1.z.string().uuid(),
     paidAt: zod_1.z.string().datetime().optional(),
     note: zod_1.z.string().trim().max(500).optional(),
     receipt: receiptSchema,

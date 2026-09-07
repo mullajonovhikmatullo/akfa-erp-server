@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authMiddleware } from "../auth/middleware/auth.middleware";
 import { validate } from "../../core/middleware/validate";
-import { createCustomerSchema, updateCustomerSchema } from "./validations/customer.validation";
+import { createCustomerSchema, linkCustomerBranchSchema, updateCustomerSchema } from "./validations/customer.validation";
 import { CustomersController } from "./controllers/customers.controller";
 
 const router = Router();
@@ -127,6 +127,8 @@ router.post("/", validate(createCustomerSchema), CustomersController.create);
  *         description: Customer list
  */
 router.get("/", CustomersController.findAll);
+router.get("/check-phone", CustomersController.checkPhone);
+router.post("/:id/branches", validate(linkCustomerBranchSchema), CustomersController.linkBranch);
 
 /**
  * @swagger

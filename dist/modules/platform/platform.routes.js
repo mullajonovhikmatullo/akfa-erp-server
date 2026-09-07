@@ -22,6 +22,7 @@ router.get("/stores", platform_controller_1.PlatformController.listStores);
 router.post("/stores", (0, validate_1.validate)(platform_validation_1.provisionStoreSchema), platform_controller_1.PlatformController.provisionStore);
 router.get("/stores/:id", platform_controller_1.PlatformController.findStoreById);
 router.patch("/stores/:id/status", rateLimit_1.sensitiveActionRateLimit, (0, validate_1.validate)(platform_validation_1.updateStoreStatusSchema), platform_controller_1.PlatformController.updateStoreStatus);
+router.patch("/stores/:id/plan", rateLimit_1.sensitiveActionRateLimit, (0, validate_1.validate)(platform_validation_1.updateStorePlanSchema), platform_controller_1.PlatformController.updateStorePlan);
 router.post("/stores/:id/owner/setup-link", rateLimit_1.sensitiveActionRateLimit, (0, validate_1.validate)(platform_validation_1.regenerateOwnerSetupSchema), platform_controller_1.PlatformController.regenerateOwnerSetup);
 router.get("/payments", platform_controller_1.PlatformController.listPayments);
 router.post("/payments", (0, validate_1.validate)(platform_validation_1.createPaymentSchema), platform_controller_1.PlatformController.createPayment);

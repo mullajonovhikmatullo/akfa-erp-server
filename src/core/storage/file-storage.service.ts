@@ -1,6 +1,7 @@
 export type SaveFileInput = {
     storageKey: string;
     content: Buffer;
+    contentType?: string;
 };
 
 export type StoredFile = {

@@ -124,6 +124,8 @@ router.post("/", (0, validate_1.validate)(customer_validation_1.createCustomerSc
  *         description: Customer list
  */
 router.get("/", customers_controller_1.CustomersController.findAll);
+router.get("/check-phone", customers_controller_1.CustomersController.checkPhone);
+router.post("/:id/branches", (0, validate_1.validate)(customer_validation_1.linkCustomerBranchSchema), customers_controller_1.CustomersController.linkBranch);
 /**
  * @swagger
  * /customers/{id}:

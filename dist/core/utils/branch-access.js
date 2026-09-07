@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.requireStoreId = requireStoreId;
 exports.resolveBranchId = resolveBranchId;
+exports.requireAssignedBranchId = requireAssignedBranchId;
 exports.branchScope = branchScope;
 exports.assertBranchInStore = assertBranchInStore;
 exports.assertBranchesInStore = assertBranchesInStore;
@@ -21,19 +22,30 @@ function requireStoreId(user) {
 /**
  * Resolves which branchId an operation targets.
  *
- * ADMIN is always locked to their own branch — requestedBranchId is ignored.
- * STORE_OWNER must explicitly supply a branchId.
+ * Users assigned to a branch operate in that branch by default.
+ * Branch-scoped roles are always locked to their own branch — requestedBranchId is ignored.
+ * Store manager roles may still target another branch explicitly for manager workflows.
  *
  * This is the single enforcement point for branch isolation across all modules.
  */
 function resolveBranchId(requestedBranchId, user) {
     requireStoreId(user);
-    if (!(0, role_access_1.isBranchScopedRole)(user.role)) {
-        if (!requestedBranchId) {
-            throw new AppError_1.AppError(400, "branchId is required");
+    if ((0, role_access_1.isBranchScopedRole)(user.role)) {
+        if (!user.branchId) {
+            throw new AppError_1.AppError(403, "Your account is not assigned to any branch");
         }
+        return user.branchId;
+    }
+    if (requestedBranchId) {
         return requestedBranchId;
     }
+    if (user.branchId) {
+        return user.branchId;
+    }
+    throw new AppError_1.AppError(403, "Your account is not assigned to any branch");
+}
+function requireAssignedBranchId(user) {
+    requireStoreId(user);
     if (!user.branchId) {
         throw new AppError_1.AppError(403, "Your account is not assigned to any branch");
     }

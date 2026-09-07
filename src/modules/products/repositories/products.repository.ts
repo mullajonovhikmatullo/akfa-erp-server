@@ -26,6 +26,7 @@ const productBaseSelect = {
     description: true,
     sku: true,
     unit: true,
+    lowStockThreshold: true,
     costPriceUzs: true,
     retailPriceUzs: true,
     wholesalePriceUzs: true,

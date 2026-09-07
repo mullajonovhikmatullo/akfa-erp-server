@@ -18,6 +18,7 @@ import {
     ExchangeHandoffInput,
     LoginInput,
 } from "../validations/auth.validation";
+import { ProfilePhotoService } from "./profile-photo.service";
 
 const DUMMY_PASSWORD_HASH = "$2b$12$Og2YEkt0glpNIkU9KlJr.erRlnfbMPwycBetIqTqnqWEkiL0ep5DO";
 
@@ -31,6 +32,8 @@ const userProfileSelect = {
     isActive: true,
     mustChangePassword: true,
     authVersion: true,
+    base64Photo: true,
+    thumbnailPhoto: true,
     store: {
         select: {
             id: true,
@@ -69,6 +72,8 @@ function serializeUser(user: any) {
         rawRole: user.role,
         storeId: user.storeId,
         branchId: user.branchId,
+        base64Photo: user.base64Photo,
+        thumbnailPhoto: user.thumbnailPhoto,
         mustChangePassword: user.mustChangePassword,
         store: user.store,
     };
@@ -141,12 +146,17 @@ export const updateProfileSchema = z.object({
 
 export const changePasswordSchema = z.object({
     currentPassword: z.string().min(1, "Joriy parolni kiriting"),
-    newPassword: z.string().min(10, "Yangi parol kamida 10 ta belgi bo'lishi kerak").max(100),
+    newPassword: z.string().min(6, "Yangi parol kamida 6 ta belgi bo'lishi kerak").max(100),
     confirmPassword: z.string().min(1, "Parolni tasdiqlang"),
 }).strict().refine((data) => data.newPassword === data.confirmPassword, {
     message: "Parollar mos kelmadi",
     path: ["confirmPassword"],
 });
+
+export const updateProfilePhotoSchema = z.object({
+    base64Photo: z.string().min(32).max(7_000_000),
+    thumbnailPhoto: z.string().min(32).max(1_500_000).optional(),
+}).strict();
 
 export const AuthService = {
     async me(userId: string) {
@@ -182,6 +192,49 @@ export const AuthService = {
                     ...(data.fullName && { fullName: data.fullName }),
                     ...(data.username && { username: data.username }),
                 },
+                select: userProfileSelect,
+            });
+        }, transactionOptions);
+
+        return serializeUser(updated);
+    },
+
+    async updateProfilePhoto(userId: string, data: z.infer<typeof updateProfilePhotoSchema>) {
+        const photos = await ProfilePhotoService.process(data.base64Photo, data.thumbnailPhoto);
+        const updated = await prisma.$transaction(async (tx) => {
+            const current = await tx.user.findUnique({
+                where: { id: userId },
+                select: { id: true, storeId: true, isActive: true },
+            });
+            if (!current?.isActive) throw new AppError(401, "Unauthorized");
+            if (current.storeId) {
+                await assertStoreReadableInTransaction(tx, current.storeId);
+            }
+
+            return tx.user.update({
+                where: { id: userId },
+                data: photos,
+                select: userProfileSelect,
+            });
+        }, transactionOptions);
+
+        return serializeUser(updated);
+    },
+
+    async deleteProfilePhoto(userId: string) {
+        const updated = await prisma.$transaction(async (tx) => {
+            const current = await tx.user.findUnique({
+                where: { id: userId },
+                select: { id: true, storeId: true, isActive: true },
+            });
+            if (!current?.isActive) throw new AppError(401, "Unauthorized");
+            if (current.storeId) {
+                await assertStoreReadableInTransaction(tx, current.storeId);
+            }
+
+            return tx.user.update({
+                where: { id: userId },
+                data: { base64Photo: null, thumbnailPhoto: null },
                 select: userProfileSelect,
             });
         }, transactionOptions);

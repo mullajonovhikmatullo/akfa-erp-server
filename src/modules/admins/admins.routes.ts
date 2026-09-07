@@ -57,7 +57,7 @@ router.use(authMiddleware, roleMiddleware("STORE_OWNER", "STORE_ADMIN"));
  *           example: john_admin
  *         password:
  *           type: string
- *           minLength: 10
+ *           minLength: 6
  *           example: secret12345
  *         branchId:
  *           type: string

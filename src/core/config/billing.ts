@@ -1,4 +1,4 @@
-const DEFAULT_TRIAL_DAYS = 1;
+const DEFAULT_TRIAL_DAYS = 14;
 
 export function getTrialDays(): number {
     const configured = Number(process.env.TRIAL_DAYS ?? process.env.FREE_TRIAL_DAYS);

@@ -11,7 +11,7 @@ const priceField = z
 
 export const createProductSchema = z.object({
     name: z.string().min(1).max(200),
-    description: z.string().max(1000).optional(),
+    description: z.string().max(500).optional(),
     sku: z
         .string()
         .max(100)
@@ -20,6 +20,12 @@ export const createProductSchema = z.object({
     unit: activeProductUnitSchema,
     categoryId: z.string().uuid("categoryId must be a valid UUID").optional(),
     branchId: z.string().uuid("branchId must be a valid UUID").optional(),
+    lowStockThreshold: z
+        .number()
+        .nonnegative("Low-stock threshold cannot be negative")
+        .multipleOf(0.0001, "Low-stock threshold supports up to 4 decimal places")
+        .nullable()
+        .optional(),
     costPriceUzs: priceField,
     retailPriceUzs: priceField,
     wholesalePriceUzs: priceField,
@@ -48,7 +54,7 @@ export const createProductSchema = z.object({
 
 export const updateProductSchema = z.object({
     name: z.string().min(1).max(200).optional(),
-    description: z.string().max(1000).optional(),
+    description: z.string().max(500).optional(),
     sku: z
         .string()
         .max(100)
@@ -56,6 +62,12 @@ export const updateProductSchema = z.object({
         .optional(),
     unit: activeProductUnitSchema.optional(),
     categoryId: z.string().uuid("categoryId must be a valid UUID").optional(),
+    lowStockThreshold: z
+        .number()
+        .nonnegative("Low-stock threshold cannot be negative")
+        .multipleOf(0.0001, "Low-stock threshold supports up to 4 decimal places")
+        .nullable()
+        .optional(),
     costPriceUzs: priceField.optional(),
     retailPriceUzs: priceField.optional(),
     wholesalePriceUzs: priceField.optional(),

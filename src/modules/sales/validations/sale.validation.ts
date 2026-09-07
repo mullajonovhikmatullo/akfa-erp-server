@@ -72,3 +72,13 @@ export const saleQuerySchema = z.object({
     to: z.string().datetime().optional(),
     limit: queryInteger(50, 200),
 });
+
+export const debtPaymentQuerySchema = z.object({
+    branchId: z.string().uuid().optional(),
+    customerId: z.string().uuid().optional(),
+    paymentMethod: z.nativeEnum(PaymentMethod).optional(),
+    from: z.string().datetime().optional(),
+    to: z.string().datetime().optional(),
+    page: z.coerce.number().int().positive().default(1),
+    pageSize: z.coerce.number().int().positive().max(100).default(10),
+});

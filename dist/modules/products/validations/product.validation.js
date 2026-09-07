@@ -11,7 +11,7 @@ const priceField = zod_1.z
     .multipleOf(0.01, "Price must have at most 2 decimal places");
 exports.createProductSchema = zod_1.z.object({
     name: zod_1.z.string().min(1).max(200),
-    description: zod_1.z.string().max(1000).optional(),
+    description: zod_1.z.string().max(500).optional(),
     sku: zod_1.z
         .string()
         .max(100)
@@ -20,6 +20,12 @@ exports.createProductSchema = zod_1.z.object({
     unit: activeProductUnitSchema,
     categoryId: zod_1.z.string().uuid("categoryId must be a valid UUID").optional(),
     branchId: zod_1.z.string().uuid("branchId must be a valid UUID").optional(),
+    lowStockThreshold: zod_1.z
+        .number()
+        .nonnegative("Low-stock threshold cannot be negative")
+        .multipleOf(0.0001, "Low-stock threshold supports up to 4 decimal places")
+        .nullable()
+        .optional(),
     costPriceUzs: priceField,
     retailPriceUzs: priceField,
     wholesalePriceUzs: priceField,
@@ -33,7 +39,7 @@ exports.createProductSchema = zod_1.z.object({
     d.costPriceUsd <= d.wholesalePriceUsd, { message: "Cost price cannot exceed wholesale price", path: ["costPriceUsd"] });
 exports.updateProductSchema = zod_1.z.object({
     name: zod_1.z.string().min(1).max(200).optional(),
-    description: zod_1.z.string().max(1000).optional(),
+    description: zod_1.z.string().max(500).optional(),
     sku: zod_1.z
         .string()
         .max(100)
@@ -41,6 +47,12 @@ exports.updateProductSchema = zod_1.z.object({
         .optional(),
     unit: activeProductUnitSchema.optional(),
     categoryId: zod_1.z.string().uuid("categoryId must be a valid UUID").optional(),
+    lowStockThreshold: zod_1.z
+        .number()
+        .nonnegative("Low-stock threshold cannot be negative")
+        .multipleOf(0.0001, "Low-stock threshold supports up to 4 decimal places")
+        .nullable()
+        .optional(),
     costPriceUzs: priceField.optional(),
     retailPriceUzs: priceField.optional(),
     wholesalePriceUzs: priceField.optional(),

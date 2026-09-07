@@ -75,7 +75,8 @@ async function provision(input, options) {
         throw new AppError_1.AppError(409, "Selected plan cannot provision a tenant");
     }
     const now = new Date();
-    const trialDays = input.trialDays ?? (0, billing_1.getTrialDays)();
+    // Trial length is controlled by the server environment, not by clients.
+    const trialDays = (0, billing_1.getTrialDays)();
     const trialEndsAt = (0, billing_1.addDays)(now, trialDays);
     const hashedPassword = await bcrypt_1.default.hash(input.password, 12);
     let slug = await initialSlug(input.storeName);

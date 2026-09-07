@@ -56,7 +56,7 @@ router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddlewar
  *           example: john_admin
  *         password:
  *           type: string
- *           minLength: 10
+ *           minLength: 6
  *           example: secret12345
  *         branchId:
  *           type: string

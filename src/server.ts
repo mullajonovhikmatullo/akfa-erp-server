@@ -34,7 +34,9 @@ import productImageFilesRoutes from "./modules/products/images/product-image-fil
 
 const app = express();
 let shuttingDown = false;
+
 if (process.env.TRUST_PROXY === "1" || process.env.NODE_ENV === "production") {
+    //
     app.set("trust proxy", 1);
 }
 
@@ -53,6 +55,7 @@ const extraOrigins = (process.env.ALLOWED_ORIGINS || "")
     .filter(Boolean);
 
 const isOriginAllowed = (origin?: string) => {
+    //
     if (!origin) return true;
     if (extraOrigins.includes(origin)) return true;
     if (process.env.NODE_ENV !== "production") {
@@ -74,6 +77,7 @@ app.use(
 );
 const securityHeaders = helmet();
 app.use((req, res, next) => {
+    //
     if (req.path.startsWith("/docs") || req.path.startsWith("/api/docs")) return next();
     return securityHeaders(req, res, next);
 });
@@ -84,6 +88,7 @@ app.use(morgan(":method :route :status :response-time ms", {
 const standardJson = express.json({ limit: "1mb" });
 const receiptJson = express.json({ limit: "6mb" });
 app.use((req, res, next) => {
+    //
     const parser = req.method === "POST" && /^(?:\/api)?\/billing\/payments\/?$/.test(req.path)
         ? receiptJson : standardJson;
     parser(req, res, next);
@@ -145,12 +150,14 @@ function shutdown(reason: string, exitCode = 0): Promise<void> {
     shuttingDown = true;
     console.log(JSON.stringify({ event: "shutdown", reason }));
     const deadline = setTimeout(() => {
+        //
         console.error(JSON.stringify({ event: "shutdown_timeout" }));
         server.closeAllConnections();
         process.exit(1);
     }, positiveIntegerEnv("SHUTDOWN_TIMEOUT_MS", 75000));
     deadline.unref();
     shutdownPromise = (async () => {
+        //
         const drained = new Promise<void>((resolve, reject) => {
             server.close((error) => {
                 if (error && !("code" in error && error.code === "ERR_SERVER_NOT_RUNNING")) reject(error);
@@ -159,6 +166,7 @@ function shutdown(reason: string, exitCode = 0): Promise<void> {
             server.closeIdleConnections();
         });
         try {
+            //
             await Promise.all([drained, closeSocketServer()]);
         } finally {
             // The adapter disposes its owned PostgreSQL pool here.
@@ -171,6 +179,7 @@ function shutdown(reason: string, exitCode = 0): Promise<void> {
 
 const stop = (reason: string, exitCode = 0) => {
     void shutdown(reason, exitCode).catch(() => {
+        //
         console.error(JSON.stringify({ event: "shutdown_failed" }));
         process.exit(1);
     });
@@ -189,14 +198,17 @@ process.once("uncaughtException", (error) => fatal("uncaughtException", error));
 process.once("unhandledRejection", (error) => fatal("unhandledRejection", error));
 
 function assertRuntimeSecurityConfig() {
+    //
     const secret = process.env.JWT_SECRET;
     const minimumLength = process.env.NODE_ENV === "production" ? 32 : 16;
     if (!secret || secret.length < minimumLength) {
+        //
         throw new Error(`JWT_SECRET must be at least ${minimumLength} characters`);
     }
 }
 
 async function startServer() {
+    //
     assertRuntimeSecurityConfig();
     await seedPlatformOwner();
     if (shuttingDown) return;

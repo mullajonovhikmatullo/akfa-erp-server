@@ -91,17 +91,17 @@ export const ProductImagesController = {
 
     async file(req: Request, res: Response, next: NextFunction) {
         try {
-            const file = await ProductImagesService.readPublicFile(
+            const file = await ProductImagesService.readFile(
                 req.params.storeId as string,
                 req.params.productId as string,
                 req.params.imageId as string,
-                req.params.fileName as string
+                req.params.fileName as string,
+                req.user!
             );
             res.setHeader("Content-Type", file.mimeType);
             res.setHeader("Content-Length", String(file.content.length));
             res.setHeader("Content-Disposition", "inline");
-            res.setHeader("Cache-Control", "public, max-age=3600");
-            res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+            res.setHeader("Cache-Control", "private, no-store");
             res.setHeader("X-Content-Type-Options", "nosniff");
             return res.send(file.content);
         } catch (error) {

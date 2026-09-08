@@ -7,6 +7,8 @@ export class ApiResponse {
         message = "Success",
         statusCode = 200
     ): Response {
+        res.setHeader("Cache-Control", "private, no-store");
+        res.vary("Authorization");
         return res.status(statusCode).json({
             success: true,
             message,

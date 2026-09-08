@@ -250,9 +250,9 @@ exports.InventoryRepository = {
         });
         return Number(result._sum.remainingQty ?? 0);
     },
-    decrementBatch(id, amount, tx) {
+    decrementBatch(id, storeId, amount, tx) {
         return tx.stockBatch.update({
-            where: { id },
+            where: { id, storeId },
             data: { remainingQty: { decrement: amount } },
         });
     },

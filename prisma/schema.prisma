@@ -325,6 +325,8 @@ model Branch {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
+  // Supports the additional User branch/store membership FK in the security migration.
+  @@unique([id, storeId])
   @@unique([storeId, name])
   @@index([storeId])
 }

@@ -3,6 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ApiResponse = void 0;
 class ApiResponse {
     static success(res, data, message = "Success", statusCode = 200) {
+        res.setHeader("Cache-Control", "private, no-store");
+        res.vary("Authorization");
         return res.status(statusCode).json({
             success: true,
             message,

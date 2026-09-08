@@ -329,9 +329,9 @@ export const InventoryRepository = {
         return Number(result._sum.remainingQty ?? 0);
     },
 
-    decrementBatch(id: string, amount: number, tx: Tx) {
+    decrementBatch(id: string, storeId: string, amount: number, tx: Tx) {
         return tx.stockBatch.update({
-            where: { id },
+            where: { id, storeId },
             data: { remainingQty: { decrement: amount } },
         });
     },

@@ -105,12 +105,13 @@ export const TransfersRepository = {
 
     updateStatus(
         id: string,
+        storeId: string,
         status: TransferStatus,
         completedById: string | null,
         tx: Tx
     ) {
         return tx.transfer.update({
-            where: { id },
+            where: { id, storeId },
             data: {
                 status,
                 ...(status === "COMPLETED" && {

@@ -166,7 +166,7 @@ export const TransfersService = {
                     transfer.fromBranch.name, user.id, tx, transfer.id
                 );
 
-                return TransfersRepository.updateStatus(id, "COMPLETED", user.id, tx);
+                return TransfersRepository.updateStatus(id, storeId, "COMPLETED", user.id, tx);
             },
             transactionOptions
         );
@@ -213,7 +213,7 @@ export const TransfersService = {
                     .map((item) => ({ productId: item.product.id, quantity: Number(item.quantity) })),
                 user.id, `Cancelled transfer ${id}`, tx
             );
-            return TransfersRepository.updateStatus(id, "CANCELLED", null, tx);
+            return TransfersRepository.updateStatus(id, storeId, "CANCELLED", null, tx);
         }, transactionOptions);
 
         emitTransferChanged({

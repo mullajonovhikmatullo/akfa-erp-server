@@ -137,7 +137,7 @@ exports.TransfersService = {
                 .map((item) => ({ productId: item.product.id, quantity: Number(item.quantity) })), user.id, `Transfer ${id} → ${transfer.toBranch.name}`, tx, client_1.StockMovementType.TRANSFER_OUT);
             await inventory_service_1.InventoryService.transferInBatch(storeId, transfer.toBranch.id, transfer.items.map((item) => ({ productId: item.product.id,
                 quantity: Number(item.quantity), costPriceUzs: Number(item.unitCostUzs) })), transfer.fromBranch.name, user.id, tx, transfer.id);
-            return transfers_repository_1.TransfersRepository.updateStatus(id, "COMPLETED", user.id, tx);
+            return transfers_repository_1.TransfersRepository.updateStatus(id, storeId, "COMPLETED", user.id, tx);
         }, prisma_1.transactionOptions);
         (0, socket_1.emitTransferChanged)({
             storeId,
@@ -171,7 +171,7 @@ exports.TransfersService = {
             const reserved = await reservedItemIds(id, storeId, transfer.items, tx);
             await inventory_service_1.InventoryService.restoreTransferStockBatch(storeId, transfer.fromBranch.id, id, transfer.items.filter((item) => reserved.has(item.id))
                 .map((item) => ({ productId: item.product.id, quantity: Number(item.quantity) })), user.id, `Cancelled transfer ${id}`, tx);
-            return transfers_repository_1.TransfersRepository.updateStatus(id, "CANCELLED", null, tx);
+            return transfers_repository_1.TransfersRepository.updateStatus(id, storeId, "CANCELLED", null, tx);
         }, prisma_1.transactionOptions);
         (0, socket_1.emitTransferChanged)({
             storeId,

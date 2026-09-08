@@ -11,7 +11,7 @@ export const MediaController = {
             res.setHeader("Content-Type", media.mimeType);
             res.setHeader("Content-Length", String(media.sizeBytes));
             res.setHeader("Content-Disposition", `inline; filename*=UTF-8''${fileName}`);
-            res.setHeader("Cache-Control", "private, max-age=300, no-transform");
+            res.setHeader("Cache-Control", "private, no-store, no-transform");
             res.setHeader("X-Content-Type-Options", "nosniff");
             return res.send(media.content);
         } catch (error) {

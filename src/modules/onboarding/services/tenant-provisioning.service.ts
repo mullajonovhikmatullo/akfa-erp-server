@@ -50,7 +50,13 @@ function isUniqueConflict(error: unknown, field: string): boolean {
 
     const target = error.meta?.target;
     if (Array.isArray(target)) return target.includes(field);
-    return typeof target === "string" && target.includes(field);
+    if (typeof target === "string") return target.includes(field);
+    // adapter-pg exposes constraint fields on the adapter cause, not meta.target.
+    const adapter = error.meta?.driverAdapterError as {
+        cause?: { kind?: string; constraint?: { fields?: string[] } };
+    } | undefined;
+    return adapter?.cause?.kind === "UniqueConstraintViolation" &&
+        adapter.cause.constraint?.fields?.includes(field) === true;
 }
 
 function serializeOwner(user: {

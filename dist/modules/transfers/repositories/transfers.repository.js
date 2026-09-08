@@ -75,9 +75,9 @@ exports.TransfersRepository = {
         const client = tx ?? prisma_1.prisma;
         return client.transfer.findFirst({ where: { id, storeId }, select: transferSelect });
     },
-    updateStatus(id, status, completedById, tx) {
+    updateStatus(id, storeId, status, completedById, tx) {
         return tx.transfer.update({
-            where: { id },
+            where: { id, storeId },
             data: {
                 status,
                 ...(status === "COMPLETED" && {

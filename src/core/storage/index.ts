@@ -15,14 +15,13 @@ const r2Config =
     uploadConfig.r2Endpoint &&
     uploadConfig.r2BucketName &&
     uploadConfig.r2AccessKeyId &&
-    uploadConfig.r2SecretAccessKey &&
-    uploadConfig.r2PublicBaseUrl
+    uploadConfig.r2SecretAccessKey
         ? {
               endpoint: uploadConfig.r2Endpoint,
               bucketName: uploadConfig.r2BucketName,
               accessKeyId: uploadConfig.r2AccessKeyId,
               secretAccessKey: uploadConfig.r2SecretAccessKey,
-              publicBaseUrl: uploadConfig.r2PublicBaseUrl,
+              publicBaseUrl: uploadConfig.publicBaseUrl,
           }
         : undefined;
 

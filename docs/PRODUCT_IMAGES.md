@@ -7,7 +7,7 @@ metadata and relative storage keys; image bytes are never stored in the database
 
 ```env
 UPLOAD_ROOT=./uploads
-PUBLIC_UPLOAD_BASE_URL=http://localhost:3000/uploads
+PUBLIC_UPLOAD_BASE_URL=/api/uploads
 PRODUCT_IMAGE_MAX_SIZE_MB=5
 PRODUCT_IMAGE_MAX_COUNT=5
 ```
@@ -46,6 +46,13 @@ Image URLs point to an authenticated `/uploads/organizations/...` route. The
 route verifies the URL store, product and image IDs against the authenticated
 user before reading a storage key. The physical upload root is never exposed as
 an Express static directory.
+
+Responses use `Cache-Control: private, no-store`. The frontend downloads images
+with its authenticated HTTP client and creates temporary blob URLs for display.
+For `STORAGE_PROVIDER=r2`, the backend reads private objects with its service
+credentials and returns the same authenticated API URLs. Disable existing public
+bucket/custom-domain access and purge previously public image caches during
+deployment; changing backend routes cannot revoke bytes already cached elsewhere.
 
 ## Development
 

@@ -1,23 +1,19 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.initSocketServer = initSocketServer;
 exports.closeSocketServer = closeSocketServer;
 exports.disconnectStoreSockets = disconnectStoreSockets;
 exports.disconnectUserSockets = disconnectUserSockets;
 exports.emitTransferChanged = emitTransferChanged;
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const socket_io_1 = require("socket.io");
+const auth_identity_service_1 = require("../core/services/auth-identity.service");
 const billing_state_service_1 = require("../core/services/billing-state.service");
 const role_access_1 = require("../core/utils/role-access");
-const prisma_1 = require("./prisma/prisma");
 let io = null;
 const platformOwnersRoom = "role:PLATFORM_OWNER";
 const tenantLifecycleRoom = (storeId) => `tenant-lifecycle:${storeId}`;
 const storeManagersRoom = (storeId) => `store-managers:${storeId}`;
-const branchRoom = (branchId) => `branch:${branchId}`;
+const branchRoom = (storeId, branchId) => `store:${storeId}:branch:${branchId}`;
 const userRoom = (userId) => `user:${userId}`;
 function initSocketServer(server, isOriginAllowed) {
     if (io)
@@ -41,23 +37,8 @@ function initSocketServer(server, isOriginAllowed) {
             return next(new Error("Unauthorized"));
         }
         try {
-            const decoded = jsonwebtoken_1.default.verify(token, secret);
-            const user = await prisma_1.prisma.user.findUnique({
-                where: { id: decoded.id },
-                select: {
-                    id: true,
-                    role: true,
-                    storeId: true,
-                    branchId: true,
-                    isActive: true,
-                    mustChangePassword: true,
-                    authVersion: true,
-                },
-            });
-            if (!user ||
-                !user.isActive ||
-                user.mustChangePassword ||
-                decoded.authVersion !== user.authVersion) {
+            const { user, expiresAt } = await (0, auth_identity_service_1.authenticateToken)(token);
+            if (user.mustChangePassword) {
                 return next(new Error("Unauthorized"));
             }
             if (!(0, role_access_1.isPlatformRole)(user.role)) {
@@ -73,6 +54,7 @@ function initSocketServer(server, isOriginAllowed) {
                 branchId: user.branchId,
                 authVersion: user.authVersion,
             };
+            socket.data.expiresAt = expiresAt;
             return next();
         }
         catch {
@@ -91,19 +73,23 @@ function initSocketServer(server, isOriginAllowed) {
         if (initialUser.storeId) {
             socket.join(tenantLifecycleRoom(initialUser.storeId));
         }
+        // Expired JWTs must not keep receiving events through a long-lived socket.
+        let expiryTimer;
+        const expire = () => {
+            const expiresAt = socket.data.expiresAt;
+            if (expiresAt === undefined)
+                return;
+            const remaining = expiresAt - Date.now();
+            if (remaining <= 0)
+                return void socket.disconnect(true);
+            expiryTimer = setTimeout(expire, Math.min(remaining, 2147483647));
+            expiryTimer.unref();
+        };
+        expire();
+        socket.once("disconnect", () => { if (expiryTimer)
+            clearTimeout(expiryTimer); });
         void (async () => {
-            const user = await prisma_1.prisma.user.findUnique({
-                where: { id: initialUser.id },
-                select: {
-                    id: true,
-                    role: true,
-                    storeId: true,
-                    branchId: true,
-                    isActive: true,
-                    mustChangePassword: true,
-                    authVersion: true,
-                },
-            });
+            const { user } = await (0, auth_identity_service_1.authenticateToken)(socket.handshake.auth.token);
             if (!socket.connected ||
                 !user ||
                 !user.isActive ||
@@ -136,8 +122,8 @@ function initSocketServer(server, isOriginAllowed) {
             if (user.storeId && (0, role_access_1.isStoreManagerRole)(user.role)) {
                 socket.join(storeManagersRoom(user.storeId));
             }
-            if (user.branchId) {
-                socket.join(branchRoom(user.branchId));
+            if (user.storeId && user.branchId) {
+                socket.join(branchRoom(user.storeId, user.branchId));
             }
         })().catch(() => socket.disconnect(true));
     });
@@ -159,7 +145,7 @@ function emitTransferChanged(payload) {
     io
         ?.to(platformOwnersRoom)
         .to(storeManagersRoom(payload.storeId))
-        .to(branchRoom(payload.fromBranchId))
-        .to(branchRoom(payload.toBranchId))
+        .to(branchRoom(payload.storeId, payload.fromBranchId))
+        .to(branchRoom(payload.storeId, payload.toBranchId))
         .emit("transfer:changed", payload);
 }

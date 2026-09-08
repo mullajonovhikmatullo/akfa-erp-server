@@ -1,14 +1,12 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { AppError } from "../../../core/errors/AppError";
-import { JwtPayload } from "../../../core/types/jwt.types";
+import { authenticateToken } from "../../../core/services/auth-identity.service";
 import {
     assertStoreReadable,
     assertStoreWritable,
     refreshStoreBillingState,
 } from "../../../core/services/billing-state.service";
-import { isPlatformRole } from "../../../core/utils/role-access";
-import { prisma } from "../../../infrastructure/prisma/prisma";
 
 const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
@@ -27,6 +25,8 @@ export async function authMiddleware(
     res: Response,
     next: NextFunction
 ) {
+    res.setHeader("Cache-Control", "private, no-store");
+    res.vary("Authorization");
     try {
         const authHeader = req.headers.authorization;
 
@@ -34,35 +34,10 @@ export async function authMiddleware(
             throw new AppError(401, "Unauthorized");
         }
 
-        const token = authHeader.split(" ")[1];
-        const decoded = jwt.verify(
-            token,
-            process.env.JWT_SECRET as string
-        ) as JwtPayload;
-
-        const user = await prisma.user.findUnique({
-            where: { id: decoded.id },
-            select: {
-                id: true,
-                role: true,
-                branchId: true,
-                storeId: true,
-                isActive: true,
-                mustChangePassword: true,
-                authVersion: true,
-            },
-        });
-
-        if (!user || !user.isActive || decoded.authVersion !== user.authVersion) {
-            throw new AppError(401, "Unauthorized");
-        }
+        const { user } = await authenticateToken(authHeader.slice(7));
 
         if (user.mustChangePassword && !isAuthSelfServicePath(req.path)) {
             throw new AppError(403, "Password change is required");
-        }
-
-        if (!isPlatformRole(user.role) && !user.storeId) {
-            throw new AppError(403, "Your account is not assigned to any store");
         }
 
         if (user.storeId) {

@@ -13,7 +13,6 @@ function readBoundedInteger(value, fallback, minimum, maximum) {
     return Math.min(maximum, Math.max(minimum, parsed));
 }
 function loadUploadConfig(env = process.env, workingDirectory = process.cwd()) {
-    const port = env.PORT || "3000";
     const maxSizeMb = readBoundedInteger(env.PRODUCT_IMAGE_MAX_SIZE_MB, 5, 1, 5);
     const maxCount = readBoundedInteger(env.PRODUCT_IMAGE_MAX_COUNT, 5, 1, 5);
     const storageProvider = env.STORAGE_PROVIDER || "local";
@@ -31,7 +30,6 @@ function loadUploadConfig(env = process.env, workingDirectory = process.cwd()) {
             ["R2_BUCKET_NAME", r2BucketName],
             ["R2_ACCESS_KEY_ID", r2AccessKeyId],
             ["R2_SECRET_ACCESS_KEY", r2SecretAccessKey],
-            ["R2_PUBLIC_BASE_URL", r2PublicBaseUrl],
         ]
             .filter(([, value]) => !value)
             .map(([name]) => name);
@@ -42,7 +40,7 @@ function loadUploadConfig(env = process.env, workingDirectory = process.cwd()) {
     return {
         storageProvider,
         rootDirectory: path_1.default.resolve(workingDirectory, env.UPLOAD_ROOT || "./uploads"),
-        publicBaseUrl: (env.PUBLIC_UPLOAD_BASE_URL || `http://localhost:${port}/uploads`).replace(/\/+$/, ""),
+        publicBaseUrl: (env.PUBLIC_UPLOAD_BASE_URL || "/api/uploads").replace(/\/+$/, ""),
         r2Endpoint,
         r2BucketName,
         r2AccessKeyId,

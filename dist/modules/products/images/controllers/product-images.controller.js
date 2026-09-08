@@ -70,12 +70,11 @@ exports.ProductImagesController = {
     },
     async file(req, res, next) {
         try {
-            const file = await product_images_service_1.ProductImagesService.readPublicFile(req.params.storeId, req.params.productId, req.params.imageId, req.params.fileName);
+            const file = await product_images_service_1.ProductImagesService.readFile(req.params.storeId, req.params.productId, req.params.imageId, req.params.fileName, req.user);
             res.setHeader("Content-Type", file.mimeType);
             res.setHeader("Content-Length", String(file.content.length));
             res.setHeader("Content-Disposition", "inline");
-            res.setHeader("Cache-Control", "public, max-age=3600");
-            res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+            res.setHeader("Cache-Control", "private, no-store");
             res.setHeader("X-Content-Type-Options", "nosniff");
             return res.send(file.content);
         }

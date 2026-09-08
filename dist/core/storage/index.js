@@ -25,14 +25,13 @@ exports.localFileStorage = new local_file_storage_service_1.LocalFileStorageServ
 const r2Config = uploads_1.uploadConfig.r2Endpoint &&
     uploads_1.uploadConfig.r2BucketName &&
     uploads_1.uploadConfig.r2AccessKeyId &&
-    uploads_1.uploadConfig.r2SecretAccessKey &&
-    uploads_1.uploadConfig.r2PublicBaseUrl
+    uploads_1.uploadConfig.r2SecretAccessKey
     ? {
         endpoint: uploads_1.uploadConfig.r2Endpoint,
         bucketName: uploads_1.uploadConfig.r2BucketName,
         accessKeyId: uploads_1.uploadConfig.r2AccessKeyId,
         secretAccessKey: uploads_1.uploadConfig.r2SecretAccessKey,
-        publicBaseUrl: uploads_1.uploadConfig.r2PublicBaseUrl,
+        publicBaseUrl: uploads_1.uploadConfig.publicBaseUrl,
     }
     : undefined;
 exports.r2FileStorage = uploads_1.uploadConfig.storageProvider === "r2" && r2Config

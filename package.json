@@ -3,15 +3,18 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
+  "engines": {
+    "node": ">=22 <25"
+  },
   "scripts": {
     "test": "npm run build && node --test tests/*.test.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "seed:platform-owner": "ts-node-dev --transpile-only src/scripts/create-platform-owner.ts",
-    "seed": "ts-node-dev --transpile-only src/scripts/seed.ts",
-    "contract:openapi": "ts-node-dev --transpile-only src/scripts/export-openapi.ts",
+    "dev": "ts-node-dev --respawn --poll --transpile-only src/server.ts",
+    "seed:platform-owner": "ts-node --transpile-only src/scripts/create-platform-owner.ts",
+    "seed": "ts-node --transpile-only src/scripts/seed.ts",
+    "contract:openapi": "ts-node --transpile-only src/scripts/export-openapi.ts",
     "build": "prisma generate && tsc",
     "postinstall": "prisma generate",
-    "deploy": "prisma migrate deploy",
+    "deploy": "node scripts/migrate-deploy.cjs",
     "start": "node dist/server.js"
   },
   "keywords": [],

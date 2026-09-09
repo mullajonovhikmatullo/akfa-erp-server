@@ -2,8 +2,10 @@ services:
   - type: web
     name: store-management-server
     runtime: node
-    buildCommand: npm run build && npm run deploy
+    buildCommand: npm ci --include=dev && npm run build && npm run deploy
     startCommand: npm start
+    healthCheckPath: /health
+    maxShutdownDelaySeconds: 90
     envVars:
       - key: NODE_ENV
         value: production

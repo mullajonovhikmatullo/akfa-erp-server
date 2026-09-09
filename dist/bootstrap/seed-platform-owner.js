@@ -12,11 +12,14 @@ const PLAN_SEEDS = [
     { code: "NETWORK", name: "Network", monthlyPriceUzs: 0, maxBranches: null, maxUsers: null, maxProducts: null, isPublic: false },
 ];
 async function seedPlans() {
-    await Promise.all(PLAN_SEEDS.map((plan) => prisma_1.prisma.plan.upsert({
-        where: { code: plan.code },
-        create: plan,
-        update: { maxBranches: plan.maxBranches },
-    })));
+    //
+    for (const plan of PLAN_SEEDS) {
+        await prisma_1.prisma.plan.upsert({
+            where: { code: plan.code },
+            create: plan,
+            update: { maxBranches: plan.maxBranches },
+        });
+    }
 }
 async function seedPlatformOwner() {
     await seedPlans();

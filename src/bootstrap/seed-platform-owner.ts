@@ -8,15 +8,14 @@ const PLAN_SEEDS = [
 ];
 
 async function seedPlans(): Promise<void> {
-    await Promise.all(
-        PLAN_SEEDS.map((plan) =>
-            prisma.plan.upsert({
-                where: { code: plan.code },
-                create: plan,
-                update: { maxBranches: plan.maxBranches },
-            })
-        )
-    );
+    //
+    for (const plan of PLAN_SEEDS) {
+        await prisma.plan.upsert({
+            where: { code: plan.code },
+            create: plan,
+            update: { maxBranches: plan.maxBranches },
+        });
+    }
 }
 
 export async function seedPlatformOwner(): Promise<void> {

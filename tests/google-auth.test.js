@@ -10,9 +10,10 @@ process.env.JWT_SECRET = randomBytes(32).toString("hex");
 const { GoogleIdentityService } = require("../dist/modules/auth/services/google-identity.service");
 const { AuthService } = require("../dist/modules/auth/services/auth.service");
 const { googleLoginSchema } = require("../dist/modules/auth/validations/auth.validation");
-const { prisma } = require("../dist/infrastructure/prisma/prisma");
+const prismaModule = require("../dist/infrastructure/prisma/prisma");
+const originalPrisma = prismaModule.prisma;
 const billing = require("../dist/core/services/billing-state.service");
-const limits = require("../dist/core/services/plan-limit.service");
+const limits = require("../dist/core/services/store-lock.service");
 const sockets = require("../dist/infrastructure/socket");
 const clientId = "123456789-test.apps.googleusercontent.com";
 const { privateKey, publicKey } = generateKeyPairSync("rsa", {
@@ -41,6 +42,7 @@ function credential(claims = {}, options = {}) {
 
 beforeEach((t) => {
     //
+    t.after(() => { prismaModule.prisma = originalPrisma; });
     process.env.GOOGLE_CLIENT_ID = clientId;
     t.mock.method(OAuth2Client.prototype, "getFederatedSignonCertsAsync", async () => ({
         certs: { "test-key": publicKey }, format: "PEM",
@@ -60,12 +62,16 @@ function database(t, { linked = null, user = account, changed = 1, store = activ
         },
         auditLog: { create: async (input) => { audit.push(input); return input; } },
     };
-    t.mock.method(prisma.user, "findUnique", async (input) => {
-        //
-        queries.push(input);
-        return "googleSubject" in input.where ? linked : user;
-    });
-    t.mock.method(prisma, "$transaction", async (callback) => callback(tx));
+    prismaModule.prisma = {
+        user: {
+            findUnique: async (input) => {
+                //
+                queries.push(input);
+                return "googleSubject" in input.where ? linked : user;
+            },
+        },
+        $transaction: async (callback) => callback(tx),
+    };
     t.mock.method(billing, "refreshStoreBillingState", async () => store);
     t.mock.method(limits, "lockStore", async () => undefined);
     t.mock.method(sockets, "disconnectUserSockets", () => undefined);

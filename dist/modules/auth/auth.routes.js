@@ -97,6 +97,8 @@ const router = (0, express_1.Router)();
  *         description: Invalid credentials
  */
 router.post("/login", rateLimit_1.loginRateLimit, (0, validate_1.validate)(auth_validation_1.loginSchema), auth_controller_1.AuthController.login);
+router.get("/google/config", auth_controller_1.AuthController.googleConfig);
+router.post("/google", rateLimit_1.loginRateLimit, (0, validate_1.validate)(auth_validation_1.googleLoginSchema), auth_controller_1.AuthController.loginWithGoogle);
 router.post("/handoff/exchange", rateLimit_1.handoffRateLimit, (0, validate_1.validate)(auth_validation_1.exchangeHandoffSchema), auth_controller_1.AuthController.exchangeHandoff);
 router.post("/setup/complete", rateLimit_1.handoffRateLimit, (0, validate_1.validate)(auth_validation_1.completeAccountSetupSchema), auth_controller_1.AuthController.completeAccountSetup);
 /**

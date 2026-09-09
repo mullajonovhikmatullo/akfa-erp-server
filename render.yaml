@@ -19,3 +19,5 @@ services:
         sync: false
       - key: ALLOWED_ORIGINS
         sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false

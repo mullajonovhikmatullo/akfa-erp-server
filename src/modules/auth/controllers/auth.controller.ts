@@ -7,8 +7,24 @@ import {
     updateProfileSchema,
 } from "../services/auth.service";
 import { AppError } from "../../../core/errors/AppError";
+import { GoogleIdentityService } from "../services/google-identity.service";
 
 export const AuthController = {
+    googleConfig(_req: Request, res: Response) {
+        //
+        return ApiResponse.success(res, GoogleIdentityService.getConfig());
+    },
+
+    async loginWithGoogle(req: Request, res: Response, next: NextFunction) {
+        //
+        try {
+            const result = await AuthService.loginWithGoogle(req.body);
+            return ApiResponse.success(res, result);
+        } catch (error) {
+            next(error);
+        }
+    },
+
     async login(req: Request, res: Response, next: NextFunction) {
         try {
             const result = await AuthService.login(req.body);

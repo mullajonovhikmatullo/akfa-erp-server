@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.completeAccountSetupSchema = exports.exchangeHandoffSchema = exports.loginSchema = void 0;
+exports.completeAccountSetupSchema = exports.googleLoginSchema = exports.exchangeHandoffSchema = exports.loginSchema = void 0;
 const zod_1 = require("zod");
 exports.loginSchema = zod_1.z.object({
     username: zod_1.z.string().min(3).max(50),
@@ -8,6 +8,10 @@ exports.loginSchema = zod_1.z.object({
 }).strict();
 exports.exchangeHandoffSchema = zod_1.z.object({
     handoffCode: zod_1.z.string().min(32).max(200),
+}).strict();
+exports.googleLoginSchema = zod_1.z.object({
+    credential: zod_1.z.string().min(100).max(8192),
+    account: exports.loginSchema.optional(),
 }).strict();
 exports.completeAccountSetupSchema = zod_1.z.object({
     setupCode: zod_1.z.string().min(32).max(200),

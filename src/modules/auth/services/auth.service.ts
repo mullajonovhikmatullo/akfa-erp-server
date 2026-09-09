@@ -16,9 +16,11 @@ import { disconnectUserSockets } from "../../../infrastructure/socket";
 import {
     CompleteAccountSetupInput,
     ExchangeHandoffInput,
+    GoogleLoginInput,
     LoginInput,
 } from "../validations/auth.validation";
 import { ProfilePhotoService } from "./profile-photo.service";
+import { GoogleIdentityService } from "./google-identity.service";
 
 const DUMMY_PASSWORD_HASH = "$2b$12$Og2YEkt0glpNIkU9KlJr.erRlnfbMPwycBetIqTqnqWEkiL0ep5DO";
 
@@ -332,6 +334,77 @@ export const AuthService = {
 
     loginPlatform(data: LoginInput) {
         return AuthService.login(data, "platform");
+    },
+
+    async loginWithGoogle(data: GoogleLoginInput) {
+        //
+        const identity = await GoogleIdentityService.verifyCredential(data.credential);
+        const linkedUser = await prisma.user.findUnique({
+            where: { googleSubject: identity.subject },
+            select: userProfileSelect,
+        });
+
+        if (!data.account) {
+            if (!linkedUser) return { status: "link_required" as const, email: identity.email };
+            if (isPlatformRole(linkedUser.role) || !linkedUser.isActive || linkedUser.mustChangePassword) {
+                throw new AppError(403, "Account is unavailable for store sign-in");
+            }
+            await assertTenantCanSignIn(linkedUser);
+            return {
+                status: "authenticated" as const,
+                session: { accessToken: createAccessToken(linkedUser), user: serializeUser(linkedUser) },
+            };
+        }
+
+        const account = await prisma.user.findUnique({
+            where: { username: data.account.username },
+            select: { ...userProfileSelect, password: true, googleSubject: true },
+        });
+        const matches = await bcrypt.compare(data.account.password, account?.password ?? DUMMY_PASSWORD_HASH);
+        if (!account || !matches || isPlatformRole(account.role)) throw new AppError(401, "Invalid credentials");
+        if (!account.isActive || account.mustChangePassword) throw new AppError(403, "Account is unavailable for store sign-in");
+        if (
+            (linkedUser && linkedUser.id !== account.id) ||
+            (account.googleSubject && account.googleSubject !== identity.subject)
+        ) {
+            throw new AppError(409, "Google account is already linked");
+        }
+
+        const user = await prisma.$transaction(async (tx) => {
+            //
+            await assertTenantCanSignInInTransaction(tx, account);
+            const changed = await tx.user.updateMany({
+                where: {
+                    id: account.id,
+                    password: account.password,
+                    authVersion: account.authVersion,
+                    role: account.role,
+                    storeId: account.storeId,
+                    branchId: account.branchId,
+                    isActive: true,
+                    mustChangePassword: false,
+                    googleSubject: account.googleSubject,
+                },
+                data: {
+                    googleSubject: identity.subject,
+                    googleEmail: identity.email,
+                    ...(account.googleSubject ? {} : { authVersion: { increment: 1 } }),
+                },
+            });
+            if (changed.count !== 1) throw new AppError(409, "Account changed. Sign in and try again.");
+            if (!account.googleSubject) {
+                await tx.auditLog.create({
+                    data: { storeId: account.storeId, actorId: account.id, action: AuditAction.GOOGLE_ACCOUNT_LINKED },
+                });
+            }
+            return tx.user.findUniqueOrThrow({ where: { id: account.id }, select: userProfileSelect });
+        }, transactionOptions);
+
+        if (!account.googleSubject) disconnectUserSockets(user.id);
+        return {
+            status: "authenticated" as const,
+            session: { accessToken: createAccessToken(user), user: serializeUser(user) },
+        };
     },
 
     async exchangeHandoff(input: ExchangeHandoffInput) {

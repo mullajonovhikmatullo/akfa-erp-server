@@ -4,7 +4,22 @@ exports.AuthController = void 0;
 const ApiResponse_1 = require("../../../core/response/ApiResponse");
 const auth_service_1 = require("../services/auth.service");
 const AppError_1 = require("../../../core/errors/AppError");
+const google_identity_service_1 = require("../services/google-identity.service");
 exports.AuthController = {
+    googleConfig(_req, res) {
+        //
+        return ApiResponse_1.ApiResponse.success(res, google_identity_service_1.GoogleIdentityService.getConfig());
+    },
+    async loginWithGoogle(req, res, next) {
+        //
+        try {
+            const result = await auth_service_1.AuthService.loginWithGoogle(req.body);
+            return ApiResponse_1.ApiResponse.success(res, result);
+        }
+        catch (error) {
+            next(error);
+        }
+    },
     async login(req, res, next) {
         try {
             const result = await auth_service_1.AuthService.login(req.body);

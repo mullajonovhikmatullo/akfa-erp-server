@@ -12,6 +12,40 @@ const apiEnvelope = (schema: Record<string, unknown>) => ({
 });
 
 const frontendSchemas = {
+    GoogleSignInConfig: {
+        type: "object",
+        required: ["clientId"],
+        properties: { clientId: { type: "string", nullable: true } },
+    },
+    GoogleLoginPayload: {
+        type: "object",
+        additionalProperties: false,
+        required: ["credential"],
+        properties: {
+            credential: { type: "string", minLength: 100, maxLength: 8192 },
+            account: { $ref: "#/components/schemas/PlatformLoginPayload" },
+        },
+    },
+    GoogleLoginResult: {
+        oneOf: [
+            {
+                type: "object",
+                required: ["status", "session"],
+                properties: {
+                    status: { type: "string", enum: ["authenticated"] },
+                    session: { $ref: "#/components/schemas/LoginResponse" },
+                },
+            },
+            {
+                type: "object",
+                required: ["status", "email"],
+                properties: {
+                    status: { type: "string", enum: ["link_required"] },
+                    email: { type: "string", format: "email" },
+                },
+            },
+        ],
+    },
     StoreStatus: {
         type: "string",
         enum: ["TRIALING", "ACTIVE", "PAST_DUE", "SUSPENDED", "CANCELLED"],
@@ -605,6 +639,40 @@ const frontendSchemas = {
 };
 
 const frontendPaths = {
+    "/auth/google/config": {
+        get: {
+            tags: ["Auth"],
+            summary: "Get the public Google sign-in client configuration",
+            responses: {
+                200: {
+                    description: "Google client ID, or null when sign-in is unavailable",
+                    content: { "application/json": { schema: apiEnvelope({ $ref: "#/components/schemas/GoogleSignInConfig" }) } },
+                },
+            },
+        },
+    },
+    "/auth/google": {
+        post: {
+            tags: ["Auth"],
+            summary: "Sign in using a Google ID token or link an existing account with its password",
+            requestBody: {
+                required: true,
+                content: { "application/json": { schema: { $ref: "#/components/schemas/GoogleLoginPayload" } } },
+            },
+            responses: {
+                200: {
+                    description: "Authenticated session or a request to confirm the existing Mavion account",
+                    content: { "application/json": { schema: apiEnvelope({ $ref: "#/components/schemas/GoogleLoginResult" }) } },
+                },
+                401: { description: "Invalid Google token or account credentials" },
+                403: { description: "Account or store access is restricted" },
+                409: { description: "Account is already linked or changed concurrently" },
+                422: { description: "Invalid request payload" },
+                429: { description: "Sign-in rate limit exceeded" },
+                503: { description: "Google sign-in is unavailable" },
+            },
+        },
+    },
     "/auth/login": {
         post: {
             tags: ["Auth"],

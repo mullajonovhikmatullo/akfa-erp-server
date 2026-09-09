@@ -16,6 +16,7 @@ const role_access_1 = require("../../../core/utils/role-access");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const socket_1 = require("../../../infrastructure/socket");
 const profile_photo_service_1 = require("./profile-photo.service");
+const google_identity_service_1 = require("./google-identity.service");
 const DUMMY_PASSWORD_HASH = "$2b$12$Og2YEkt0glpNIkU9KlJr.erRlnfbMPwycBetIqTqnqWEkiL0ep5DO";
 const userProfileSelect = {
     id: true,
@@ -292,6 +293,75 @@ exports.AuthService = {
     },
     loginPlatform(data) {
         return exports.AuthService.login(data, "platform");
+    },
+    async loginWithGoogle(data) {
+        //
+        const identity = await google_identity_service_1.GoogleIdentityService.verifyCredential(data.credential);
+        const linkedUser = await prisma_1.prisma.user.findUnique({
+            where: { googleSubject: identity.subject },
+            select: userProfileSelect,
+        });
+        if (!data.account) {
+            if (!linkedUser)
+                return { status: "link_required", email: identity.email };
+            if ((0, role_access_1.isPlatformRole)(linkedUser.role) || !linkedUser.isActive || linkedUser.mustChangePassword) {
+                throw new AppError_1.AppError(403, "Account is unavailable for store sign-in");
+            }
+            await assertTenantCanSignIn(linkedUser);
+            return {
+                status: "authenticated",
+                session: { accessToken: createAccessToken(linkedUser), user: serializeUser(linkedUser) },
+            };
+        }
+        const account = await prisma_1.prisma.user.findUnique({
+            where: { username: data.account.username },
+            select: { ...userProfileSelect, password: true, googleSubject: true },
+        });
+        const matches = await bcrypt_1.default.compare(data.account.password, account?.password ?? DUMMY_PASSWORD_HASH);
+        if (!account || !matches || (0, role_access_1.isPlatformRole)(account.role))
+            throw new AppError_1.AppError(401, "Invalid credentials");
+        if (!account.isActive || account.mustChangePassword)
+            throw new AppError_1.AppError(403, "Account is unavailable for store sign-in");
+        if ((linkedUser && linkedUser.id !== account.id) ||
+            (account.googleSubject && account.googleSubject !== identity.subject)) {
+            throw new AppError_1.AppError(409, "Google account is already linked");
+        }
+        const user = await prisma_1.prisma.$transaction(async (tx) => {
+            //
+            await assertTenantCanSignInInTransaction(tx, account);
+            const changed = await tx.user.updateMany({
+                where: {
+                    id: account.id,
+                    password: account.password,
+                    authVersion: account.authVersion,
+                    role: account.role,
+                    storeId: account.storeId,
+                    branchId: account.branchId,
+                    isActive: true,
+                    mustChangePassword: false,
+                    googleSubject: account.googleSubject,
+                },
+                data: {
+                    googleSubject: identity.subject,
+                    googleEmail: identity.email,
+                    ...(account.googleSubject ? {} : { authVersion: { increment: 1 } }),
+                },
+            });
+            if (changed.count !== 1)
+                throw new AppError_1.AppError(409, "Account changed. Sign in and try again.");
+            if (!account.googleSubject) {
+                await tx.auditLog.create({
+                    data: { storeId: account.storeId, actorId: account.id, action: client_1.AuditAction.GOOGLE_ACCOUNT_LINKED },
+                });
+            }
+            return tx.user.findUniqueOrThrow({ where: { id: account.id }, select: userProfileSelect });
+        }, prisma_1.transactionOptions);
+        if (!account.googleSubject)
+            (0, socket_1.disconnectUserSockets)(user.id);
+        return {
+            status: "authenticated",
+            session: { accessToken: createAccessToken(user), user: serializeUser(user) },
+        };
     },
     async exchangeHandoff(input) {
         const now = new Date();

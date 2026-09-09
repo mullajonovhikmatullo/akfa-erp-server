@@ -68,6 +68,7 @@ enum AuditAction {
   ADMIN_UPDATED
   ADMIN_DISABLED
   ADMIN_ENABLED
+  GOOGLE_ACCOUNT_LINKED
 }
 
 enum HandoffPurpose {
@@ -339,6 +340,8 @@ model User {
   store              Store?          @relation(fields: [storeId], references: [id])
   fullName           String
   username           String          @unique
+  googleSubject      String?         @unique @db.VarChar(255)
+  googleEmail        String?         @db.VarChar(320)
   password           String
   role               UserRole
   isActive           Boolean         @default(true)

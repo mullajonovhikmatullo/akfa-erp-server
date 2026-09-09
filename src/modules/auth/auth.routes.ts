@@ -7,6 +7,7 @@ import { handoffRateLimit, loginRateLimit } from "../../core/middleware/rateLimi
 import {
     completeAccountSetupSchema,
     exchangeHandoffSchema,
+    googleLoginSchema,
     loginSchema,
 } from "./validations/auth.validation";
 
@@ -102,6 +103,8 @@ const router = Router();
  *         description: Invalid credentials
  */
 router.post("/login", loginRateLimit, validate(loginSchema), AuthController.login);
+router.get("/google/config", AuthController.googleConfig);
+router.post("/google", loginRateLimit, validate(googleLoginSchema), AuthController.loginWithGoogle);
 router.post(
     "/handoff/exchange",
     handoffRateLimit,

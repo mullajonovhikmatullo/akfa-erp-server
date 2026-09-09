@@ -9,6 +9,11 @@ export const exchangeHandoffSchema = z.object({
     handoffCode: z.string().min(32).max(200),
 }).strict();
 
+export const googleLoginSchema = z.object({
+    credential: z.string().min(100).max(8192),
+    account: loginSchema.optional(),
+}).strict();
+
 export const completeAccountSetupSchema = z.object({
     setupCode: z.string().min(32).max(200),
     newPassword: z.string().min(6).max(100),
@@ -19,5 +24,6 @@ export const completeAccountSetupSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
+export type GoogleLoginInput = z.infer<typeof googleLoginSchema>;
 export type ExchangeHandoffInput = z.infer<typeof exchangeHandoffSchema>;
 export type CompleteAccountSetupInput = z.infer<typeof completeAccountSetupSchema>;

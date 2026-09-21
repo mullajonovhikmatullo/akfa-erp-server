@@ -8,6 +8,8 @@ const bcrypt_1 = __importDefault(require("bcrypt"));
 const client_1 = require("@prisma/client");
 const zod_1 = require("zod");
 const AppError_1 = require("../../../core/errors/AppError");
+const databaseError_1 = require("../../../core/errors/databaseError");
+const requestMetrics_1 = require("../../../core/middleware/requestMetrics");
 const billing_state_service_1 = require("../../../core/services/billing-state.service");
 const auth_handoff_service_1 = require("../../../core/services/auth-handoff.service");
 const plan_limit_service_1 = require("../../../core/services/plan-limit.service");
@@ -269,27 +271,37 @@ exports.AuthService = {
         };
     },
     async login(data, audience = "store") {
-        const user = await prisma_1.prisma.user.findUnique({
-            where: { username: data.username },
-            select: { ...userProfileSelect, password: true },
+        return (0, databaseError_1.withTransientDatabaseRetry)(async () => {
+            const user = await prisma_1.prisma.user.findUnique({
+                where: { username: data.username },
+                select: { ...userProfileSelect, password: true },
+            });
+            const isMatch = await bcrypt_1.default.compare(data.password, user?.password ?? DUMMY_PASSWORD_HASH);
+            const roleMatches = user &&
+                (audience === "platform" ? (0, role_access_1.isPlatformRole)(user.role) : !(0, role_access_1.isPlatformRole)(user.role));
+            if (!user || !roleMatches || !isMatch) {
+                throw new AppError_1.AppError(401, "Invalid credentials");
+            }
+            if (!user.isActive) {
+                throw new AppError_1.AppError(403, "Account is disabled");
+            }
+            if (user.mustChangePassword) {
+                throw new AppError_1.AppError(403, "Account setup is required");
+            }
+            await assertTenantCanSignIn(user);
+            return {
+                accessToken: createAccessToken(user),
+                user: serializeUser(user),
+            };
+        }, {
+            onRetry: (error, nextAttempt) => console.warn(JSON.stringify({
+                event: "database_operation_retry",
+                operation: "auth_login",
+                requestId: requestMetrics_1.requestContext.getStore()?.requestId,
+                errorCode: (0, databaseError_1.databaseErrorCode)(error),
+                attempt: nextAttempt,
+            })),
         });
-        const isMatch = await bcrypt_1.default.compare(data.password, user?.password ?? DUMMY_PASSWORD_HASH);
-        const roleMatches = user &&
-            (audience === "platform" ? (0, role_access_1.isPlatformRole)(user.role) : !(0, role_access_1.isPlatformRole)(user.role));
-        if (!user || !roleMatches || !isMatch) {
-            throw new AppError_1.AppError(401, "Invalid credentials");
-        }
-        if (!user.isActive) {
-            throw new AppError_1.AppError(403, "Account is disabled");
-        }
-        if (user.mustChangePassword) {
-            throw new AppError_1.AppError(403, "Account setup is required");
-        }
-        await assertTenantCanSignIn(user);
-        return {
-            accessToken: createAccessToken(user),
-            user: serializeUser(user),
-        };
     },
     loginPlatform(data) {
         return exports.AuthService.login(data, "platform");

@@ -8,6 +8,7 @@ import swaggerUi from "swagger-ui-express";
 
 import { swaggerSpec } from "./core/config/swagger";
 import { AppError } from "./core/errors/AppError";
+import { databaseErrorCode, withTransientDatabaseRetry } from "./core/errors/databaseError";
 import { errorHandler } from "./core/errors/errorHandler";
 import { seedPlatformOwner } from "./bootstrap/seed-platform-owner";
 import { closeSocketServer, initSocketServer } from "./infrastructure/socket";
@@ -139,7 +140,8 @@ app.use("/api", apiRouter);
 // Must be last — global error handler
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 3000;
+const PORT = positiveIntegerEnv("PORT", 3000);
+if (PORT > 65535) throw new Error("PORT must be between 1 and 65535");
 const server = http.createServer(app);
 server.requestTimeout = positiveIntegerEnv("HTTP_REQUEST_TIMEOUT_MS", 120000);
 server.headersTimeout = Math.min(server.requestTimeout, positiveIntegerEnv("HTTP_HEADERS_TIMEOUT_MS", 60000));
@@ -191,9 +193,16 @@ const stop = (reason: string, exitCode = 0) => {
 process.once("SIGTERM", () => stop("SIGTERM"));
 process.once("SIGINT", () => stop("SIGINT"));
 function fatal(reason: string, error: unknown) {
+    const systemError = error instanceof Error
+        ? error as Error & { code?: unknown; syscall?: unknown; address?: unknown; port?: unknown }
+        : undefined;
     console.error(JSON.stringify({
         event: reason,
         errorType: error instanceof Error ? error.name : typeof error,
+        errorCode: typeof systemError?.code === "string" ? systemError.code : undefined,
+        syscall: typeof systemError?.syscall === "string" ? systemError.syscall : undefined,
+        address: typeof systemError?.address === "string" ? systemError.address : undefined,
+        port: typeof systemError?.port === "number" ? systemError.port : undefined,
         stack: error instanceof Error ? error.stack?.split("\n").filter((line) => /^\s+at /.test(line)).join("\n") : undefined,
     }));
     stop(reason, 1);
@@ -214,11 +223,32 @@ function assertRuntimeSecurityConfig() {
 async function startServer() {
     //
     assertRuntimeSecurityConfig();
-    await seedPlatformOwner();
-    if (shuttingDown) return;
-    server.listen(PORT, () => {
-        console.log(`SERVER RUNNING ON ${PORT}`);
+    await withTransientDatabaseRetry(() => seedPlatformOwner(), {
+        maxAttempts: 3,
+        delayMs: 500,
+        onRetry: (error, nextAttempt) => console.warn(JSON.stringify({
+            event: "database_operation_retry",
+            operation: "startup_seed",
+            errorCode: databaseErrorCode(error),
+            attempt: nextAttempt,
+        })),
     });
+    if (shuttingDown) return;
+    await new Promise<void>((resolve, reject) => {
+        const onError = (error: Error) => {
+            server.off("listening", onListening);
+            reject(error);
+        };
+        const onListening = () => {
+            server.off("error", onError);
+            resolve();
+        };
+
+        server.once("error", onError);
+        server.once("listening", onListening);
+        server.listen(PORT);
+    });
+    console.log(`SERVER RUNNING ON ${PORT}`);
 }
 
 startServer().catch((error) => fatal("startup_failed", error));

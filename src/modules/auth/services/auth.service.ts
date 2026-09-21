@@ -2,6 +2,8 @@ import bcrypt from "bcrypt";
 import { AuditAction, HandoffPurpose, Prisma } from "@prisma/client";
 import { z } from "zod";
 import { AppError } from "../../../core/errors/AppError";
+import { databaseErrorCode, withTransientDatabaseRetry } from "../../../core/errors/databaseError";
+import { requestContext } from "../../../core/middleware/requestMetrics";
 import {
     assertStoreReadableInTransaction,
     assertStoreReadable,
@@ -303,33 +305,43 @@ export const AuthService = {
     },
 
     async login(data: LoginInput, audience: "store" | "platform" = "store") {
-        const user = await prisma.user.findUnique({
-            where: { username: data.username },
-            select: { ...userProfileSelect, password: true },
+        return withTransientDatabaseRetry(async () => {
+            const user = await prisma.user.findUnique({
+                where: { username: data.username },
+                select: { ...userProfileSelect, password: true },
+            });
+
+            const isMatch = await bcrypt.compare(data.password, user?.password ?? DUMMY_PASSWORD_HASH);
+            const roleMatches =
+                user &&
+                (audience === "platform" ? isPlatformRole(user.role) : !isPlatformRole(user.role));
+
+            if (!user || !roleMatches || !isMatch) {
+                throw new AppError(401, "Invalid credentials");
+            }
+
+            if (!user.isActive) {
+                throw new AppError(403, "Account is disabled");
+            }
+            if (user.mustChangePassword) {
+                throw new AppError(403, "Account setup is required");
+            }
+
+            await assertTenantCanSignIn(user);
+
+            return {
+                accessToken: createAccessToken(user),
+                user: serializeUser(user),
+            };
+        }, {
+            onRetry: (error, nextAttempt) => console.warn(JSON.stringify({
+                event: "database_operation_retry",
+                operation: "auth_login",
+                requestId: requestContext.getStore()?.requestId,
+                errorCode: databaseErrorCode(error),
+                attempt: nextAttempt,
+            })),
         });
-
-        const isMatch = await bcrypt.compare(data.password, user?.password ?? DUMMY_PASSWORD_HASH);
-        const roleMatches =
-            user &&
-            (audience === "platform" ? isPlatformRole(user.role) : !isPlatformRole(user.role));
-
-        if (!user || !roleMatches || !isMatch) {
-            throw new AppError(401, "Invalid credentials");
-        }
-
-        if (!user.isActive) {
-            throw new AppError(403, "Account is disabled");
-        }
-        if (user.mustChangePassword) {
-            throw new AppError(403, "Account setup is required");
-        }
-
-        await assertTenantCanSignIn(user);
-
-        return {
-            accessToken: createAccessToken(user),
-            user: serializeUser(user),
-        };
     },
 
     loginPlatform(data: LoginInput) {

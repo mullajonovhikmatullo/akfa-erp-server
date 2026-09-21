@@ -3,16 +3,17 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.errorHandler = errorHandler;
 const zod_1 = require("zod");
 const AppError_1 = require("./AppError");
+const databaseError_1 = require("./databaseError");
 const requestMetrics_1 = require("../middleware/requestMetrics");
 function errorHandler(err, req, res, next) {
     if (res.headersSent)
         return next(err);
-    // adapter-pg 6.x passes pg-pool's acquisition timeout through as a plain
-    // Error (without Prisma's P2024 code). Match the driver's fixed messages.
-    if (err instanceof Error && [
-        "timeout exceeded when trying to connect",
-        "Connection terminated due to connection timeout",
-    ].includes(err.message)) {
+    if ((0, databaseError_1.isTransientDatabaseError)(err)) {
+        console.warn(JSON.stringify({
+            event: "transient_database_error",
+            requestId: requestMetrics_1.requestContext.getStore()?.requestId,
+            errorCode: (0, databaseError_1.databaseErrorCode)(err),
+        }));
         res.setHeader("Retry-After", "1");
         res.status(503).json({ success: false, message: "Database temporarily unavailable. Please retry." });
         return;
@@ -51,11 +52,6 @@ function errorHandler(err, req, res, next) {
         err !== null &&
         "code" in err) {
         const prismaErr = err;
-        if (["P1001", "P1002", "P1008", "P1017", "P2024", "P2037"].includes(prismaErr.code)) {
-            res.setHeader("Retry-After", "1");
-            res.status(503).json({ success: false, message: "Database temporarily unavailable. Please retry." });
-            return;
-        }
         if (prismaErr.code === "P2034") {
             res.status(409).json({ success: false, message: "Concurrent operation conflict. Retry with the same Idempotency-Key." });
             return;
@@ -102,6 +98,7 @@ function errorHandler(err, req, res, next) {
     console.error(JSON.stringify({
         event: "unhandled_request_error", requestId: requestMetrics_1.requestContext.getStore()?.requestId,
         errorType: err instanceof Error ? err.name : typeof err,
+        errorCode: (0, databaseError_1.databaseErrorCode)(err),
         // Stack frames retain locations without logging the error message,
         // which Prisma may populate with SQL input/password values.
         stack: err instanceof Error ? err.stack?.split("\n").filter((line) => /^\s+at /.test(line)).join("\n") : undefined,

@@ -1,16 +1,42 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { positiveIntegerEnv } from "../../core/config/runtime";
+import { databaseErrorCode } from "../../core/errors/databaseError";
 import { requestContext } from "../../core/middleware/requestMetrics";
 
-const connectionString = process.env.DATABASE_URL;
+const configuredConnectionString = process.env.DATABASE_URL;
 
-if (!connectionString) {
+if (!configuredConnectionString) {
     throw new Error("DATABASE_URL is required");
 }
 
+function normalizeConnectionString(value: string): string {
+    let url: URL;
+    try {
+        url = new URL(value);
+    } catch {
+        throw new Error("DATABASE_URL must be a valid PostgreSQL URL");
+    }
+
+    // pg currently treats these modes as verify-full and warns that their
+    // meaning will change in the next major version. Preserve today's secure
+    // behavior explicitly so upgrades do not silently weaken TLS validation.
+    const sslMode = url.searchParams.get("sslmode")?.toLowerCase();
+    const useLibpqCompat = url.searchParams.get("uselibpqcompat")?.toLowerCase() === "true";
+    if (!useLibpqCompat && sslMode && ["prefer", "require", "verify-ca"].includes(sslMode)) {
+        url.searchParams.set("sslmode", "verify-full");
+    }
+
+    return url.toString();
+}
+
+const connectionString = normalizeConnectionString(configuredConnectionString);
+
 const slowQueryMs = positiveIntegerEnv("SLOW_QUERY_MS", 500);
-const reportConnectionError = () => console.error(JSON.stringify({ event: "database_connection_error" }));
+const reportConnectionError = (error: Error) => console.error(JSON.stringify({
+    event: "database_connection_error",
+    errorCode: databaseErrorCode(error),
+}));
 // PrismaPg owns this pool and ends it when prisma.$disconnect() disposes the
 // adapter. Keep pg's default of ten connections unless deployment overrides it.
 const adapter = new PrismaPg({

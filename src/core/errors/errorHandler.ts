@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
 import { AppError } from "./AppError";
+import { databaseErrorCode, isTransientDatabaseError } from "./databaseError";
 import { requestContext } from "../middleware/requestMetrics";
 
 export function errorHandler(
@@ -10,12 +11,12 @@ export function errorHandler(
     next: NextFunction
 ): void {
     if (res.headersSent) return next(err);
-    // adapter-pg 6.x passes pg-pool's acquisition timeout through as a plain
-    // Error (without Prisma's P2024 code). Match the driver's fixed messages.
-    if (err instanceof Error && [
-        "timeout exceeded when trying to connect",
-        "Connection terminated due to connection timeout",
-    ].includes(err.message)) {
+    if (isTransientDatabaseError(err)) {
+        console.warn(JSON.stringify({
+            event: "transient_database_error",
+            requestId: requestContext.getStore()?.requestId,
+            errorCode: databaseErrorCode(err),
+        }));
         res.setHeader("Retry-After", "1");
         res.status(503).json({ success: false, message: "Database temporarily unavailable. Please retry." });
         return;
@@ -58,11 +59,6 @@ export function errorHandler(
         "code" in err
     ) {
         const prismaErr = err as { code: string; meta?: { target?: string[] } };
-        if (["P1001", "P1002", "P1008", "P1017", "P2024", "P2037"].includes(prismaErr.code)) {
-            res.setHeader("Retry-After", "1");
-            res.status(503).json({ success: false, message: "Database temporarily unavailable. Please retry." });
-            return;
-        }
         if (prismaErr.code === "P2034") {
             res.status(409).json({ success: false, message: "Concurrent operation conflict. Retry with the same Idempotency-Key." });
             return;
@@ -110,6 +106,7 @@ export function errorHandler(
     console.error(JSON.stringify({
         event: "unhandled_request_error", requestId: requestContext.getStore()?.requestId,
         errorType: err instanceof Error ? err.name : typeof err,
+        errorCode: databaseErrorCode(err),
         // Stack frames retain locations without logging the error message,
         // which Prisma may populate with SQL input/password values.
         stack: err instanceof Error ? err.stack?.split("\n").filter((line) => /^\s+at /.test(line)).join("\n") : undefined,

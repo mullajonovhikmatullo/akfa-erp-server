@@ -12,6 +12,7 @@ const morgan_1 = __importDefault(require("morgan"));
 const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
 const swagger_1 = require("./core/config/swagger");
 const AppError_1 = require("./core/errors/AppError");
+const databaseError_1 = require("./core/errors/databaseError");
 const errorHandler_1 = require("./core/errors/errorHandler");
 const seed_platform_owner_1 = require("./bootstrap/seed-platform-owner");
 const socket_1 = require("./infrastructure/socket");
@@ -133,7 +134,9 @@ app.use("/", apiRouter);
 app.use("/api", apiRouter);
 // Must be last — global error handler
 app.use(errorHandler_1.errorHandler);
-const PORT = process.env.PORT || 3000;
+const PORT = (0, runtime_1.positiveIntegerEnv)("PORT", 3000);
+if (PORT > 65535)
+    throw new Error("PORT must be between 1 and 65535");
 const server = http_1.default.createServer(app);
 server.requestTimeout = (0, runtime_1.positiveIntegerEnv)("HTTP_REQUEST_TIMEOUT_MS", 120000);
 server.headersTimeout = Math.min(server.requestTimeout, (0, runtime_1.positiveIntegerEnv)("HTTP_HEADERS_TIMEOUT_MS", 60000));
@@ -188,9 +191,16 @@ const stop = (reason, exitCode = 0) => {
 process.once("SIGTERM", () => stop("SIGTERM"));
 process.once("SIGINT", () => stop("SIGINT"));
 function fatal(reason, error) {
+    const systemError = error instanceof Error
+        ? error
+        : undefined;
     console.error(JSON.stringify({
         event: reason,
         errorType: error instanceof Error ? error.name : typeof error,
+        errorCode: typeof systemError?.code === "string" ? systemError.code : undefined,
+        syscall: typeof systemError?.syscall === "string" ? systemError.syscall : undefined,
+        address: typeof systemError?.address === "string" ? systemError.address : undefined,
+        port: typeof systemError?.port === "number" ? systemError.port : undefined,
         stack: error instanceof Error ? error.stack?.split("\n").filter((line) => /^\s+at /.test(line)).join("\n") : undefined,
     }));
     stop(reason, 1);
@@ -209,11 +219,31 @@ function assertRuntimeSecurityConfig() {
 async function startServer() {
     //
     assertRuntimeSecurityConfig();
-    await (0, seed_platform_owner_1.seedPlatformOwner)();
+    await (0, databaseError_1.withTransientDatabaseRetry)(() => (0, seed_platform_owner_1.seedPlatformOwner)(), {
+        maxAttempts: 3,
+        delayMs: 500,
+        onRetry: (error, nextAttempt) => console.warn(JSON.stringify({
+            event: "database_operation_retry",
+            operation: "startup_seed",
+            errorCode: (0, databaseError_1.databaseErrorCode)(error),
+            attempt: nextAttempt,
+        })),
+    });
     if (shuttingDown)
         return;
-    server.listen(PORT, () => {
-        console.log(`SERVER RUNNING ON ${PORT}`);
+    await new Promise((resolve, reject) => {
+        const onError = (error) => {
+            server.off("listening", onListening);
+            reject(error);
+        };
+        const onListening = () => {
+            server.off("error", onError);
+            resolve();
+        };
+        server.once("error", onError);
+        server.once("listening", onListening);
+        server.listen(PORT);
     });
+    console.log(`SERVER RUNNING ON ${PORT}`);
 }
 startServer().catch((error) => fatal("startup_failed", error));

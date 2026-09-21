@@ -11,7 +11,7 @@ exports.analyticsQuerySchema = zod_1.z.object({
     branchId: zod_1.z.string().uuid().optional(),
     from: dateParamSchema,
     to: dateParamSchema,
-    period: zod_1.z.enum(["day", "week", "month"]).default("day"),
+    period: zod_1.z.enum(["hour", "day", "week", "month"]).default("day"),
     limit: (0, pagination_1.queryInteger)(10, 100),
     topProductsSort: zod_1.z.enum(["revenue", "quantity"]).default("revenue"),
     lowStockThreshold: zod_1.z

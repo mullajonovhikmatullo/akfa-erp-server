@@ -16,7 +16,7 @@ router.use(
  *   schemas:
  *     AnalyticsPeriod:
  *       type: string
- *       enum: [day, week, month]
+ *       enum: [hour, day, week, month]
  *       default: day
  */
 

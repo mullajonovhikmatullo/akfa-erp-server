@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { listWindowSchema, paginationSchema } = require("../dist/core/utils/pagination");
 const { createSaleSchema, saleQuerySchema } = require("../dist/modules/sales/validations/sale.validation");
 const { createTransferSchema } = require("../dist/modules/transfers/validations/transfer.validation");
+const { analyticsQuerySchema } = require("../dist/modules/analytics/validations/analytics.validation");
 const { createConcurrencyLimit } = require("../dist/core/utils/concurrency-limit");
 const { createRateLimit } = require("../dist/core/middleware/rateLimit");
 const { idempotencyKeySchema } = require("../dist/core/services/idempotency.service");
@@ -25,6 +26,11 @@ test("checkout and transfer reject pathological item arrays", () => {
     assert.equal(createTransferSchema.safeParse({ toBranchId: randomUUID(), items }).success, false);
     assert.equal(idempotencyKeySchema.safeParse("x".repeat(129)).success, false);
     assert.equal(idempotencyKeySchema.safeParse("checkout:terminal-1:123").success, true);
+});
+
+test("analytics accepts hourly grouping and rejects unsupported periods", () => {
+    assert.equal(analyticsQuerySchema.parse({ period: "hour" }).period, "hour");
+    assert.equal(analyticsQuerySchema.safeParse({ period: "minute" }).success, false);
 });
 
 test("upload admission has a hard bound and release is idempotent", () => {
@@ -80,4 +86,5 @@ test("OpenAPI advertises bounded windows and critical retry headers", () => {
     assert.equal(parameters.find((item) => item.name === "offset").schema.default, 0);
     assert.equal(swaggerSpec.paths["/sales"].post.parameters.find((item) => item.name === "Idempotency-Key").schema.maxLength, 128);
     assert.equal(swaggerSpec.components.schemas.CreateSaleRequest.properties.items.maxItems, 200);
+    assert.deepEqual(swaggerSpec.components.schemas.AnalyticsPeriod.enum, ["hour", "day", "week", "month"]);
 });

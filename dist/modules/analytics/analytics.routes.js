@@ -12,7 +12,7 @@ router.use(auth_middleware_1.authMiddleware, (0, role_middleware_1.roleMiddlewar
  *   schemas:
  *     AnalyticsPeriod:
  *       type: string
- *       enum: [day, week, month]
+ *       enum: [hour, day, week, month]
  *       default: day
  */
 /**

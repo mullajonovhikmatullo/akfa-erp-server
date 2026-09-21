@@ -10,7 +10,7 @@ export const analyticsQuerySchema = z.object({
     branchId: z.string().uuid().optional(),
     from: dateParamSchema,
     to: dateParamSchema,
-    period: z.enum(["day", "week", "month"]).default("day"),
+    period: z.enum(["hour", "day", "week", "month"]).default("day"),
     limit: queryInteger(10, 100),
     topProductsSort: z.enum(["revenue", "quantity"]).default("revenue"),
     lowStockThreshold: z

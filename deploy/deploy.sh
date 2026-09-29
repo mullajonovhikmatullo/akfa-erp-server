@@ -26,7 +26,12 @@ mkdir -p /srv/erp-pos/postgres /srv/erp-pos/media/products /srv/erp-pos/media/re
 cp .env .env.rollback
 sed -i "s|^${IMAGE_VAR}=.*|${IMAGE_VAR}=${IMAGE}|" .env
 
-"${COMPOSE[@]}" pull "$COMPOSE_SERVICE"
+# Large layers from ghcr.io occasionally get "connection reset"; retry.
+for attempt in 1 2 3 4; do
+  "${COMPOSE[@]}" pull --quiet "$COMPOSE_SERVICE" && break
+  [[ $attempt == 4 ]] && exit 1
+  sleep $((attempt * 5))
+done
 
 if [[ $SERVICE == backend ]]; then
   "${COMPOSE[@]}" up -d --wait postgres

@@ -1,7 +1,10 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     restart: unless-stopped
+    # Loopback only: reach it from a dev machine through an SSH tunnel (npm run db:tunnel).
+    ports:
+      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}

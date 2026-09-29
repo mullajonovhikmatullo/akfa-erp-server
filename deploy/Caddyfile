@@ -1,0 +1,38 @@
+# Edge proxy for the whole VPS (installed at /etc/caddy/Caddyfile).
+# Caddy owns :80/:443 and obtains/renews Let's Encrypt certs on its own,
+# retrying until each domain's DNS points here. Every app stack only
+# publishes a loopback port:
+#   127.0.0.1:8080  mavion.uz  (this repo's docker-compose.production.yml)
+#   127.0.0.1:8081  discip.uz  (intizom stack in /opt/intizom)
+{
+	email hikmatullo.mullajonov@gmail.com
+}
+
+mavion.uz {
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options SAMEORIGIN
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+	request_body {
+		max_size 8MB
+	}
+	reverse_proxy 127.0.0.1:8080
+}
+
+www.mavion.uz {
+	redir https://mavion.uz{uri} permanent
+}
+
+discip.uz {
+	reverse_proxy 127.0.0.1:8081
+}
+
+www.discip.uz {
+	redir https://discip.uz{uri} permanent
+}
+
+# Plain-IP access keeps working while the domains are not live yet.
+http://169.58.15.173 {
+	reverse_proxy 127.0.0.1:8081
+}

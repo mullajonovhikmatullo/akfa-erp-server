@@ -10,6 +10,7 @@ if [[ ! -f .env.rollback ]]; then
 fi
 
 cp .env.rollback .env
-docker compose --env-file .env -f docker-compose.production.yml pull
+# Previous images are still cached locally (deploy.sh only prunes dangling ones),
+# so no registry login is needed here.
 docker compose --env-file .env -f docker-compose.production.yml up -d --remove-orphans
 ./deploy/health-check.sh

@@ -15,6 +15,7 @@
     "build": "prisma generate && tsc",
     "postinstall": "prisma generate",
     "deploy": "node scripts/migrate-deploy.cjs",
+    "db:tunnel": "ssh -N -L 5433:127.0.0.1:5433 root@169.58.15.173",
     "start": "node dist/server.js"
   },
   "keywords": [],

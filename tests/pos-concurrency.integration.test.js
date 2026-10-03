@@ -110,7 +110,7 @@ test("PostgreSQL POS concurrency", { skip: !databaseUrl, timeout: 120000 }, asyn
             const p = await product(f, 1);
             const customer = await prisma.customer.create({ data: {
                 storeId: f.storeId, branchId: f.branchId, fullName: "Debtor",
-                branchLinks: { create: { branchId: f.branchId } },
+                branchLinks: { create: { storeId: f.storeId, branchId: f.branchId } },
             } });
             const sale = await SalesService.create(checkout(f, p, 1, { customerId: customer.id, paidAmountUzs: 0, paymentMethod: "CREDIT" }), f.user);
             const input = { amountUzs: 5, amountUsd: 0, paymentMethod: "CASH_UZS" };
@@ -206,7 +206,7 @@ test("PostgreSQL POS concurrency", { skip: !databaseUrl, timeout: 120000 }, asyn
             const p = await product(f, 2);
             const legacy = await prisma.transfer.create({ data: {
                 storeId: f.storeId, fromBranchId: f.branchId, toBranchId: f.destinationId, initiatedById: f.user.id,
-                items: { create: { productId: p.id, quantity: 1, unitCostUzs: 50, totalCostUzs: 50 } },
+                items: { create: { storeId: f.storeId, productId: p.id, quantity: 1, unitCostUzs: 50, totalCostUzs: 50 } },
             } });
             await TransfersService.complete(legacy.id, { ...f.user, branchId: f.destinationId });
             await assertStock(f, p, 1);
@@ -227,7 +227,7 @@ test("PostgreSQL POS concurrency", { skip: !databaseUrl, timeout: 120000 }, asyn
             assert.equal(receipts.items.length, 1);
             const customer = await prisma.customer.create({ data: {
                 storeId: f.storeId, branchId: f.destinationId, fullName: "Linked customer",
-                branchLinks: { create: [{ branchId: f.destinationId }, { branchId: f.branchId }] },
+                branchLinks: { create: [{ storeId: f.storeId, branchId: f.destinationId }, { storeId: f.storeId, branchId: f.branchId }] },
             } });
             const sale = await SalesService.create(checkout(f, p, 1, { branchId: undefined, customerId: customer.id }), f.user);
             assert.equal(sale.branch.id, f.branchId);
@@ -238,7 +238,7 @@ test("PostgreSQL POS concurrency", { skip: !databaseUrl, timeout: 120000 }, asyn
             assert.deepEqual(scoped.recentSales.map((row) => row.id), [sale.id]);
             const foreign = await prisma.customer.create({ data: {
                 storeId: other.storeId, branchId: other.branchId, fullName: "Other tenant",
-                branchLinks: { create: { branchId: other.branchId } },
+                branchLinks: { create: { storeId: other.storeId, branchId: other.branchId } },
             } });
             await assert.rejects(() => SalesService.create(checkout(f, p, 1, { customerId: foreign.id }), f.user), (e) => e.statusCode === 404);
         });

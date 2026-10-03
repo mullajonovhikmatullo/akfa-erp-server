@@ -112,8 +112,8 @@ exports.InventoryRepository = {
                 RETURNING sb.id, sb."productId", deductions.amount
             )
             ${transferItems?.length ? client_1.Prisma.sql `, allocated AS (
-                INSERT INTO "TransferAllocation" (id, "transferItemId", "stockBatchId", quantity, "createdAt")
-                SELECT gen_random_uuid()::text, item.id, changed.id, changed.amount, NOW()
+                INSERT INTO "TransferAllocation" (id, "transferItemId", "storeId", "stockBatchId", quantity, "createdAt")
+                SELECT gen_random_uuid()::text, item.id, ${storeId}, changed.id, changed.amount, NOW()
                 FROM changed JOIN (VALUES ${client_1.Prisma.join(transferItems.map((item) => client_1.Prisma.sql `(${item.id}::text, ${item.productId}::text)`))}) AS item(id, "productId")
                   ON item."productId" = changed."productId"
                 RETURNING id

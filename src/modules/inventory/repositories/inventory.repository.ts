@@ -155,8 +155,8 @@ export const InventoryRepository = {
                 RETURNING sb.id, sb."productId", deductions.amount
             )
             ${transferItems?.length ? Prisma.sql`, allocated AS (
-                INSERT INTO "TransferAllocation" (id, "transferItemId", "stockBatchId", quantity, "createdAt")
-                SELECT gen_random_uuid()::text, item.id, changed.id, changed.amount, NOW()
+                INSERT INTO "TransferAllocation" (id, "transferItemId", "storeId", "stockBatchId", quantity, "createdAt")
+                SELECT gen_random_uuid()::text, item.id, ${storeId}, changed.id, changed.amount, NOW()
                 FROM changed JOIN (VALUES ${Prisma.join(transferItems.map((item) =>
                     Prisma.sql`(${item.id}::text, ${item.productId}::text)`))}) AS item(id, "productId")
                   ON item."productId" = changed."productId"

@@ -195,6 +195,7 @@ model Subscription {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
+  @@unique([id, storeId])
   @@index([planId])
   @@index([status])
   @@index([trialEndsAt])
@@ -251,6 +252,7 @@ model MediaObject {
   payment      Payment?  @relation("PaymentReceipt")
   createdAt    DateTime  @default(now())
 
+  @@unique([id, storeId])
   @@index([storeId, kind])
   @@index([uploadedById])
   @@index([checksum])
@@ -326,7 +328,8 @@ model Branch {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
-  // Supports the additional User branch/store membership FK in the security migration.
+  // (id, storeId) uniques back the tenant FKs that exist only in SQL migrations
+  // (user_tenant_membership, tenant_composite_foreign_keys); Prisma does not model them.
   @@unique([id, storeId])
   @@unique([storeId, name])
   @@index([storeId])
@@ -367,6 +370,7 @@ model User {
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
 
+  @@unique([id, storeId])
   @@index([branchId])
   @@index([storeId])
   @@index([role])
@@ -385,6 +389,7 @@ model ProductCategory {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  @@unique([id, storeId])
   @@unique([storeId, name])
   @@index([storeId])
 }
@@ -493,6 +498,7 @@ model StockBatch {
   updatedAt    DateTime @updatedAt
   transferAllocations TransferAllocation[]
 
+  @@unique([id, storeId])
   @@index([storeId])
   @@index([storeId, receiptId])
   @@index([branchId, productId])
@@ -550,6 +556,7 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([id, storeId])
   @@index([storeId])
   @@index([branchId])
   @@index([phone])
@@ -561,6 +568,7 @@ model Customer {
 model CustomerBranch {
   id         String   @id @default(uuid())
   customerId String
+  storeId    String
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   branchId   String
   branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
@@ -593,6 +601,7 @@ model Sale {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
+  @@unique([id, storeId])
   @@index([storeId])
   @@index([branchId])
   @@index([customerId])
@@ -608,6 +617,7 @@ model Sale {
 model SaleItem {
   id         String  @id @default(uuid())
   saleId     String
+  storeId    String
   sale       Sale    @relation(fields: [saleId], references: [id])
   productId  String
   product    Product @relation(fields: [productId], references: [id])
@@ -624,6 +634,7 @@ model SaleItem {
 model SalePayment {
   id            String        @id @default(uuid())
   saleId        String
+  storeId       String
   sale          Sale          @relation(fields: [saleId], references: [id])
   amountUzs     Decimal       @default(0) @db.Decimal(18, 2)
   amountUsd     Decimal       @default(0) @db.Decimal(10, 4)
@@ -652,6 +663,7 @@ model ExpenseCategory {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
+  @@unique([id, storeId])
   @@unique([storeId, name])
   @@index([storeId])
 }
@@ -704,6 +716,7 @@ model Transfer {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
+  @@unique([id, storeId])
   @@index([storeId])
   @@index([fromBranchId])
   @@index([toBranchId])
@@ -719,6 +732,7 @@ model Transfer {
 model TransferItem {
   id           String   @id @default(uuid())
   transferId   String
+  storeId      String
   transfer     Transfer @relation(fields: [transferId], references: [id])
   productId    String
   product      Product  @relation(fields: [productId], references: [id])
@@ -727,6 +741,7 @@ model TransferItem {
   totalCostUzs Decimal  @db.Decimal(18, 2)
   allocations TransferAllocation[]
 
+  @@unique([id, storeId])
   @@index([transferId])
   @@index([productId])
 }
@@ -734,6 +749,7 @@ model TransferItem {
 model TransferAllocation {
   id             String       @id @default(uuid())
   transferItemId String
+  storeId        String
   transferItem   TransferItem @relation(fields: [transferItemId], references: [id], onDelete: Cascade)
   stockBatchId   String
   stockBatch     StockBatch   @relation(fields: [stockBatchId], references: [id])

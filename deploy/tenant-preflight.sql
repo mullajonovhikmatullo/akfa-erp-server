@@ -11,6 +11,7 @@ FROM "Store" s LEFT JOIN "User" u ON u."storeId" = s.id
 WHERE s.id = '00000000-0000-4000-8000-000000000201';
 
 -- Direct relationships may have been populated by older software or manual SQL.
+-- Every row returned here must be reconciled before the tenant composite FK migration.
 SELECT 'Expense' AS model, e.id FROM "Expense" e
 JOIN "Branch" b ON b.id = e."branchId" JOIN "ExpenseCategory" c ON c.id = e."categoryId"
 JOIN "User" u ON u.id = e."createdById"
@@ -45,6 +46,13 @@ UNION ALL
 SELECT 'Transfer', tr.id FROM "Transfer" tr JOIN "Branch" a ON a.id = tr."fromBranchId" JOIN "Branch" b ON b.id = tr."toBranchId"
 WHERE tr."storeId" <> a."storeId" OR tr."storeId" <> b."storeId"
 UNION ALL
+SELECT 'TransferUser', tr.id FROM "Transfer" tr JOIN "User" i ON i.id = tr."initiatedById"
+LEFT JOIN "User" c ON c.id = tr."completedById"
+WHERE tr."storeId" IS DISTINCT FROM i."storeId" OR (c.id IS NOT NULL AND tr."storeId" IS DISTINCT FROM c."storeId")
+UNION ALL
+SELECT 'MediaObject', m.id FROM "MediaObject" m JOIN "User" u ON u.id = m."uploadedById"
+WHERE m."storeId" IS DISTINCT FROM u."storeId"
+UNION ALL
 SELECT 'TransferItem', i.id FROM "TransferItem" i JOIN "Transfer" tr ON tr.id = i."transferId" JOIN "Product" p ON p.id = i."productId"
 WHERE tr."storeId" <> p."storeId"
 UNION ALL
@@ -57,4 +65,6 @@ WHERE s."storeId" IS DISTINCT FROM u."storeId"
 UNION ALL
 SELECT 'Payment', p.id FROM "Payment" p LEFT JOIN "Branch" b ON b.id = p."branchId"
 LEFT JOIN "Subscription" s ON s.id = p."subscriptionId" LEFT JOIN "MediaObject" m ON m.id = p."receiptMediaId"
-WHERE p."storeId" <> b."storeId" OR p."storeId" <> s."storeId" OR p."storeId" <> m."storeId";
+LEFT JOIN "User" u ON u.id = p."submittedById"
+WHERE p."storeId" <> b."storeId" OR p."storeId" <> s."storeId" OR p."storeId" <> m."storeId"
+   OR (u.id IS NOT NULL AND p."storeId" IS DISTINCT FROM u."storeId");

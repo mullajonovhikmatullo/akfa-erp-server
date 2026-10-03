@@ -3,6 +3,7 @@ import { prisma } from "../../../infrastructure/prisma/prisma";
 import { JwtPayload } from "../../../core/types/jwt.types";
 import { branchScope } from "../../../core/utils/branch-access";
 import { AnalyticsQuery } from "../validations/analytics.validation";
+import { CustomersRepository } from "../../customers/repositories/customers.repository";
 
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -15,6 +16,34 @@ function parseDateParam(value: string, boundary: "start" | "end"): Date {
     return boundary === "start"
         ? new Date(year, month - 1, day, 0, 0, 0, 0)
         : new Date(year, month - 1, day, 23, 59, 59, 999);
+}
+
+// Customer.balance is store-wide; a branch view must use the branch's share of it.
+async function customerDebtSummary(storeId: string, branchId: string | undefined, activeOnly: boolean) {
+    if (branchId) return CustomersRepository.branchDebtSummary(storeId, branchId, activeOnly);
+    const aggregate = await prisma.customer.aggregate({
+        where: { storeId, balance: { gt: 0 }, ...(activeOnly && { isActive: true }) },
+        _sum: { balance: true },
+        _count: { id: true },
+    });
+    return { totalDebt: Number(aggregate._sum.balance ?? 0), debtorCount: aggregate._count.id };
+}
+
+async function topCustomerDebtors(storeId: string, branchId: string | undefined, limit: number) {
+    if (!branchId) {
+        const customers = await prisma.customer.findMany({
+            where: { storeId, balance: { gt: 0 }, isActive: true },
+            orderBy: [{ balance: "desc" }, { id: "asc" }],
+            take: limit,
+            select: { id: true, fullName: true, phone: true, balance: true, branch: { select: { id: true, name: true } } },
+        });
+        return customers.map((c) => ({ ...c, balance: Number(c.balance) }));
+    }
+    const [branch, debtors] = await Promise.all([
+        prisma.branch.findFirst({ where: { id: branchId, storeId }, select: { id: true, name: true } }),
+        CustomersRepository.topBranchDebtors(storeId, branchId, limit),
+    ]);
+    return debtors.map((c) => ({ ...c, balance: Number(c.balance), branch }));
 }
 
 function resolveRange(from?: string, to?: string): { start: Date; end: Date } {
@@ -64,11 +93,7 @@ export const AnalyticsService = {
                     where: expenseWhere,
                     _sum: { amount: true },
                 }),
-                prisma.customer.aggregate({
-                    where: { storeId, ...(branchId && { branchId }), balance: { gt: 0 } },
-                    _sum: { balance: true },
-                    _count: { id: true },
-                }),
+                customerDebtSummary(storeId, branchId, false),
                 prisma.transfer.count({ where: transferWhere }),
                 prisma.$queryRaw<{ count: bigint }[]>`
                     SELECT COUNT(*)::bigint AS count
@@ -112,8 +137,8 @@ export const AnalyticsService = {
                 lowStockCount: Number(lowStockRaw[0]?.count ?? 0),
             },
             customers: {
-                totalDebt: Number(customerDebtAgg._sum.balance ?? 0),
-                debtorCount: customerDebtAgg._count.id,
+                totalDebt: customerDebtAgg.totalDebt,
+                debtorCount: customerDebtAgg.debtorCount,
             },
             transfers: {
                 pendingCount: pendingTransfers,
@@ -478,13 +503,6 @@ export const AnalyticsService = {
     async customerDebt(query: AnalyticsQuery, user: JwtPayload) {
         const { storeId, branchId } = branchScope(user, query.branchId);
 
-        const where: Prisma.CustomerWhereInput = {
-            storeId,
-            ...(branchId && { branchId }),
-            balance: { gt: 0 },
-            isActive: true,
-        };
-
         const overdueWhere: Prisma.SaleWhereInput = {
             storeId,
             ...(branchId && { branchId }),
@@ -493,23 +511,8 @@ export const AnalyticsService = {
         };
 
         const [summary, topDebtors, overdueAgg] = await Promise.all([
-            prisma.customer.aggregate({
-                where,
-                _sum: { balance: true },
-                _count: { id: true },
-            }),
-            prisma.customer.findMany({
-                where,
-                orderBy: { balance: "desc" },
-                take: query.limit,
-                select: {
-                    id: true,
-                    fullName: true,
-                    phone: true,
-                    balance: true,
-                    branch: { select: { id: true, name: true } },
-                },
-            }),
+            customerDebtSummary(storeId, branchId, true),
+            topCustomerDebtors(storeId, branchId, query.limit),
             prisma.sale.aggregate({
                 where: overdueWhere,
                 _sum: { debtAmountUzs: true },
@@ -518,10 +521,7 @@ export const AnalyticsService = {
         ]);
 
         return {
-            summary: {
-                totalDebt: Number(summary._sum.balance ?? 0),
-                debtorCount: summary._count.id,
-            },
+            summary,
             overdue: {
                 totalOverdueDebt: Number(overdueAgg._sum.debtAmountUzs ?? 0),
                 overdueCount: overdueAgg._count.id,
@@ -530,7 +530,7 @@ export const AnalyticsService = {
                 id: c.id,
                 fullName: c.fullName,
                 phone: c.phone,
-                balance: Number(c.balance),
+                balance: c.balance,
                 branch: c.branch,
             })),
         };

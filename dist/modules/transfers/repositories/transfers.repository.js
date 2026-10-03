@@ -42,7 +42,7 @@ exports.TransfersRepository = {
                 note: data.note,
                 initiatedById: data.initiatedById,
                 items: {
-                    createMany: { data: data.items },
+                    createMany: { data: data.items.map((item) => ({ ...item, storeId: data.storeId })) },
                 },
             },
             select: transferSelect,

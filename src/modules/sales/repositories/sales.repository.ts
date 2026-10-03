@@ -147,11 +147,12 @@ export const SalesRepository = {
                 debtDueDate: data.debtDueDate,
                 note: data.note,
                 items: {
-                    createMany: { data: data.items },
+                    createMany: { data: data.items.map((item) => ({ ...item, storeId: data.storeId })) },
                 },
                 ...(data.initialPayment && {
                     payments: {
                         create: {
+                            storeId: data.storeId,
                             amountUzs: data.initialPayment.amountUzs,
                             amountUsd: data.initialPayment.amountUsd,
                             usdToUzsRate: data.initialPayment.usdToUzsRate,
@@ -280,6 +281,7 @@ export const SalesRepository = {
                 debtAmountUzs: data.newDebtAmountUzs,
                 payments: {
                     create: {
+                        storeId: data.storeId,
                         amountUzs: data.amountUzs,
                         amountUsd: data.amountUsd,
                         usdToUzsRate: data.usdToUzsRate,

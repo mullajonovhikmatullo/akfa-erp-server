@@ -9,6 +9,7 @@ const branch_access_1 = require("../../../core/utils/branch-access");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 const inventory_repository_1 = require("../repositories/inventory.repository");
 const idempotency_service_1 = require("../../../core/services/idempotency.service");
+const storage_1 = require("../../../core/storage");
 function stockInKey(branchId, productId) {
     return `${branchId}:${productId}`;
 }
@@ -261,6 +262,32 @@ exports.InventoryService = {
             limit: query.limit,
             offset: query.offset,
         });
+    },
+    async findStockLevelsPage(query, user) {
+        const scope = (0, branch_access_1.branchScope)(user, query.branchId);
+        const result = await inventory_repository_1.InventoryRepository.findStockLevelsPage({ ...scope, search: query.search || undefined, quantity: query.quantity }, query.page, query.pageSize);
+        return {
+            total: result.total,
+            summary: {
+                productCount: Number(result.summary?.productCount ?? 0),
+                totals: {
+                    PIECE: Number(result.summary?.pieceQuantity ?? 0),
+                    KG: Number(result.summary?.kgQuantity ?? 0),
+                },
+            },
+            items: result.items.map((item) => ({
+                productId: item.id,
+                name: item.name,
+                sku: item.sku,
+                unit: item.unit,
+                quantity: Number(item.quantity),
+                lowStockThreshold: item.lowStockThreshold === null ? null : Number(item.lowStockThreshold),
+                updatedAt: item.updatedAt,
+                branches: item.branches ?? [],
+                everStocked: item.everStocked,
+                primaryThumbnailUrl: item.thumbnailStorageKey ? storage_1.fileStorage.getPublicUrl(item.thumbnailStorageKey) : null,
+            })),
+        };
     },
     async findMovements(query, user) {
         const scope = (0, branch_access_1.branchScope)(user, query.branchId);

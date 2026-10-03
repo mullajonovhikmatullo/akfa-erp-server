@@ -45,6 +45,16 @@ exports.InventoryController = {
             next(error);
         }
     },
+    async findStockLevels(req, res, next) {
+        try {
+            const query = inventory_validation_1.stockLevelQuerySchema.parse(req.query);
+            const result = await inventory_service_1.InventoryService.findStockLevelsPage(query, req.user);
+            return ApiResponse_1.ApiResponse.success(res, result);
+        }
+        catch (error) {
+            next(error);
+        }
+    },
     async findMovements(req, res, next) {
         try {
             const query = inventory_validation_1.movementQuerySchema.parse(req.query);

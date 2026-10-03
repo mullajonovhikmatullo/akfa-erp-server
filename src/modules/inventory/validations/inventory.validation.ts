@@ -1,4 +1,4 @@
-import { listWindowSchema, queryInteger } from "../../../core/utils/pagination";
+import { listWindowSchema, paginationSchema, queryInteger } from "../../../core/utils/pagination";
 import { z } from "zod";
 import { StockMovementType } from "@prisma/client";
 
@@ -46,6 +46,14 @@ export const inventoryQuerySchema = listWindowSchema.extend({
         .string()
         .optional()
         .transform((v) => v === "true"),
+});
+
+export const STOCK_LEVEL_FILTERS = ["all", "out", "low", "available"] as const;
+
+export const stockLevelQuerySchema = paginationSchema.extend({
+    branchId: z.string().uuid().optional(),
+    search: z.string().trim().max(100).optional(),
+    quantity: z.enum(STOCK_LEVEL_FILTERS).default("all"),
 });
 
 export const movementQuerySchema = z.object({

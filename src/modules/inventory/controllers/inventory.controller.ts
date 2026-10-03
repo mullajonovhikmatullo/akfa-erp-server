@@ -5,6 +5,7 @@ import {
     batchQuerySchema,
     inventoryQuerySchema,
     movementQuerySchema,
+    stockLevelQuerySchema,
 } from "../validations/inventory.validation";
 import { z } from "zod";
 import { InventoryService } from "../services/inventory.service";
@@ -43,6 +44,16 @@ export const InventoryController = {
             const query = inventoryQuerySchema.parse({ ...req.query, ...(req.path === "/low-stock" && { lowStock: "true" }) });
             const records = await InventoryService.findAll(query, req.user!);
             return ApiResponse.success(res, records);
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    async findStockLevels(req: Request, res: Response, next: NextFunction) {
+        try {
+            const query = stockLevelQuerySchema.parse(req.query);
+            const result = await InventoryService.findStockLevelsPage(query, req.user!);
+            return ApiResponse.success(res, result);
         } catch (error) {
             next(error);
         }

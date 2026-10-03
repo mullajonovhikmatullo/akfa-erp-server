@@ -12,9 +12,11 @@ import {
     batchQuerySchema,
     inventoryQuerySchema,
     movementQuerySchema,
+    stockLevelQuerySchema,
 } from "../validations/inventory.validation";
 import { z } from "zod";
 import { claimIdempotency, completeIdempotency } from "../../../core/services/idempotency.service";
+import { fileStorage } from "../../../core/storage";
 
 type ResolvedStockIn = {
     dto: StockInDto;
@@ -334,6 +336,35 @@ export const InventoryService = {
             limit: query.limit,
             offset: query.offset,
         });
+    },
+
+    async findStockLevelsPage(query: z.infer<typeof stockLevelQuerySchema>, user: JwtPayload) {
+        const scope = branchScope(user, query.branchId);
+        const result = await InventoryRepository.findStockLevelsPage(
+            { ...scope, search: query.search || undefined, quantity: query.quantity }, query.page, query.pageSize
+        );
+        return {
+            total: result.total,
+            summary: {
+                productCount: Number(result.summary?.productCount ?? 0),
+                totals: {
+                    PIECE: Number(result.summary?.pieceQuantity ?? 0),
+                    KG: Number(result.summary?.kgQuantity ?? 0),
+                },
+            },
+            items: result.items.map((item) => ({
+                productId: item.id,
+                name: item.name,
+                sku: item.sku,
+                unit: item.unit,
+                quantity: Number(item.quantity),
+                lowStockThreshold: item.lowStockThreshold === null ? null : Number(item.lowStockThreshold),
+                updatedAt: item.updatedAt,
+                branches: item.branches ?? [],
+                everStocked: item.everStocked,
+                primaryThumbnailUrl: item.thumbnailStorageKey ? fileStorage.getPublicUrl(item.thumbnailStorageKey) : null,
+            })),
+        };
     },
 
     async findMovements(query: z.infer<typeof movementQuerySchema>, user: JwtPayload) {

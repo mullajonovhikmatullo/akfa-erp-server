@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.batchQuerySchema = exports.movementQuerySchema = exports.inventoryQuerySchema = exports.adjustmentSchema = exports.stockInBatchSchema = exports.stockInSchema = void 0;
+exports.batchQuerySchema = exports.movementQuerySchema = exports.stockLevelQuerySchema = exports.STOCK_LEVEL_FILTERS = exports.inventoryQuerySchema = exports.adjustmentSchema = exports.stockInBatchSchema = exports.stockInSchema = void 0;
 const pagination_1 = require("../../../core/utils/pagination");
 const zod_1 = require("zod");
 const client_1 = require("@prisma/client");
@@ -44,6 +44,12 @@ exports.inventoryQuerySchema = pagination_1.listWindowSchema.extend({
         .string()
         .optional()
         .transform((v) => v === "true"),
+});
+exports.STOCK_LEVEL_FILTERS = ["all", "out", "low", "available"];
+exports.stockLevelQuerySchema = pagination_1.paginationSchema.extend({
+    branchId: zod_1.z.string().uuid().optional(),
+    search: zod_1.z.string().trim().max(100).optional(),
+    quantity: zod_1.z.enum(exports.STOCK_LEVEL_FILTERS).default("all"),
 });
 exports.movementQuerySchema = zod_1.z.object({
     branchId: zod_1.z.string().uuid().optional(),

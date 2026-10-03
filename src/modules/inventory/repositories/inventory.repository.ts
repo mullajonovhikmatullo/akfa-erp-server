@@ -202,6 +202,77 @@ export const InventoryRepository = {
         });
     },
 
+    // One row per product: its inventory summed over the scoped branches.
+    async findStockLevelsPage(
+        filters: {
+            storeId: string;
+            branchId?: string;
+            search?: string;
+            quantity: "all" | "out" | "low" | "available";
+        },
+        page: number,
+        pageSize: number
+    ) {
+        const branchCondition = filters.branchId ? Prisma.sql`AND inv."branchId" = ${filters.branchId}` : Prisma.empty;
+        const scoped = Prisma.sql`
+            SELECT p.id, p.name, p.sku, p.unit, p."lowStockThreshold",
+                SUM(inv.quantity) AS quantity, MAX(inv."updatedAt") AS "updatedAt"
+            FROM "Inventory" inv
+            JOIN "Product" p ON p.id = inv."productId" AND p."storeId" = inv."storeId"
+            WHERE inv."storeId" = ${filters.storeId} ${branchCondition}
+            GROUP BY p.id
+        `;
+        const conditions: Prisma.Sql[] = [];
+        if (filters.search) {
+            const pattern = `%${filters.search.replace(/[\\%_]/g, "\\$&")}%`;
+            conditions.push(Prisma.sql`(s.name ILIKE ${pattern} OR s.sku ILIKE ${pattern})`);
+        }
+        if (filters.quantity === "out") conditions.push(Prisma.sql`s.quantity <= 0`);
+        if (filters.quantity === "low") {
+            conditions.push(Prisma.sql`s.quantity > 0 AND s."lowStockThreshold" IS NOT NULL AND s.quantity <= s."lowStockThreshold"`);
+        }
+        if (filters.quantity === "available") {
+            conditions.push(Prisma.sql`s.quantity > 0 AND (s."lowStockThreshold" IS NULL OR s.quantity > s."lowStockThreshold")`);
+        }
+        const where = conditions.length ? Prisma.sql`WHERE ${Prisma.join(conditions, " AND ")}` : Prisma.empty;
+
+        const [items, countRows, summaryRows] = await Promise.all([
+            prisma.$queryRaw<Array<{
+                id: string; name: string; sku: string | null; unit: "KG" | "PIECE";
+                lowStockThreshold: string | null; quantity: string; updatedAt: Date;
+                branches: Array<{ id: string; name: string }>; everStocked: boolean;
+                thumbnailStorageKey: string | null;
+            }>>(Prisma.sql`
+                SELECT s.id, s.name, s.sku, s.unit::text AS unit, s."lowStockThreshold"::text AS "lowStockThreshold",
+                    s.quantity::text AS quantity, s."updatedAt",
+                    (SELECT json_agg(json_build_object('id', b.id, 'name', b.name) ORDER BY b.name)
+                        FROM "Inventory" inv JOIN "Branch" b ON b.id = inv."branchId"
+                        WHERE inv."storeId" = ${filters.storeId} AND inv."productId" = s.id ${branchCondition}) AS branches,
+                    EXISTS (SELECT 1 FROM "StockBatch" inv
+                        WHERE inv."storeId" = ${filters.storeId} AND inv."productId" = s.id ${branchCondition}) AS "everStocked",
+                    (SELECT pi."thumbnailStorageKey" FROM "ProductImage" pi
+                        WHERE pi."storeId" = ${filters.storeId} AND pi."productId" = s.id
+                        ORDER BY pi."isPrimary" DESC, pi."sortOrder" ASC, pi."createdAt" ASC, pi.id ASC
+                        LIMIT 1) AS "thumbnailStorageKey"
+                FROM (${scoped}) s
+                ${where}
+                ORDER BY s.name ASC, s.id ASC
+                LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+            `),
+            prisma.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`
+                SELECT COUNT(*)::bigint AS total FROM (${scoped}) s ${where}
+            `),
+            prisma.$queryRaw<Array<{ productCount: bigint; pieceQuantity: string; kgQuantity: string }>>(Prisma.sql`
+                SELECT COUNT(*)::bigint AS "productCount",
+                    COALESCE(SUM(s.quantity) FILTER (WHERE s.unit = 'PIECE'), 0)::text AS "pieceQuantity",
+                    COALESCE(SUM(s.quantity) FILTER (WHERE s.unit = 'KG'), 0)::text AS "kgQuantity"
+                FROM (${scoped}) s
+            `),
+        ]);
+
+        return { items, total: Number(countRows[0]?.total ?? 0), summary: summaryRows[0] };
+    },
+
     async restoreTransferBatches(storeId: string, branchId: string, transferId: string, tx: Tx) {
         // Caller holds the transfer transition and all source inventory locks.
         // Restore the original FIFO batches, not a newly valued receipt.

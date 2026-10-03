@@ -230,6 +230,37 @@ router.post("/adjustment", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", 
  *                 $ref: '#/components/schemas/InventoryRecord'
  */
 router.get("/", inventory_controller_1.InventoryController.findAll);
+/**
+ * @swagger
+ * /inventory/stock:
+ *   get:
+ *     summary: Paginated stock levels grouped by product (branch-scoped for branch staff)
+ *     tags: [Inventory]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *       - in: query
+ *         name: pageSize
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+ *       - in: query
+ *         name: branchId
+ *         schema: { type: string, format: uuid }
+ *         description: Store managers only — omit to sum every branch
+ *       - in: query
+ *         name: search
+ *         schema: { type: string, maxLength: 100 }
+ *         description: Matches product name or SKU
+ *       - in: query
+ *         name: quantity
+ *         schema: { type: string, enum: [all, out, low, available], default: all }
+ *     responses:
+ *       200:
+ *         description: "{ items, total, summary: { productCount, totals: { PIECE, KG } } }; summary ignores search and quantity filters"
+ */
+router.get("/stock", inventory_controller_1.InventoryController.findStockLevels);
 // ─── Low Stock ────────────────────────────────────────────────────────────────
 /**
  * @swagger

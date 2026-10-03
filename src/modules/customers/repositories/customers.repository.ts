@@ -155,6 +155,93 @@ export const CustomersRepository = {
         `);
     },
 
+    async purchaseSummary(customerId: string, storeId: string, branchId?: string) {
+        const saleScope = Prisma.sql`s."storeId" = ${storeId} AND s."customerId" = ${customerId}
+            ${branchId ? Prisma.sql`AND s."branchId" = ${branchId}` : Prisma.empty}`;
+        const [totals, payments, products, monthly] = await Promise.all([
+            prisma.$queryRaw<Array<{
+                salesCount: number; totalAmount: string; paidAmount: string; debtAmount: string;
+                openDebtCount: number; overdueDebt: string; overdueCount: number;
+                firstSaleAt: Date | null; lastSaleAt: Date | null;
+            }>>(Prisma.sql`
+                SELECT COUNT(*)::int AS "salesCount",
+                    COALESCE(SUM(s."totalAmountUzs"), 0)::text AS "totalAmount",
+                    COALESCE(SUM(s."paidAmountUzs"), 0)::text AS "paidAmount",
+                    COALESCE(SUM(s."debtAmountUzs"), 0)::text AS "debtAmount",
+                    COUNT(*) FILTER (WHERE s."debtAmountUzs" > 0)::int AS "openDebtCount",
+                    COALESCE(SUM(s."debtAmountUzs") FILTER (WHERE s."debtAmountUzs" > 0 AND s."debtDueDate" < NOW()), 0)::text AS "overdueDebt",
+                    COUNT(*) FILTER (WHERE s."debtAmountUzs" > 0 AND s."debtDueDate" < NOW())::int AS "overdueCount",
+                    MIN(s."createdAt") AS "firstSaleAt", MAX(s."createdAt") AS "lastSaleAt"
+                FROM "Sale" s WHERE ${saleScope}
+            `),
+            prisma.$queryRaw<Array<{ debtPayments: string; debtPaymentCount: number }>>(Prisma.sql`
+                SELECT COALESCE(SUM(sp."amountUzs" + sp."amountUsd" * COALESCE(sp."usdToUzsRate", 0)), 0)::text AS "debtPayments",
+                    COUNT(*)::int AS "debtPaymentCount"
+                FROM "SalePayment" sp JOIN "Sale" s ON s.id = sp."saleId" AND s."storeId" = sp."storeId"
+                WHERE sp."isDebtPayment" = true AND ${saleScope}
+            `),
+            prisma.$queryRaw<Array<{ productCount: number }>>(Prisma.sql`
+                SELECT COUNT(DISTINCT si."productId")::int AS "productCount"
+                FROM "SaleItem" si JOIN "Sale" s ON s.id = si."saleId" AND s."storeId" = si."storeId"
+                WHERE ${saleScope}
+            `),
+            prisma.$queryRaw<Array<{ month: string; salesCount: number; totalAmount: string; paidAmount: string }>>(Prisma.sql`
+                WITH months AS (
+                    SELECT generate_series(
+                        date_trunc('month', NOW() AT TIME ZONE 'Asia/Tashkent') - INTERVAL '11 months',
+                        date_trunc('month', NOW() AT TIME ZONE 'Asia/Tashkent'),
+                        INTERVAL '1 month'
+                    ) AS month
+                ), sales AS (
+                    SELECT date_trunc('month', s."createdAt" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Tashkent') AS month,
+                        COUNT(*)::int AS "salesCount",
+                        SUM(s."totalAmountUzs") AS "totalAmount", SUM(s."paidAmountUzs") AS "paidAmount"
+                    FROM "Sale" s WHERE ${saleScope}
+                        AND s."createdAt" >= (date_trunc('month', NOW() AT TIME ZONE 'Asia/Tashkent') - INTERVAL '11 months') AT TIME ZONE 'Asia/Tashkent' AT TIME ZONE 'UTC'
+                    GROUP BY 1
+                )
+                SELECT to_char(m.month, 'YYYY-MM') AS month, COALESCE(s."salesCount", 0)::int AS "salesCount",
+                    COALESCE(s."totalAmount", 0)::text AS "totalAmount", COALESCE(s."paidAmount", 0)::text AS "paidAmount"
+                FROM months m LEFT JOIN sales s ON s.month = m.month
+                ORDER BY m.month
+            `),
+        ]);
+        return { totals: totals[0], payments: payments[0], productCount: products[0]?.productCount ?? 0, monthly };
+    },
+
+    async purchasedProductsPage(customerId: string, storeId: string, branchId: string | undefined, page: number, pageSize: number) {
+        const saleScope = Prisma.sql`s."storeId" = ${storeId} AND s."customerId" = ${customerId}
+            ${branchId ? Prisma.sql`AND s."branchId" = ${branchId}` : Prisma.empty}`;
+        const [items, countRows] = await Promise.all([
+            prisma.$queryRaw<Array<{
+                productId: string; name: string; sku: string | null; unit: "KG" | "PIECE";
+                quantity: string; totalAmount: string; purchaseCount: number; lastPurchasedAt: Date;
+                thumbnailStorageKey: string | null;
+            }>>(Prisma.sql`
+                SELECT p.id AS "productId", p.name, p.sku, p.unit::text AS unit,
+                    SUM(si.quantity)::text AS quantity, SUM(si."totalPrice")::text AS "totalAmount",
+                    COUNT(DISTINCT s.id)::int AS "purchaseCount", MAX(s."createdAt") AS "lastPurchasedAt",
+                    (SELECT pi."thumbnailStorageKey" FROM "ProductImage" pi
+                        WHERE pi."storeId" = ${storeId} AND pi."productId" = p.id
+                        ORDER BY pi."isPrimary" DESC, pi."sortOrder" ASC, pi."createdAt" ASC, pi.id ASC
+                        LIMIT 1) AS "thumbnailStorageKey"
+                FROM "SaleItem" si
+                JOIN "Sale" s ON s.id = si."saleId" AND s."storeId" = si."storeId"
+                JOIN "Product" p ON p.id = si."productId" AND p."storeId" = si."storeId"
+                WHERE ${saleScope}
+                GROUP BY p.id
+                ORDER BY SUM(si."totalPrice") DESC, p.name ASC, p.id ASC
+                LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+            `),
+            prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
+                SELECT COUNT(DISTINCT si."productId")::int AS total
+                FROM "SaleItem" si JOIN "Sale" s ON s.id = si."saleId" AND s."storeId" = si."storeId"
+                WHERE ${saleScope}
+            `),
+        ]);
+        return { items, total: countRows[0]?.total ?? 0 };
+    },
+
     recentSales(id: string, storeId: string, limit = 10, branchId?: string) {
         return prisma.sale.findMany({
             where: { customerId: id, storeId, ...(branchId && { branchId }) },

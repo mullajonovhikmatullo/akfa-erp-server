@@ -51,6 +51,24 @@ exports.CustomersController = {
             next(error);
         }
     },
+    async summary(req, res, next) {
+        try {
+            const query = customer_validation_1.customerSummaryQuerySchema.parse(req.query);
+            return ApiResponse_1.ApiResponse.success(res, await customers_service_1.CustomersService.summary(req.params.id, query, req.user));
+        }
+        catch (error) {
+            next(error);
+        }
+    },
+    async purchasedProducts(req, res, next) {
+        try {
+            const query = customer_validation_1.customerProductsQuerySchema.parse(req.query);
+            return ApiResponse_1.ApiResponse.success(res, await customers_service_1.CustomersService.purchasedProductsPage(req.params.id, query, req.user));
+        }
+        catch (error) {
+            next(error);
+        }
+    },
     async update(req, res, next) {
         try {
             const customer = await customers_service_1.CustomersService.update(req.params.id, req.body, req.user);

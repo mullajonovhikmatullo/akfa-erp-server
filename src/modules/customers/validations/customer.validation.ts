@@ -1,4 +1,4 @@
-import { listWindowSchema } from "../../../core/utils/pagination";
+import { listWindowSchema, paginationSchema } from "../../../core/utils/pagination";
 import { z } from "zod";
 
 export const createCustomerSchema = z.object({
@@ -41,5 +41,13 @@ export const customerPhoneCheckSchema = z.object({
 });
 
 export const linkCustomerBranchSchema = z.object({
+    branchId: z.string().uuid().optional(),
+});
+
+export const customerSummaryQuerySchema = z.object({
+    branchId: z.string().uuid().optional(),
+});
+
+export const customerProductsQuerySchema = paginationSchema.extend({
     branchId: z.string().uuid().optional(),
 });

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.linkCustomerBranchSchema = exports.customerPhoneCheckSchema = exports.customerQuerySchema = exports.updateCustomerSchema = exports.createCustomerSchema = void 0;
+exports.customerProductsQuerySchema = exports.customerSummaryQuerySchema = exports.linkCustomerBranchSchema = exports.customerPhoneCheckSchema = exports.customerQuerySchema = exports.updateCustomerSchema = exports.createCustomerSchema = void 0;
 const pagination_1 = require("../../../core/utils/pagination");
 const zod_1 = require("zod");
 exports.createCustomerSchema = zod_1.z.object({
@@ -39,5 +39,11 @@ exports.customerPhoneCheckSchema = zod_1.z.object({
     branchId: zod_1.z.string().uuid().optional(),
 });
 exports.linkCustomerBranchSchema = zod_1.z.object({
+    branchId: zod_1.z.string().uuid().optional(),
+});
+exports.customerSummaryQuerySchema = zod_1.z.object({
+    branchId: zod_1.z.string().uuid().optional(),
+});
+exports.customerProductsQuerySchema = pagination_1.paginationSchema.extend({
     branchId: zod_1.z.string().uuid().optional(),
 });

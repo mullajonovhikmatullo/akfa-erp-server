@@ -128,6 +128,59 @@ router.get("/check-phone", customers_controller_1.CustomersController.checkPhone
 router.post("/:id/branches", (0, validate_1.validate)(customer_validation_1.linkCustomerBranchSchema), customers_controller_1.CustomersController.linkBranch);
 /**
  * @swagger
+ * /customers/{id}/summary:
+ *   get:
+ *     summary: Purchase, debt and payment totals for one customer, plus the last 12 months
+ *     tags: [Customers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: branchId
+ *         schema: { type: string, format: uuid }
+ *         description: Store managers only; branch staff are always limited to their branch
+ *     responses:
+ *       200:
+ *         description: Customer summary; balance is the branch share when a branch is in scope
+ *       403:
+ *         description: Customer is not linked to the caller's branch
+ *       404:
+ *         description: Customer not found
+ */
+router.get("/:id/summary", customers_controller_1.CustomersController.summary);
+/**
+ * @swagger
+ * /customers/{id}/products:
+ *   get:
+ *     summary: Products this customer bought, grouped by product (paginated)
+ *     tags: [Customers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *       - in: query
+ *         name: pageSize
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+ *       - in: query
+ *         name: branchId
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: "{ items, total }, ordered by total spent"
+ */
+router.get("/:id/products", customers_controller_1.CustomersController.purchasedProducts);
+/**
+ * @swagger
  * /customers/{id}:
  *   get:
  *     summary: Get customer detail with recent sales

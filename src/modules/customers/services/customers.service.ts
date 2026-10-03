@@ -8,7 +8,8 @@ import { CreateCustomerDto } from "../dto/create-customer.dto";
 import { UpdateCustomerDto } from "../dto/update-customer.dto";
 import { CustomersRepository } from "../repositories/customers.repository";
 import { z } from "zod";
-import { customerQuerySchema } from "../validations/customer.validation";
+import { customerProductsQuerySchema, customerQuerySchema, customerSummaryQuerySchema } from "../validations/customer.validation";
+import { fileStorage } from "../../../core/storage";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
@@ -33,6 +34,16 @@ async function presentBalance<T extends { id: string; balance: Prisma.Decimal }>
 ): Promise<T> {
     const [presented] = await presentBalances([customer], user, client);
     return presented;
+}
+
+async function findAccessibleCustomer(id: string, user: JwtPayload) {
+    const storeId = requireStoreId(user);
+    const customer = await CustomersRepository.findById(id, storeId);
+    if (!customer) throw new AppError(404, "Customer not found");
+    if (isBranchScopedRole(user.role) && !customer.branchLinks.some((link) => link.branchId === user.branchId)) {
+        throw new AppError(403, "Forbidden");
+    }
+    return customer;
 }
 
 export function normalizeCustomerPhone(phone?: string | null) {
@@ -124,6 +135,62 @@ export const CustomersService = {
 
         const recentSales = await CustomersRepository.recentSales(id, storeId, 10, branchScope(user).branchId);
         return { ...await presentBalance(customer, user), recentSales };
+    },
+
+    async summary(id: string, query: z.infer<typeof customerSummaryQuerySchema>, user: JwtPayload) {
+        const customer = await findAccessibleCustomer(id, user);
+        const { storeId, branchId } = branchScope(user, query.branchId);
+        const [summary, branchBalances] = await Promise.all([
+            CustomersRepository.purchaseSummary(id, storeId, branchId),
+            branchId ? CustomersRepository.branchBalances(storeId, branchId, [id]) : Promise.resolve(null),
+        ]);
+        const totals = summary.totals;
+        const totalAmountUzs = Number(totals?.totalAmount ?? 0);
+        const salesCount = totals?.salesCount ?? 0;
+        return {
+            customerId: id,
+            balanceScope: branchId ? "branch" : "store",
+            balance: Number(branchBalances ? branchBalances.get(id) ?? 0 : customer.balance),
+            salesCount,
+            totalAmountUzs,
+            paidAmountUzs: Number(totals?.paidAmount ?? 0),
+            debtAmountUzs: Number(totals?.debtAmount ?? 0),
+            averageSaleUzs: salesCount ? Number((totalAmountUzs / salesCount).toFixed(2)) : 0,
+            openDebtCount: totals?.openDebtCount ?? 0,
+            overdueDebtUzs: Number(totals?.overdueDebt ?? 0),
+            overdueCount: totals?.overdueCount ?? 0,
+            debtPaymentsUzs: Number(summary.payments?.debtPayments ?? 0),
+            debtPaymentCount: summary.payments?.debtPaymentCount ?? 0,
+            productCount: summary.productCount,
+            firstSaleAt: totals?.firstSaleAt ?? null,
+            lastSaleAt: totals?.lastSaleAt ?? null,
+            monthly: summary.monthly.map((row) => ({
+                month: row.month,
+                salesCount: row.salesCount,
+                totalAmountUzs: Number(row.totalAmount),
+                paidAmountUzs: Number(row.paidAmount),
+            })),
+        };
+    },
+
+    async purchasedProductsPage(id: string, query: z.infer<typeof customerProductsQuerySchema>, user: JwtPayload) {
+        await findAccessibleCustomer(id, user);
+        const { storeId, branchId } = branchScope(user, query.branchId);
+        const result = await CustomersRepository.purchasedProductsPage(id, storeId, branchId, query.page, query.pageSize);
+        return {
+            total: result.total,
+            items: result.items.map((item) => ({
+                productId: item.productId,
+                name: item.name,
+                sku: item.sku,
+                unit: item.unit,
+                quantity: Number(item.quantity),
+                totalAmountUzs: Number(item.totalAmount),
+                purchaseCount: item.purchaseCount,
+                lastPurchasedAt: item.lastPurchasedAt,
+                primaryThumbnailUrl: item.thumbnailStorageKey ? fileStorage.getPublicUrl(item.thumbnailStorageKey) : null,
+            })),
+        };
     },
 
     async update(id: string, dto: UpdateCustomerDto, user: JwtPayload) {

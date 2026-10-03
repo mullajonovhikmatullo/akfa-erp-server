@@ -1,6 +1,12 @@
 import { NextFunction, Request, Response } from "express";
 import { ApiResponse } from "../../../core/response/ApiResponse";
-import { customerPhoneCheckSchema, customerQuerySchema, linkCustomerBranchSchema } from "../validations/customer.validation";
+import {
+    customerPhoneCheckSchema,
+    customerProductsQuerySchema,
+    customerQuerySchema,
+    customerSummaryQuerySchema,
+    linkCustomerBranchSchema,
+} from "../validations/customer.validation";
 import { CustomersService } from "../services/customers.service";
 
 export const CustomersController = {
@@ -45,6 +51,24 @@ export const CustomersController = {
         try {
             const customer = await CustomersService.findById(req.params.id as string, req.user!);
             return ApiResponse.success(res, customer);
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    async summary(req: Request, res: Response, next: NextFunction) {
+        try {
+            const query = customerSummaryQuerySchema.parse(req.query);
+            return ApiResponse.success(res, await CustomersService.summary(req.params.id as string, query, req.user!));
+        } catch (error) {
+            next(error);
+        }
+    },
+
+    async purchasedProducts(req: Request, res: Response, next: NextFunction) {
+        try {
+            const query = customerProductsQuerySchema.parse(req.query);
+            return ApiResponse.success(res, await CustomersService.purchasedProductsPage(req.params.id as string, query, req.user!));
         } catch (error) {
             next(error);
         }

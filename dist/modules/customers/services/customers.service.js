@@ -8,6 +8,7 @@ const billing_state_service_1 = require("../../../core/services/billing-state.se
 const branch_access_1 = require("../../../core/utils/branch-access");
 const role_access_1 = require("../../../core/utils/role-access");
 const customers_repository_1 = require("../repositories/customers.repository");
+const storage_1 = require("../../../core/storage");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
 // Branch-scoped staff see only the part of a store-wide customer balance that
 // belongs to their own branch; store managers keep the full balance.
@@ -21,6 +22,16 @@ async function presentBalances(customers, user, client = prisma_1.prisma) {
 async function presentBalance(customer, user, client = prisma_1.prisma) {
     const [presented] = await presentBalances([customer], user, client);
     return presented;
+}
+async function findAccessibleCustomer(id, user) {
+    const storeId = (0, branch_access_1.requireStoreId)(user);
+    const customer = await customers_repository_1.CustomersRepository.findById(id, storeId);
+    if (!customer)
+        throw new AppError_1.AppError(404, "Customer not found");
+    if ((0, role_access_1.isBranchScopedRole)(user.role) && !customer.branchLinks.some((link) => link.branchId === user.branchId)) {
+        throw new AppError_1.AppError(403, "Forbidden");
+    }
+    return customer;
 }
 function normalizeCustomerPhone(phone) {
     if (!phone)
@@ -112,6 +123,60 @@ exports.CustomersService = {
         }
         const recentSales = await customers_repository_1.CustomersRepository.recentSales(id, storeId, 10, (0, branch_access_1.branchScope)(user).branchId);
         return { ...await presentBalance(customer, user), recentSales };
+    },
+    async summary(id, query, user) {
+        const customer = await findAccessibleCustomer(id, user);
+        const { storeId, branchId } = (0, branch_access_1.branchScope)(user, query.branchId);
+        const [summary, branchBalances] = await Promise.all([
+            customers_repository_1.CustomersRepository.purchaseSummary(id, storeId, branchId),
+            branchId ? customers_repository_1.CustomersRepository.branchBalances(storeId, branchId, [id]) : Promise.resolve(null),
+        ]);
+        const totals = summary.totals;
+        const totalAmountUzs = Number(totals?.totalAmount ?? 0);
+        const salesCount = totals?.salesCount ?? 0;
+        return {
+            customerId: id,
+            balanceScope: branchId ? "branch" : "store",
+            balance: Number(branchBalances ? branchBalances.get(id) ?? 0 : customer.balance),
+            salesCount,
+            totalAmountUzs,
+            paidAmountUzs: Number(totals?.paidAmount ?? 0),
+            debtAmountUzs: Number(totals?.debtAmount ?? 0),
+            averageSaleUzs: salesCount ? Number((totalAmountUzs / salesCount).toFixed(2)) : 0,
+            openDebtCount: totals?.openDebtCount ?? 0,
+            overdueDebtUzs: Number(totals?.overdueDebt ?? 0),
+            overdueCount: totals?.overdueCount ?? 0,
+            debtPaymentsUzs: Number(summary.payments?.debtPayments ?? 0),
+            debtPaymentCount: summary.payments?.debtPaymentCount ?? 0,
+            productCount: summary.productCount,
+            firstSaleAt: totals?.firstSaleAt ?? null,
+            lastSaleAt: totals?.lastSaleAt ?? null,
+            monthly: summary.monthly.map((row) => ({
+                month: row.month,
+                salesCount: row.salesCount,
+                totalAmountUzs: Number(row.totalAmount),
+                paidAmountUzs: Number(row.paidAmount),
+            })),
+        };
+    },
+    async purchasedProductsPage(id, query, user) {
+        await findAccessibleCustomer(id, user);
+        const { storeId, branchId } = (0, branch_access_1.branchScope)(user, query.branchId);
+        const result = await customers_repository_1.CustomersRepository.purchasedProductsPage(id, storeId, branchId, query.page, query.pageSize);
+        return {
+            total: result.total,
+            items: result.items.map((item) => ({
+                productId: item.productId,
+                name: item.name,
+                sku: item.sku,
+                unit: item.unit,
+                quantity: Number(item.quantity),
+                totalAmountUzs: Number(item.totalAmount),
+                purchaseCount: item.purchaseCount,
+                lastPurchasedAt: item.lastPurchasedAt,
+                primaryThumbnailUrl: item.thumbnailStorageKey ? storage_1.fileStorage.getPublicUrl(item.thumbnailStorageKey) : null,
+            })),
+        };
     },
     async update(id, dto, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);

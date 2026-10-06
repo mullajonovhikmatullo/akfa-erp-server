@@ -105,6 +105,16 @@ export const InventoryController = {
         }
     },
 
+    async findReceipt(req: Request, res: Response, next: NextFunction) {
+        try {
+            const receiptId = z.string().uuid().parse(req.params.receiptId);
+            const receipt = await InventoryService.findReceipt(receiptId, req.user!);
+            return ApiResponse.success(res, receipt);
+        } catch (error) {
+            next(error);
+        }
+    },
+
     async findReceiptItems(req: Request, res: Response, next: NextFunction) {
         try {
             const receiptId = z.string().uuid().parse(req.params.receiptId);

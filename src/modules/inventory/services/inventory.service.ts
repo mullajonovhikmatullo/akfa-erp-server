@@ -154,6 +154,19 @@ async function createStockInEntry(
     return batch;
 }
 
+type ReceiptRow = Awaited<ReturnType<typeof InventoryRepository.findReceiptsPaginated>>["items"][number];
+
+function presentReceipt(item: ReceiptRow) {
+    return {
+        id: item.id, receivedAt: item.receivedAt, productCount: item.productCount,
+        pieceQuantity: Number(item.pieceQuantity), kgQuantity: Number(item.kgQuantity),
+        totalCostUzs: Number(item.totalCostUzs), remainingValueUzs: Number(item.remainingValueUzs),
+        supplierNote: item.supplierNote,
+        branch: { id: item.branchId, name: item.branchName },
+        createdBy: { id: item.createdById, fullName: item.createdByName },
+    };
+}
+
 export const InventoryService = {
     // ─── Stock In ─────────────────────────────────────────────────────────────
 
@@ -471,17 +484,14 @@ export const InventoryService = {
         const result = await InventoryRepository.findReceiptsPaginated(
             { ...scope, from: query.from, to: query.to }, page, pageSize
         );
-        return {
-            total: result.total,
-            items: result.items.map((item) => ({
-                id: item.id, receivedAt: item.receivedAt, productCount: item.productCount,
-                pieceQuantity: Number(item.pieceQuantity), kgQuantity: Number(item.kgQuantity),
-                totalCostUzs: Number(item.totalCostUzs), remainingValueUzs: Number(item.remainingValueUzs),
-                supplierNote: item.supplierNote,
-                branch: { id: item.branchId, name: item.branchName },
-                createdBy: { id: item.createdById, fullName: item.createdByName },
-            })),
-        };
+        return { total: result.total, items: result.items.map(presentReceipt) };
+    },
+
+    async findReceipt(receiptId: string, user: JwtPayload) {
+        const result = await InventoryRepository.findReceiptsPaginated({ ...branchScope(user), receiptId }, 1, 1);
+        const receipt = result.items[0];
+        if (!receipt) throw new AppError(404, "Receipt not found");
+        return presentReceipt(receipt);
     },
 
     async findReceiptItems(receiptId: string, page: number, pageSize: number, user: JwtPayload) {

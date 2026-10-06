@@ -351,6 +351,26 @@ router.get("/low-stock", inventory_controller_1.InventoryController.findAll);
 router.get("/movements", inventory_controller_1.InventoryController.findMovements);
 // ─── Batch History ────────────────────────────────────────────────────────────
 router.get("/receipts", inventory_controller_1.InventoryController.findReceipts);
+/**
+ * @swagger
+ * /inventory/receipts/{receiptId}:
+ *   get:
+ *     summary: One stock receipt summary (same shape as a row of GET /inventory/receipts)
+ *     tags: [Inventory]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: receiptId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200:
+ *         description: Receipt summary
+ *       404:
+ *         description: Not found or outside the caller's branch
+ */
+router.get("/receipts/:receiptId", inventory_controller_1.InventoryController.findReceipt);
 router.get("/receipts/:receiptId/items", inventory_controller_1.InventoryController.findReceiptItems);
 router.get("/batches/summary", inventory_controller_1.InventoryController.findBatchesSummary);
 /**

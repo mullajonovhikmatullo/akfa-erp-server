@@ -336,6 +336,8 @@ exports.InventoryRepository = {
     },
     async findReceiptsPaginated(filters, page, pageSize) {
         const conditions = [client_1.Prisma.sql `sb."storeId" = ${filters.storeId}`];
+        if (filters.receiptId)
+            conditions.push(client_1.Prisma.sql `sb."receiptId" = ${filters.receiptId}`);
         if (filters.branchId)
             conditions.push(client_1.Prisma.sql `sb."branchId" = ${filters.branchId}`);
         if (filters.from)

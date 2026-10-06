@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { ApiResponse } from "../../../core/response/ApiResponse";
 import { ExpenseCategoriesService } from "../services/expense-categories.service";
-import { listWindowSchema } from "../../../core/utils/pagination";
+import { listWindowSchema, paginationSchema } from "../../../core/utils/pagination";
 
 export const ExpenseCategoriesController = {
     async create(req: Request, res: Response, next: NextFunction) {
@@ -16,6 +16,11 @@ export const ExpenseCategoriesController = {
     async findAll(req: Request, res: Response, next: NextFunction) {
         try {
             const includeInactive = req.query.includeInactive === "true";
+            if (req.query.page !== undefined) {
+                const { page, pageSize } = paginationSchema.parse(req.query);
+                const result = await ExpenseCategoriesService.findPaginated(includeInactive, page, pageSize, req.user!);
+                return ApiResponse.success(res, result);
+            }
             const categories = await ExpenseCategoriesService.findAll(includeInactive, req.user!, listWindowSchema.parse(req.query));
             return ApiResponse.success(res, categories);
         } catch (err) {

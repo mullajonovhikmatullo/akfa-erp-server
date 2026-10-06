@@ -17,6 +17,11 @@ exports.ExpenseCategoriesController = {
     async findAll(req, res, next) {
         try {
             const includeInactive = req.query.includeInactive === "true";
+            if (req.query.page !== undefined) {
+                const { page, pageSize } = pagination_1.paginationSchema.parse(req.query);
+                const result = await expense_categories_service_1.ExpenseCategoriesService.findPaginated(includeInactive, page, pageSize, req.user);
+                return ApiResponse_1.ApiResponse.success(res, result);
+            }
             const categories = await expense_categories_service_1.ExpenseCategoriesService.findAll(includeInactive, req.user, pagination_1.listWindowSchema.parse(req.query));
             return ApiResponse_1.ApiResponse.success(res, categories);
         }

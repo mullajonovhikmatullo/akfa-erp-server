@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ExpensesController = void 0;
 const ApiResponse_1 = require("../../../core/response/ApiResponse");
+const pagination_1 = require("../../../core/utils/pagination");
 const expense_validation_1 = require("../validations/expense.validation");
 const expenses_service_1 = require("../services/expenses.service");
 exports.ExpensesController = {
@@ -17,6 +18,11 @@ exports.ExpensesController = {
     async findAll(req, res, next) {
         try {
             const query = expense_validation_1.expenseQuerySchema.parse(req.query);
+            if (req.query.page !== undefined) {
+                const { page, pageSize } = pagination_1.paginationSchema.parse(req.query);
+                const result = await expenses_service_1.ExpensesService.findPaginated(query, page, pageSize, req.user);
+                return ApiResponse_1.ApiResponse.success(res, result);
+            }
             const expenses = await expenses_service_1.ExpensesService.findAll(query, req.user);
             return ApiResponse_1.ApiResponse.success(res, expenses);
         }

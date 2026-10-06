@@ -23,6 +23,15 @@ export const ExpenseCategoriesService = {
         return ExpenseCategoriesRepository.findAll(storeId, includeInactive, window);
     },
 
+    async findPaginated(includeInactive: boolean, page: number, pageSize: number, user: JwtPayload) {
+        const storeId = requireStoreId(user);
+        const [items, total] = await Promise.all([
+            ExpenseCategoriesRepository.findAll(storeId, includeInactive, { limit: pageSize, offset: (page - 1) * pageSize }),
+            ExpenseCategoriesRepository.count(storeId, includeInactive),
+        ]);
+        return { items, total };
+    },
+
     async findById(id: string, user: JwtPayload) {
         const storeId = requireStoreId(user);
         const category = await ExpenseCategoriesRepository.findById(id, storeId);

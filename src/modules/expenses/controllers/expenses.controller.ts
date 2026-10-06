@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { ApiResponse } from "../../../core/response/ApiResponse";
+import { paginationSchema } from "../../../core/utils/pagination";
 import {
     expenseCategorySummaryQuerySchema,
     expenseQuerySchema,
@@ -19,6 +20,11 @@ export const ExpensesController = {
     async findAll(req: Request, res: Response, next: NextFunction) {
         try {
             const query = expenseQuerySchema.parse(req.query);
+            if (req.query.page !== undefined) {
+                const { page, pageSize } = paginationSchema.parse(req.query);
+                const result = await ExpensesService.findPaginated(query, page, pageSize, req.user!);
+                return ApiResponse.success(res, result);
+            }
             const expenses = await ExpensesService.findAll(query, req.user!);
             return ApiResponse.success(res, expenses);
         } catch (error) {

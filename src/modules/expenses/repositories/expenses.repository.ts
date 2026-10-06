@@ -26,9 +26,24 @@ type ExpenseFilters = {
     from?: string;
     to?: string;
     limit: number;
+    offset?: number;
 };
 
-type ExpenseCategorySummaryFilters = Omit<ExpenseFilters, "limit">;
+type ExpenseCategorySummaryFilters = Omit<ExpenseFilters, "limit" | "offset">;
+
+function expenseWhere(filters: ExpenseCategorySummaryFilters): Prisma.ExpenseWhereInput {
+    return {
+        storeId: filters.storeId,
+        ...(filters.branchId && { branchId: filters.branchId }),
+        ...(filters.categoryId && { categoryId: filters.categoryId }),
+        ...((filters.from || filters.to) && {
+            expenseDate: {
+                ...(filters.from && { gte: new Date(filters.from) }),
+                ...(filters.to && { lte: new Date(filters.to) }),
+            },
+        }),
+    };
+}
 
 export const ExpensesRepository = {
     create(
@@ -58,21 +73,16 @@ export const ExpensesRepository = {
 
     findAll(filters: ExpenseFilters) {
         return prisma.expense.findMany({
-            where: {
-                storeId: filters.storeId,
-                ...(filters.branchId && { branchId: filters.branchId }),
-                ...(filters.categoryId && { categoryId: filters.categoryId }),
-                ...((filters.from || filters.to) && {
-                    expenseDate: {
-                        ...(filters.from && { gte: new Date(filters.from) }),
-                        ...(filters.to && { lte: new Date(filters.to) }),
-                    },
-                }),
-            },
+            where: expenseWhere(filters),
             select: expenseSelect,
-            orderBy: { expenseDate: "desc" },
+            orderBy: [{ expenseDate: "desc" }, { id: "asc" }],
             take: filters.limit,
+            skip: filters.offset ?? 0,
         });
+    },
+
+    count(filters: ExpenseCategorySummaryFilters) {
+        return prisma.expense.count({ where: expenseWhere(filters) });
     },
 
     categorySummary(filters: ExpenseCategorySummaryFilters) {

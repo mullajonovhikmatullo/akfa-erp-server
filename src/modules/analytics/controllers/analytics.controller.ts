@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import { paginationSchema } from "../../../core/utils/pagination";
 import { analyticsQuerySchema } from "../validations/analytics.validation";
 import { AnalyticsService } from "../services/analytics.service";
 
@@ -27,6 +28,17 @@ export const AnalyticsController = {
         try {
             const query = analyticsQuerySchema.parse(req.query);
             const data = await AnalyticsService.inventoryReport(query, req.user!);
+            res.json({ success: true, data });
+        } catch (err) {
+            next(err);
+        }
+    },
+
+    async lowStockPage(req: Request, res: Response, next: NextFunction) {
+        try {
+            const query = analyticsQuerySchema.parse(req.query);
+            const { page, pageSize } = paginationSchema.parse(req.query);
+            const data = await AnalyticsService.lowStockPage(query, page, pageSize, req.user!);
             res.json({ success: true, data });
         } catch (err) {
             next(err);

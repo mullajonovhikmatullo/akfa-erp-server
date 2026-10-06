@@ -16,6 +16,10 @@ const categorySelect = {
     _count: { select: { expenses: true } },
 } as const;
 
+function categoryWhere(storeId: string, includeInactive: boolean): Prisma.ExpenseCategoryWhereInput {
+    return { storeId, ...(includeInactive ? {} : { isActive: true }) };
+}
+
 export const ExpenseCategoriesRepository = {
     create(data: CreateExpenseCategoryDto & { storeId: string }, client: DbClient = prisma) {
         return client.expenseCategory.create({
@@ -26,12 +30,16 @@ export const ExpenseCategoriesRepository = {
 
     findAll(storeId: string, includeInactive = false, window: ListWindow = listWindowSchema.parse({})) {
         return prisma.expenseCategory.findMany({
-            where: { storeId, ...(includeInactive ? {} : { isActive: true }) },
+            where: categoryWhere(storeId, includeInactive),
             select: categorySelect,
             orderBy: [{ name: "asc" }, { id: "asc" }],
             take: window.limit,
             skip: window.offset,
         });
+    },
+
+    count(storeId: string, includeInactive = false) {
+        return prisma.expenseCategory.count({ where: categoryWhere(storeId, includeInactive) });
     },
 
     findById(id: string, storeId: string, client: DbClient = prisma) {

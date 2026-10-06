@@ -17,6 +17,19 @@ const expenseSelect = {
     branch: { select: { id: true, name: true } },
     createdBy: { select: { id: true, fullName: true } },
 };
+function expenseWhere(filters) {
+    return {
+        storeId: filters.storeId,
+        ...(filters.branchId && { branchId: filters.branchId }),
+        ...(filters.categoryId && { categoryId: filters.categoryId }),
+        ...((filters.from || filters.to) && {
+            expenseDate: {
+                ...(filters.from && { gte: new Date(filters.from) }),
+                ...(filters.to && { lte: new Date(filters.to) }),
+            },
+        }),
+    };
+}
 exports.ExpensesRepository = {
     create(data, client = prisma_1.prisma) {
         return client.expense.create({
@@ -37,21 +50,15 @@ exports.ExpensesRepository = {
     },
     findAll(filters) {
         return prisma_1.prisma.expense.findMany({
-            where: {
-                storeId: filters.storeId,
-                ...(filters.branchId && { branchId: filters.branchId }),
-                ...(filters.categoryId && { categoryId: filters.categoryId }),
-                ...((filters.from || filters.to) && {
-                    expenseDate: {
-                        ...(filters.from && { gte: new Date(filters.from) }),
-                        ...(filters.to && { lte: new Date(filters.to) }),
-                    },
-                }),
-            },
+            where: expenseWhere(filters),
             select: expenseSelect,
-            orderBy: { expenseDate: "desc" },
+            orderBy: [{ expenseDate: "desc" }, { id: "asc" }],
             take: filters.limit,
+            skip: filters.offset ?? 0,
         });
+    },
+    count(filters) {
+        return prisma_1.prisma.expense.count({ where: expenseWhere(filters) });
     },
     categorySummary(filters) {
         const branchCond = filters.branchId

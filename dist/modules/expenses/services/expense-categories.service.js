@@ -21,6 +21,14 @@ exports.ExpenseCategoriesService = {
         const storeId = (0, branch_access_1.requireStoreId)(user);
         return expense_categories_repository_1.ExpenseCategoriesRepository.findAll(storeId, includeInactive, window);
     },
+    async findPaginated(includeInactive, page, pageSize, user) {
+        const storeId = (0, branch_access_1.requireStoreId)(user);
+        const [items, total] = await Promise.all([
+            expense_categories_repository_1.ExpenseCategoriesRepository.findAll(storeId, includeInactive, { limit: pageSize, offset: (page - 1) * pageSize }),
+            expense_categories_repository_1.ExpenseCategoriesRepository.count(storeId, includeInactive),
+        ]);
+        return { items, total };
+    },
     async findById(id, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
         const category = await expense_categories_repository_1.ExpenseCategoriesRepository.findById(id, storeId);

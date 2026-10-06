@@ -13,6 +13,9 @@ const categorySelect = {
     updatedAt: true,
     _count: { select: { expenses: true } },
 };
+function categoryWhere(storeId, includeInactive) {
+    return { storeId, ...(includeInactive ? {} : { isActive: true }) };
+}
 exports.ExpenseCategoriesRepository = {
     create(data, client = prisma_1.prisma) {
         return client.expenseCategory.create({
@@ -22,12 +25,15 @@ exports.ExpenseCategoriesRepository = {
     },
     findAll(storeId, includeInactive = false, window = pagination_1.listWindowSchema.parse({})) {
         return prisma_1.prisma.expenseCategory.findMany({
-            where: { storeId, ...(includeInactive ? {} : { isActive: true }) },
+            where: categoryWhere(storeId, includeInactive),
             select: categorySelect,
             orderBy: [{ name: "asc" }, { id: "asc" }],
             take: window.limit,
             skip: window.offset,
         });
+    },
+    count(storeId, includeInactive = false) {
+        return prisma_1.prisma.expenseCategory.count({ where: categoryWhere(storeId, includeInactive) });
     },
     findById(id, storeId, client = prisma_1.prisma) {
         return client.expenseCategory.findFirst({

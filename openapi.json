@@ -4381,6 +4381,53 @@
         }
       }
     },
+    "/analytics/inventory/low-stock": {
+      "get": {
+        "summary": "Paginated low-stock items (at or below the product's threshold), most critical first",
+        "tags": [
+          "Analytics"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ items, total }"
+          }
+        }
+      }
+    },
     "/analytics/expenses": {
       "get": {
         "summary": "Expense breakdown — totals by category and over time",
@@ -5058,6 +5105,23 @@
             "description": "Include inactive categories (STORE_OWNER use)"
           },
           {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "When sent, the response is paginated as { items, total }"
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "maximum": 100
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -5278,6 +5342,23 @@
             "schema": {
               "type": "integer",
               "default": 100
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "When sent, the response is paginated as { items, total }"
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "maximum": 100
             }
           }
         ],

@@ -8,6 +8,76 @@
       }
     },
     "schemas": {
+      "GoogleSignInConfig": {
+        "type": "object",
+        "required": [
+          "clientId"
+        ],
+        "properties": {
+          "clientId": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "GoogleLoginPayload": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "credential"
+        ],
+        "properties": {
+          "credential": {
+            "type": "string",
+            "minLength": 100,
+            "maxLength": 8192
+          },
+          "account": {
+            "$ref": "#/components/schemas/PlatformLoginPayload"
+          }
+        }
+      },
+      "GoogleLoginResult": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "session"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "authenticated"
+                ]
+              },
+              "session": {
+                "$ref": "#/components/schemas/LoginResponse"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "email"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "link_required"
+                ]
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              }
+            }
+          }
+        ]
+      },
       "StoreStatus": {
         "type": "string",
         "enum": [
@@ -1798,7 +1868,26 @@
           },
           "costPriceUsd": {
             "type": "number",
-            "example": 14.5
+            "example": 14.5,
+            "description": "Send for a USD-priced product; its sale prices must then be in USD too"
+          },
+          "wholesalePriceUzs": {
+            "type": "number",
+            "example": 210000,
+            "description": "Optional, sent together with retailPriceUzs; updates the product's prices"
+          },
+          "retailPriceUzs": {
+            "type": "number",
+            "example": 240000,
+            "description": "Optional, sent together with wholesalePriceUzs; updates the product's prices"
+          },
+          "wholesalePriceUsd": {
+            "type": "number",
+            "example": 16.5
+          },
+          "retailPriceUsd": {
+            "type": "number",
+            "example": 19
           },
           "supplierNote": {
             "type": "string",
@@ -2511,6 +2600,104 @@
     }
   ],
   "paths": {
+    "/auth/google/config": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Get the public Google sign-in client configuration",
+        "responses": {
+          "200": {
+            "description": "Google client ID, or null when sign-in is unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/GoogleSignInConfig"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/google": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Sign in using a Google ID token or link an existing account with its password",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleLoginPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated session or a request to confirm the existing Mavion account",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "success",
+                    "data"
+                  ],
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/GoogleLoginResult"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid Google token or account credentials"
+          },
+          "403": {
+            "description": "Account or store access is restricted"
+          },
+          "409": {
+            "description": "Account is already linked or changed concurrently"
+          },
+          "422": {
+            "description": "Invalid request payload"
+          },
+          "429": {
+            "description": "Sign-in rate limit exceeded"
+          },
+          "503": {
+            "description": "Google sign-in is unavailable"
+          }
+        }
+      }
+    },
     "/auth/login": {
       "post": {
         "tags": [
@@ -4617,6 +4804,106 @@
         }
       }
     },
+    "/customers/{id}/summary": {
+      "get": {
+        "summary": "Purchase, debt and payment totals for one customer, plus the last 12 months",
+        "tags": [
+          "Customers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Store managers only; branch staff are always limited to their branch"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Customer summary; balance is the branch share when a branch is in scope"
+          },
+          "403": {
+            "description": "Customer is not linked to the caller's branch"
+          },
+          "404": {
+            "description": "Customer not found"
+          }
+        }
+      }
+    },
+    "/customers/{id}/products": {
+      "get": {
+        "summary": "Products this customer bought, grouped by product (paginated)",
+        "tags": [
+          "Customers"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ items, total }, ordered by total spent"
+          }
+        }
+      }
+    },
     "/customers/{id}": {
       "get": {
         "summary": "Get customer detail with recent sales",
@@ -5356,6 +5643,77 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/inventory/stock": {
+      "get": {
+        "summary": "Paginated stock levels grouped by product (branch-scoped for branch staff)",
+        "tags": [
+          "Inventory"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          },
+          {
+            "in": "query",
+            "name": "branchId",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Store managers only — omit to sum every branch"
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "description": "Matches product name or SKU"
+          },
+          {
+            "in": "query",
+            "name": "quantity",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "out",
+                "low",
+                "available"
+              ],
+              "default": "all"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "{ items, total, summary: { productCount, totals: { PIECE, KG } } }; summary ignores search and quantity filters"
           }
         }
       }

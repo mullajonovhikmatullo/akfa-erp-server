@@ -44,6 +44,10 @@ const batchSelect = {
     remainingQty: true,
     costPriceUzs: true,
     costPriceUsd: true,
+    retailPriceUzs: true,
+    wholesalePriceUzs: true,
+    retailPriceUsd: true,
+    wholesalePriceUsd: true,
     supplierNote: true,
     receivedAt: true,
     createdAt: true,
@@ -334,6 +338,10 @@ export const InventoryRepository = {
             remainingQty: number;
             costPriceUzs: number;
             costPriceUsd?: number;
+            retailPriceUzs?: number;
+            wholesalePriceUzs?: number;
+            retailPriceUsd?: number;
+            wholesalePriceUsd?: number;
             supplierNote?: string;
             createdById: string;
             receiptId?: string;

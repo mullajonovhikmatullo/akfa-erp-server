@@ -48,6 +48,41 @@ async function assertStockInTargets(items, storeId, tx) {
         }
     }
 }
+function batchSalePrices(dto) {
+    return {
+        retailPriceUzs: dto.retailPriceUzs,
+        wholesalePriceUzs: dto.wholesalePriceUzs,
+        retailPriceUsd: dto.retailPriceUsd,
+        wholesalePriceUsd: dto.wholesalePriceUsd,
+    };
+}
+// A stock-in that carries sale prices sets the product's current prices,
+// so each new lot can be bought and sold at its own price.
+async function applyProductPrices(items, storeId, tx) {
+    const updates = new Map();
+    for (const { dto } of items) {
+        if (dto.costPriceUsd !== undefined && dto.retailPriceUsd !== undefined && dto.wholesalePriceUsd !== undefined) {
+            updates.set(dto.productId, {
+                costPriceUzs: 0,
+                retailPriceUzs: 0,
+                wholesalePriceUzs: 0,
+                costPriceUsd: dto.costPriceUsd,
+                retailPriceUsd: dto.retailPriceUsd,
+                wholesalePriceUsd: dto.wholesalePriceUsd,
+            });
+        }
+        else if (dto.costPriceUsd === undefined && dto.retailPriceUzs !== undefined && dto.wholesalePriceUzs !== undefined) {
+            updates.set(dto.productId, {
+                costPriceUzs: dto.costPriceUzs,
+                retailPriceUzs: dto.retailPriceUzs,
+                wholesalePriceUzs: dto.wholesalePriceUzs,
+            });
+        }
+    }
+    for (const [productId, data] of updates) {
+        await tx.product.updateMany({ where: { id: productId, storeId }, data });
+    }
+}
 async function createStockInEntry(item, createdById, tx) {
     const batch = await inventory_repository_1.InventoryRepository.createBatch({
         branchId: item.branchId,
@@ -57,6 +92,7 @@ async function createStockInEntry(item, createdById, tx) {
         remainingQty: item.dto.quantity,
         costPriceUzs: item.dto.costPriceUzs,
         costPriceUsd: item.dto.costPriceUsd,
+        ...batchSalePrices(item.dto),
         supplierNote: item.dto.supplierNote,
         createdById,
     }, tx);
@@ -92,6 +128,7 @@ exports.InventoryService = {
             await assertStockInTargets([item], storeId, tx);
             await inventory_repository_1.InventoryRepository.lockStock(storeId, [{ branchId, productId: dto.productId }], tx);
             const batch = await createStockInEntry(item, user.id, tx);
+            await applyProductPrices([item], storeId, tx);
             await (0, idempotency_service_1.completeIdempotency)(tx, claim, [batch.id]);
             return batch;
         }, prisma_1.transactionOptions);
@@ -148,6 +185,7 @@ exports.InventoryService = {
                     remainingQty: item.dto.quantity,
                     costPriceUzs: item.dto.costPriceUzs,
                     costPriceUsd: item.dto.costPriceUsd,
+                    ...batchSalePrices(item.dto),
                     supplierNote: item.dto.supplierNote,
                     createdById: user.id,
                 })),
@@ -178,6 +216,7 @@ exports.InventoryService = {
                 laterQuantityByKey.set(key, Number((laterQuantity + item.dto.quantity).toFixed(4)));
             }
             await tx.stockMovement.createMany({ data: movements });
+            await applyProductPrices(items, storeId, tx);
             const batches = await inventory_repository_1.InventoryRepository.findBatchesByIds(batchIds, storeId, tx);
             const batchById = new Map(batches.map((batch) => [batch.id, batch]));
             await (0, idempotency_service_1.completeIdempotency)(tx, claim, batchIds);

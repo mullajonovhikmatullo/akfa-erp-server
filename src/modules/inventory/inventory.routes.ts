@@ -35,6 +35,21 @@ router.use(authMiddleware);
  *         costPriceUsd:
  *           type: number
  *           example: 14.50
+ *           description: Send for a USD-priced product; its sale prices must then be in USD too
+ *         wholesalePriceUzs:
+ *           type: number
+ *           example: 210000
+ *           description: Optional, sent together with retailPriceUzs; updates the product's prices
+ *         retailPriceUzs:
+ *           type: number
+ *           example: 240000
+ *           description: Optional, sent together with wholesalePriceUzs; updates the product's prices
+ *         wholesalePriceUsd:
+ *           type: number
+ *           example: 16.50
+ *         retailPriceUsd:
+ *           type: number
+ *           example: 19.00
  *         supplierNote:
  *           type: string
  *           example: "Delivery #2341 from Tashkent warehouse"

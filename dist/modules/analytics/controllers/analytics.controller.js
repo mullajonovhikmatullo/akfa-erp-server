@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AnalyticsController = void 0;
+const pagination_1 = require("../../../core/utils/pagination");
 const analytics_validation_1 = require("../validations/analytics.validation");
 const analytics_service_1 = require("../services/analytics.service");
 exports.AnalyticsController = {
@@ -28,6 +29,17 @@ exports.AnalyticsController = {
         try {
             const query = analytics_validation_1.analyticsQuerySchema.parse(req.query);
             const data = await analytics_service_1.AnalyticsService.inventoryReport(query, req.user);
+            res.json({ success: true, data });
+        }
+        catch (err) {
+            next(err);
+        }
+    },
+    async lowStockPage(req, res, next) {
+        try {
+            const query = analytics_validation_1.analyticsQuerySchema.parse(req.query);
+            const { page, pageSize } = pagination_1.paginationSchema.parse(req.query);
+            const data = await analytics_service_1.AnalyticsService.lowStockPage(query, page, pageSize, req.user);
             res.json({ success: true, data });
         }
         catch (err) {

@@ -110,6 +110,30 @@ router.get("/inventory", AnalyticsController.inventoryReport);
 
 /**
  * @swagger
+ * /analytics/inventory/low-stock:
+ *   get:
+ *     summary: Paginated low-stock items (at or below the product's threshold), most critical first
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: branchId
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer, minimum: 1, default: 1 }
+ *       - in: query
+ *         name: pageSize
+ *         schema: { type: integer, minimum: 1, maximum: 100, default: 10 }
+ *     responses:
+ *       200:
+ *         description: "{ items, total }"
+ */
+router.get("/inventory/low-stock", AnalyticsController.lowStockPage);
+
+/**
+ * @swagger
  * /analytics/expenses:
  *   get:
  *     summary: Expense breakdown — totals by category and over time

@@ -18,6 +18,61 @@ function parseDateParam(value: string, boundary: "start" | "end"): Date {
         : new Date(year, month - 1, day, 23, 59, 59, 999);
 }
 
+// Active products at or below their own low-stock threshold, per branch.
+function lowStockFromSql(storeId: string, branchId: string | undefined) {
+    return Prisma.sql`
+        FROM "Inventory" inv
+        JOIN "Product" p ON p.id = inv."productId"
+        JOIN "Branch" b ON b.id = inv."branchId"
+        WHERE inv."storeId" = ${storeId}
+          AND p."isActive" = true
+          AND p."lowStockThreshold" IS NOT NULL
+          AND inv.quantity <= p."lowStockThreshold"
+          ${branchId ? Prisma.sql`AND inv."branchId" = ${branchId}` : Prisma.empty}
+    `;
+}
+
+type LowStockRow = {
+    product_id: string;
+    product_name: string;
+    sku: string | null;
+    unit: string;
+    threshold: string;
+    current_stock: string;
+    branch_id: string;
+    branch_name: string;
+};
+
+function lowStockRows(storeId: string, branchId: string | undefined, limit: number, offset: number) {
+    return prisma.$queryRaw<LowStockRow[]>`
+        SELECT
+            p.id   AS product_id,
+            p.name AS product_name,
+            p.sku,
+            p.unit::text,
+            p."lowStockThreshold"::text AS threshold,
+            inv.quantity::text          AS current_stock,
+            b.id   AS branch_id,
+            b.name AS branch_name
+        ${lowStockFromSql(storeId, branchId)}
+        ORDER BY (inv.quantity / NULLIF(p."lowStockThreshold", 0)) ASC NULLS LAST, p.name ASC, inv.id ASC
+        LIMIT ${limit} OFFSET ${offset}
+    `;
+}
+
+function presentLowStock(r: LowStockRow) {
+    return {
+        productId: r.product_id,
+        name: r.product_name,
+        sku: r.sku,
+        unit: r.unit,
+        currentStock: Number(r.current_stock),
+        threshold: Number(r.threshold),
+        branchId: r.branch_id,
+        branchName: r.branch_name,
+    };
+}
+
 // Customer.balance is store-wide; a branch view must use the branch's share of it.
 async function customerDebtSummary(storeId: string, branchId: string | undefined, activeOnly: boolean) {
     if (branchId) return CustomersRepository.branchDebtSummary(storeId, branchId, activeOnly);
@@ -306,12 +361,21 @@ export const AnalyticsService = {
 
     // ─── Inventory Report ─────────────────────────────────────────────────────
 
+    async lowStockPage(query: AnalyticsQuery, page: number, pageSize: number, user: JwtPayload) {
+        const { storeId, branchId } = branchScope(user, query.branchId);
+        const [rows, countRows] = await Promise.all([
+            lowStockRows(storeId, branchId, pageSize, (page - 1) * pageSize),
+            prisma.$queryRaw<{ total: bigint }[]>`
+                SELECT COUNT(*)::bigint AS total
+                ${lowStockFromSql(storeId, branchId)}
+            `,
+        ]);
+        return { items: rows.map(presentLowStock), total: Number(countRows[0]?.total ?? 0) };
+    },
+
     async inventoryReport(query: AnalyticsQuery, user: JwtPayload) {
         const { storeId, branchId } = branchScope(user, query.branchId);
         const { start, end } = resolveRange(query.from, query.to);
-        const lowStockThresholdSql = Prisma.sql`p."lowStockThreshold"`;
-        const lowStockThresholdRequiredSql = Prisma.sql`AND p."lowStockThreshold" IS NOT NULL`;
-
         const [stockByBranch, lowStock, movementSummary] = await Promise.all([
             prisma.$queryRaw<{
                 branch_id: string;
@@ -348,36 +412,7 @@ export const AnalyticsService = {
                 ORDER BY SUM(inv.quantity * COALESCE(batch_cost.unit_cost, p."costPriceUzs", 0)) DESC
             `,
 
-            prisma.$queryRaw<{
-                product_id: string;
-                product_name: string;
-                sku: string | null;
-                unit: string;
-                threshold: string;
-                current_stock: string;
-                branch_id: string;
-                branch_name: string;
-            }[]>`
-                SELECT
-                    p.id   AS product_id,
-                    p.name AS product_name,
-                    p.sku,
-                    p.unit::text,
-                    ${lowStockThresholdSql}::text AS threshold,
-                    inv.quantity::text          AS current_stock,
-                    b.id   AS branch_id,
-                    b.name AS branch_name
-                FROM "Inventory" inv
-                JOIN "Product" p ON p.id = inv."productId"
-                JOIN "Branch" b ON b.id = inv."branchId"
-                WHERE inv."storeId" = ${storeId}
-                  AND p."isActive" = true
-                  ${lowStockThresholdRequiredSql}
-                  AND inv.quantity <= ${lowStockThresholdSql}
-                  ${branchId ? Prisma.sql`AND inv."branchId" = ${branchId}` : Prisma.empty}
-                ORDER BY (inv.quantity / NULLIF(${lowStockThresholdSql}, 0)) ASC NULLS LAST
-                LIMIT 50
-            `,
+            lowStockRows(storeId, branchId, 50, 0),
 
             prisma.stockMovement.groupBy({
                 by: ["type"],
@@ -400,16 +435,7 @@ export const AnalyticsService = {
                 stockValueUzs: Number(r.stock_value_uzs),
                 totalQuantity: Number(r.total_quantity),
             })),
-            lowStock: lowStock.map((r) => ({
-                productId: r.product_id,
-                name: r.product_name,
-                sku: r.sku,
-                unit: r.unit,
-                currentStock: Number(r.current_stock),
-                threshold: Number(r.threshold),
-                branchId: r.branch_id,
-                branchName: r.branch_name,
-            })),
+            lowStock: lowStock.map(presentLowStock),
             movementSummary: movementSummary.map((r) => ({
                 type: r.type,
                 totalQuantity: Number(r._sum.quantity ?? 0),

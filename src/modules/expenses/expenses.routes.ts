@@ -103,6 +103,17 @@ router.post(
  *         schema:
  *           type: boolean
  *         description: Include inactive categories (STORE_OWNER use)
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: When sent, the response is paginated as { items, total }
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *           maximum: 100
  *     responses:
  *       200:
  *         description: Category list with linked expense count
@@ -298,6 +309,17 @@ router.post("/", validate(createExpenseSchema), ExpensesController.create);
  *         schema:
  *           type: integer
  *           default: 100
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: When sent, the response is paginated as { items, total }
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *           maximum: 100
  *     responses:
  *       200:
  *         description: Expense list

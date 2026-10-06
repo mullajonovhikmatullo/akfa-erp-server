@@ -50,6 +50,16 @@ export const ExpensesService = {
         });
     },
 
+    async findPaginated(query: z.infer<typeof expenseQuerySchema>, page: number, pageSize: number, user: JwtPayload) {
+        const scope = branchScope(user, query.branchId);
+        const filters = { ...scope, categoryId: query.categoryId, from: query.from, to: query.to };
+        const [items, total] = await Promise.all([
+            ExpensesRepository.findAll({ ...filters, limit: pageSize, offset: (page - 1) * pageSize }),
+            ExpensesRepository.count(filters),
+        ]);
+        return { items, total };
+    },
+
     async categorySummary(
         query: z.infer<typeof expenseCategorySummaryQuerySchema>,
         user: JwtPayload

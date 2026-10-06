@@ -37,6 +37,15 @@ exports.ExpensesService = {
             limit: query.limit,
         });
     },
+    async findPaginated(query, page, pageSize, user) {
+        const scope = (0, branch_access_1.branchScope)(user, query.branchId);
+        const filters = { ...scope, categoryId: query.categoryId, from: query.from, to: query.to };
+        const [items, total] = await Promise.all([
+            expenses_repository_1.ExpensesRepository.findAll({ ...filters, limit: pageSize, offset: (page - 1) * pageSize }),
+            expenses_repository_1.ExpensesRepository.count(filters),
+        ]);
+        return { items, total };
+    },
     async categorySummary(query, user) {
         const scope = (0, branch_access_1.branchScope)(user, query.branchId);
         const rows = await expenses_repository_1.ExpensesRepository.categorySummary({

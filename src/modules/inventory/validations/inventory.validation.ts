@@ -7,6 +7,20 @@ const quantityField = z
     .positive("Quantity must be greater than 0")
     .multipleOf(0.0001, "Quantity supports up to 4 decimal places");
 
+const salePriceUzsField = z
+    .number()
+    .nonnegative("Price cannot be negative")
+    .multipleOf(0.01, "Price must have at most 2 decimal places")
+    .optional();
+
+const salePriceUsdField = z
+    .number()
+    .nonnegative("Price cannot be negative")
+    .multipleOf(0.0001, "Price supports up to 4 decimal places")
+    .optional();
+
+// Sale prices are optional; when sent they become the product's current prices.
+// costPriceUsd marks a USD-priced product, so its sale prices must be sent in USD.
 export const stockInSchema = z.object({
     branchId: z.string().uuid().optional(),
     productId: z.string().uuid(),
@@ -20,7 +34,52 @@ export const stockInSchema = z.object({
         .nonnegative("Cost price cannot be negative")
         .multipleOf(0.0001)
         .optional(),
+    retailPriceUzs: salePriceUzsField,
+    wholesalePriceUzs: salePriceUzsField,
+    retailPriceUsd: salePriceUsdField,
+    wholesalePriceUsd: salePriceUsdField,
     supplierNote: z.string().max(500).optional(),
+}).superRefine((d, ctx) => {
+    const usd = d.costPriceUsd !== undefined;
+    const [cost, wholesale, retail] = usd
+        ? [d.costPriceUsd!, d.wholesalePriceUsd, d.retailPriceUsd]
+        : [d.costPriceUzs, d.wholesalePriceUzs, d.retailPriceUzs];
+    const suffix = usd ? "Usd" : "Uzs";
+    const otherCurrencySent = usd
+        ? d.retailPriceUzs !== undefined || d.wholesalePriceUzs !== undefined
+        : d.retailPriceUsd !== undefined || d.wholesalePriceUsd !== undefined;
+
+    if (otherCurrencySent) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Sale prices must be in the same currency as the cost price (${suffix.toUpperCase()})`,
+            path: [`retailPrice${suffix}`],
+        });
+        return;
+    }
+    if ((wholesale === undefined) !== (retail === undefined)) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Retail and wholesale prices must be sent together",
+            path: [wholesale === undefined ? `wholesalePrice${suffix}` : `retailPrice${suffix}`],
+        });
+        return;
+    }
+    if (wholesale === undefined || retail === undefined) return;
+    if (wholesale > retail) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Wholesale price cannot exceed retail price",
+            path: [`wholesalePrice${suffix}`],
+        });
+    }
+    if (cost > wholesale) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Cost price cannot exceed wholesale price",
+            path: [`costPrice${suffix}`],
+        });
+    }
 });
 
 export const stockInBatchSchema = z

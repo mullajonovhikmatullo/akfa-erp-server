@@ -444,11 +444,12 @@ export const InventoryRepository = {
     },
 
     async findReceiptsPaginated(
-        filters: { storeId: string; branchId?: string; from?: string; to?: string },
+        filters: { storeId: string; branchId?: string; from?: string; to?: string; receiptId?: string },
         page: number,
         pageSize: number
     ) {
         const conditions: Prisma.Sql[] = [Prisma.sql`sb."storeId" = ${filters.storeId}`];
+        if (filters.receiptId) conditions.push(Prisma.sql`sb."receiptId" = ${filters.receiptId}`);
         if (filters.branchId) conditions.push(Prisma.sql`sb."branchId" = ${filters.branchId}`);
         if (filters.from) conditions.push(Prisma.sql`sb."receivedAt" >= ${new Date(filters.from)}`);
         if (filters.to) conditions.push(Prisma.sql`sb."receivedAt" <= ${new Date(filters.to)}`);

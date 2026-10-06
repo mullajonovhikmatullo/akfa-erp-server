@@ -194,6 +194,10 @@ exports.TransfersService = {
             limit: query.limit,
         });
     },
+    async findSummaryPage(query, page, pageSize, user) {
+        const scope = (0, branch_access_1.branchScope)(user, query.branchId);
+        return transfers_repository_1.TransfersRepository.findSummaryPage({ storeId: scope.storeId, branchId: scope.branchId, status: query.status, from: query.from, to: query.to }, page, pageSize);
+    },
     async findById(id, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
         const transfer = await transfers_repository_1.TransfersRepository.findById(id, storeId);

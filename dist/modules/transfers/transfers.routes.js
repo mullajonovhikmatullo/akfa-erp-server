@@ -109,6 +109,17 @@ router.post("/", (0, role_middleware_1.roleMiddleware)("STORE_OWNER", "STORE_ADM
  *           type: integer
  *           default: 50
  *           maximum: 200
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: When sent, returns light rows { items, total, pendingCount } without item lines (itemCount and totalCostUzs instead); use GET /transfers/{id} for the lines
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *           maximum: 100
  *     responses:
  *       200:
  *         description: Transfer list

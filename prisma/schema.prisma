@@ -490,6 +490,10 @@ model StockBatch {
   remainingQty Decimal  @db.Decimal(18, 4)
   costPriceUzs Decimal  @db.Decimal(18, 2)
   costPriceUsd Decimal? @db.Decimal(10, 4)
+  retailPriceUzs    Decimal? @db.Decimal(18, 2)
+  wholesalePriceUzs Decimal? @db.Decimal(18, 2)
+  retailPriceUsd    Decimal? @db.Decimal(10, 4)
+  wholesalePriceUsd Decimal? @db.Decimal(10, 4)
   supplierNote String?
   receivedAt   DateTime @default(now())
   createdById  String

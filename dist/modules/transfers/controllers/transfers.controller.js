@@ -4,6 +4,7 @@ exports.TransfersController = void 0;
 const transfer_validation_1 = require("../validations/transfer.validation");
 const transfers_service_1 = require("../services/transfers.service");
 const idempotency_service_1 = require("../../../core/services/idempotency.service");
+const pagination_1 = require("../../../core/utils/pagination");
 exports.TransfersController = {
     async create(req, res, next) {
         try {
@@ -35,6 +36,11 @@ exports.TransfersController = {
     async findAll(req, res, next) {
         try {
             const query = transfer_validation_1.transferQuerySchema.parse(req.query);
+            if (req.query.page !== undefined) {
+                const { page, pageSize } = pagination_1.paginationSchema.parse(req.query);
+                const result = await transfers_service_1.TransfersService.findSummaryPage(query, page, pageSize, req.user);
+                return res.json({ success: true, data: result });
+            }
             const transfers = await transfers_service_1.TransfersService.findAll(query, req.user);
             res.json({ success: true, data: transfers });
         }

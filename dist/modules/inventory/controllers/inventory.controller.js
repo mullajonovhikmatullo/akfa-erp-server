@@ -101,6 +101,16 @@ exports.InventoryController = {
             next(error);
         }
     },
+    async findReceipt(req, res, next) {
+        try {
+            const receiptId = zod_1.z.string().uuid().parse(req.params.receiptId);
+            const receipt = await inventory_service_1.InventoryService.findReceipt(receiptId, req.user);
+            return ApiResponse_1.ApiResponse.success(res, receipt);
+        }
+        catch (error) {
+            next(error);
+        }
+    },
     async findReceiptItems(req, res, next) {
         try {
             const receiptId = zod_1.z.string().uuid().parse(req.params.receiptId);

@@ -109,6 +109,16 @@ async function createStockInEntry(item, createdById, tx) {
     }, tx);
     return batch;
 }
+function presentReceipt(item) {
+    return {
+        id: item.id, receivedAt: item.receivedAt, productCount: item.productCount,
+        pieceQuantity: Number(item.pieceQuantity), kgQuantity: Number(item.kgQuantity),
+        totalCostUzs: Number(item.totalCostUzs), remainingValueUzs: Number(item.remainingValueUzs),
+        supplierNote: item.supplierNote,
+        branch: { id: item.branchId, name: item.branchName },
+        createdBy: { id: item.createdById, fullName: item.createdByName },
+    };
+}
 exports.InventoryService = {
     // ─── Stock In ─────────────────────────────────────────────────────────────
     async stockIn(dto, user, idempotencyKey) {
@@ -375,17 +385,14 @@ exports.InventoryService = {
     async findReceiptsPaginated(query, page, pageSize, user) {
         const scope = (0, branch_access_1.branchScope)(user, query.branchId);
         const result = await inventory_repository_1.InventoryRepository.findReceiptsPaginated({ ...scope, from: query.from, to: query.to }, page, pageSize);
-        return {
-            total: result.total,
-            items: result.items.map((item) => ({
-                id: item.id, receivedAt: item.receivedAt, productCount: item.productCount,
-                pieceQuantity: Number(item.pieceQuantity), kgQuantity: Number(item.kgQuantity),
-                totalCostUzs: Number(item.totalCostUzs), remainingValueUzs: Number(item.remainingValueUzs),
-                supplierNote: item.supplierNote,
-                branch: { id: item.branchId, name: item.branchName },
-                createdBy: { id: item.createdById, fullName: item.createdByName },
-            })),
-        };
+        return { total: result.total, items: result.items.map(presentReceipt) };
+    },
+    async findReceipt(receiptId, user) {
+        const result = await inventory_repository_1.InventoryRepository.findReceiptsPaginated({ ...(0, branch_access_1.branchScope)(user), receiptId }, 1, 1);
+        const receipt = result.items[0];
+        if (!receipt)
+            throw new AppError_1.AppError(404, "Receipt not found");
+        return presentReceipt(receipt);
     },
     async findReceiptItems(receiptId, page, pageSize, user) {
         return inventory_repository_1.InventoryRepository.findReceiptItems({ ...(0, branch_access_1.branchScope)(user), receiptId }, page, pageSize);

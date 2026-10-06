@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { transferQuerySchema } from "../validations/transfer.validation";
 import { TransfersService } from "../services/transfers.service";
 import { idempotencyKeySchema } from "../../../core/services/idempotency.service";
+import { paginationSchema } from "../../../core/utils/pagination";
 
 export const TransfersController = {
     async create(req: Request, res: Response, next: NextFunction) {
@@ -34,6 +35,11 @@ export const TransfersController = {
     async findAll(req: Request, res: Response, next: NextFunction) {
         try {
             const query = transferQuerySchema.parse(req.query);
+            if (req.query.page !== undefined) {
+                const { page, pageSize } = paginationSchema.parse(req.query);
+                const result = await TransfersService.findSummaryPage(query, page, pageSize, req.user!);
+                return res.json({ success: true, data: result });
+            }
             const transfers = await TransfersService.findAll(query, req.user!);
             res.json({ success: true, data: transfers });
         } catch (err) {

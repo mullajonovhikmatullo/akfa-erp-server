@@ -242,6 +242,15 @@ export const TransfersService = {
         });
     },
 
+    async findSummaryPage(query: z.infer<typeof transferQuerySchema>, page: number, pageSize: number, user: JwtPayload) {
+        const scope = branchScope(user, query.branchId);
+        return TransfersRepository.findSummaryPage(
+            { storeId: scope.storeId, branchId: scope.branchId, status: query.status, from: query.from, to: query.to },
+            page,
+            pageSize
+        );
+    },
+
     async findById(id: string, user: JwtPayload) {
         const storeId = requireStoreId(user);
         const transfer = await TransfersRepository.findById(id, storeId);

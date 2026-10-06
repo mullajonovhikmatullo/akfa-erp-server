@@ -27,6 +27,19 @@ const transferSelect = {
     items: { select: transferItemSelect },
 } as const;
 
+// List rows carry no item lines; the detail endpoint returns them.
+const transferSummarySelect = {
+    id: true,
+    status: true,
+    note: true,
+    completedAt: true,
+    createdAt: true,
+    fromBranch: { select: { id: true, name: true } },
+    toBranch: { select: { id: true, name: true } },
+    initiatedBy: { select: { id: true, fullName: true } },
+    _count: { select: { items: true } },
+} as const;
+
 type CreateTransferData = {
     storeId: string;
     fromBranchId: string;
@@ -49,6 +62,25 @@ type TransferFilters = {
     to?: string;
     limit: number;
 };
+
+function transferWhere(filters: Omit<TransferFilters, "limit">): Prisma.TransferWhereInput {
+    return {
+        storeId: filters.storeId,
+        ...(filters.branchId && {
+            OR: [
+                { fromBranchId: filters.branchId },
+                { toBranchId: filters.branchId },
+            ],
+        }),
+        ...(filters.status && { status: filters.status }),
+        ...((filters.from || filters.to) && {
+            createdAt: {
+                ...(filters.from && { gte: new Date(filters.from) }),
+                ...(filters.to && { lte: new Date(filters.to) }),
+            },
+        }),
+    };
+}
 
 export const TransfersRepository = {
     async claimPending(id: string, storeId: string, status: TransferStatus, tx: Tx): Promise<void> {
@@ -76,26 +108,40 @@ export const TransfersRepository = {
 
     findAll(filters: TransferFilters) {
         return prisma.transfer.findMany({
-            where: {
-                storeId: filters.storeId,
-                ...(filters.branchId && {
-                    OR: [
-                        { fromBranchId: filters.branchId },
-                        { toBranchId: filters.branchId },
-                    ],
-                }),
-                ...(filters.status && { status: filters.status }),
-                ...((filters.from || filters.to) && {
-                    createdAt: {
-                        ...(filters.from && { gte: new Date(filters.from) }),
-                        ...(filters.to && { lte: new Date(filters.to) }),
-                    },
-                }),
-            },
+            where: transferWhere(filters),
             select: transferSelect,
             orderBy: { createdAt: "desc" },
             take: filters.limit,
         });
+    },
+
+    async findSummaryPage(filters: Omit<TransferFilters, "limit">, page: number, pageSize: number) {
+        const where = transferWhere(filters);
+        const [rows, total, pendingCount] = await Promise.all([
+            prisma.transfer.findMany({
+                where,
+                select: transferSummarySelect,
+                orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+                take: pageSize,
+                skip: (page - 1) * pageSize,
+            }),
+            prisma.transfer.count({ where }),
+            prisma.transfer.count({ where: transferWhere({ ...filters, status: "PENDING" }) }),
+        ]);
+        const sums = rows.length
+            ? await prisma.transferItem.groupBy({
+                by: ["transferId"],
+                where: { storeId: filters.storeId, transferId: { in: rows.map((row) => row.id) } },
+                _sum: { totalCostUzs: true },
+            })
+            : [];
+        const totalById = new Map(sums.map((sum) => [sum.transferId, Number(sum._sum.totalCostUzs ?? 0)]));
+        const items = rows.map(({ _count, ...row }) => ({
+            ...row,
+            itemCount: _count.items,
+            totalCostUzs: totalById.get(row.id) ?? 0,
+        }));
+        return { items, total, pendingCount };
     },
 
     findById(id: string, storeId: string, tx?: Tx) {

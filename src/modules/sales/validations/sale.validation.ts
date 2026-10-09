@@ -10,6 +10,12 @@ const saleItemSchema = z.object({
         .multipleOf(0.0001, "Quantity supports up to 4 decimal places"),
 });
 
+// Sales and debt payments are settled in UZS only; USD prices are converted with usdToUzsRate.
+const uzsOnlyPaymentMethod = z
+    .nativeEnum(PaymentMethod)
+    .refine((m) => m !== PaymentMethod.CASH_USD, { message: "Payments are accepted in UZS only" });
+const zeroUsdAmount = z.literal(0, { message: "Payments are accepted in UZS only" }).default(0);
+
 export const setDebtDeadlineSchema = z.object({
     debtDueDate: z.string().datetime().nullable(),
 });
@@ -21,16 +27,12 @@ export const createSaleSchema = z
         saleType: z.nativeEnum(SaleType),
         items: z.array(saleItemSchema).min(1, "Sale must have at least one item").max(200),
         paidAmountUzs: z.number().nonnegative().default(0),
-        paidAmountUsd: z.number().nonnegative().default(0),
+        paidAmountUsd: zeroUsdAmount,
         usdToUzsRate: z.number().positive("Exchange rate must be positive").optional(),
-        paymentMethod: z.nativeEnum(PaymentMethod),
+        paymentMethod: uzsOnlyPaymentMethod,
         debtDueDate: z.string().datetime().optional(),
         note: z.string().max(500).optional(),
     })
-    .refine(
-        (d) => d.paidAmountUsd === 0 || d.usdToUzsRate !== undefined,
-        { message: "usdToUzsRate is required when paying in USD", path: ["usdToUzsRate"] }
-    )
     .refine(
         (d) => {
             const uniqueProducts = new Set(d.items.map((i) => i.productId));
@@ -41,20 +43,11 @@ export const createSaleSchema = z
 
 export const addPaymentSchema = z
     .object({
-        amountUzs: z.number().nonnegative().default(0),
-        amountUsd: z.number().nonnegative().default(0),
-        usdToUzsRate: z.number().positive("Exchange rate must be positive").optional(),
-        paymentMethod: z.nativeEnum(PaymentMethod),
+        amountUzs: z.number().positive("Payment must be greater than 0"),
+        amountUsd: zeroUsdAmount,
+        paymentMethod: uzsOnlyPaymentMethod,
         note: z.string().max(500).optional(),
-    })
-    .refine(
-        (d) => d.amountUzs > 0 || d.amountUsd > 0,
-        { message: "Payment must include at least one non-zero amount" }
-    )
-    .refine(
-        (d) => d.amountUsd === 0 || d.usdToUzsRate !== undefined,
-        { message: "usdToUzsRate is required when paying in USD", path: ["usdToUzsRate"] }
-    );
+    });
 
 export const saleQuerySchema = z.object({
     branchId: z.string().uuid().optional(),

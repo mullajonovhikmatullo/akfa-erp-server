@@ -10,6 +10,11 @@ const inventory_service_1 = require("../../inventory/services/inventory.service"
 const customers_repository_1 = require("../../customers/repositories/customers.repository");
 const sales_repository_1 = require("../repositories/sales.repository");
 const idempotency_service_1 = require("../../../core/services/idempotency.service");
+// Sale amounts are whole so'm: the POS takes cash in whole so'm, so a fractional
+// total would leave an unpayable remainder as customer debt.
+function roundUzs(amount) {
+    return Math.round(amount);
+}
 function resolveUnitPriceUzs(priceUzs, priceUsd, usdToUzsRate) {
     const uzs = Number(priceUzs ?? 0);
     const usd = priceUsd == null ? null : Number(priceUsd);
@@ -19,7 +24,7 @@ function resolveUnitPriceUzs(priceUzs, priceUsd, usdToUzsRate) {
     if (!usdToUzsRate) {
         throw new AppError_1.AppError(400, "usdToUzsRate is required when selling USD-priced products");
     }
-    return Number((usd * usdToUzsRate).toFixed(2));
+    return roundUzs(usd * usdToUzsRate);
 }
 exports.SalesService = {
     // ─── Create Sale ──────────────────────────────────────────────────────────
@@ -88,13 +93,12 @@ exports.SalesService = {
                     productId: item.productId,
                     quantity: item.quantity,
                     unitPrice,
-                    totalPrice: Number((item.quantity * unitPrice).toFixed(2)),
+                    totalPrice: roundUzs(item.quantity * unitPrice),
                 };
             });
             // ── Calculate totals ─────────────────────────────────────────────────
-            const totalAmountUzs = Number(saleItems.reduce((sum, item) => sum + item.totalPrice, 0).toFixed(2));
-            const paidUzsEquivalent = Number((dto.paidAmountUzs +
-                dto.paidAmountUsd * (dto.usdToUzsRate ?? 0)).toFixed(2));
+            const totalAmountUzs = saleItems.reduce((sum, item) => sum + item.totalPrice, 0);
+            const paidUzsEquivalent = Number(dto.paidAmountUzs.toFixed(2));
             const debtAmountUzs = Number(Math.max(0, totalAmountUzs - paidUzsEquivalent).toFixed(2));
             // ── Debt requires a customer ─────────────────────────────────────────
             if (debtAmountUzs > 0 && !dto.customerId) {
@@ -119,8 +123,7 @@ exports.SalesService = {
                 ...(paidUzsEquivalent > 0 && {
                     initialPayment: {
                         amountUzs: dto.paidAmountUzs,
-                        amountUsd: dto.paidAmountUsd,
-                        usdToUzsRate: dto.usdToUzsRate,
+                        amountUsd: 0,
                         paymentMethod: dto.paymentMethod,
                         receivedById: user.id,
                         note: dto.note,
@@ -155,10 +158,7 @@ exports.SalesService = {
             if (currentDebt <= 0) {
                 throw new AppError_1.AppError(400, "This sale has no outstanding debt");
             }
-            const paymentUzsEquivalent = Number((dto.amountUzs + dto.amountUsd * (dto.usdToUzsRate ?? 0)).toFixed(2));
-            if (paymentUzsEquivalent <= 0) {
-                throw new AppError_1.AppError(400, "Payment must be at least 0.01 UZS after conversion");
-            }
+            const paymentUzsEquivalent = Number(dto.amountUzs.toFixed(2));
             const newPaidAmountUzs = Number((Number(currentSale.paidAmountUzs) + paymentUzsEquivalent).toFixed(2));
             const newDebtAmountUzs = Number(Math.max(0, Number(currentSale.totalAmountUzs) - newPaidAmountUzs).toFixed(2));
             const debtReduced = currentDebt - newDebtAmountUzs;
@@ -166,8 +166,7 @@ exports.SalesService = {
                 saleId,
                 storeId,
                 amountUzs: dto.amountUzs,
-                amountUsd: dto.amountUsd,
-                usdToUzsRate: dto.usdToUzsRate,
+                amountUsd: 0,
                 paymentMethod: dto.paymentMethod,
                 note: dto.note,
                 receivedById: user.id,

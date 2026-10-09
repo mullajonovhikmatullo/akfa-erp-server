@@ -69,6 +69,7 @@ enum AuditAction {
   ADMIN_DISABLED
   ADMIN_ENABLED
   GOOGLE_ACCOUNT_LINKED
+  EXCHANGE_RATE_CHANGED
 }
 
 enum HandoffPurpose {
@@ -107,6 +108,11 @@ enum TransferStatus {
   PENDING
   COMPLETED
   CANCELLED
+}
+
+enum ExchangeRateMode {
+  CBU
+  MANUAL
 }
 
 enum ExpenseCurrency {
@@ -151,6 +157,10 @@ model Store {
   activatedAt       DateTime?
   suspendedAt       DateTime?
   billingVersion    Int               @default(0)
+  usdRateMode       ExchangeRateMode  @default(CBU)
+  manualUsdToUzsRate Decimal?         @db.Decimal(18, 2)
+  usdRateChangedAt  DateTime?
+  usdRateChangedById String?
   subscription      Subscription?
   users             User[]
   branches          Branch[]
@@ -763,4 +773,16 @@ model TransferAllocation {
   @@unique([transferItemId, stockBatchId])
   @@index([transferItemId])
   @@index([stockBatchId])
+}
+
+// Official rates cached from the Central Bank of Uzbekistan (cbu.uz), one row per rate date.
+model CurrencyRate {
+  id        String   @id @default(uuid())
+  source    String
+  currency  String
+  rate      Decimal  @db.Decimal(18, 2)
+  rateDate  DateTime @db.Date
+  fetchedAt DateTime @default(now())
+
+  @@unique([source, currency, rateDate])
 }

@@ -12,6 +12,7 @@ import { AddPaymentDto } from "../dto/add-payment.dto";
 import { SalesRepository } from "../repositories/sales.repository";
 import { debtPaymentQuerySchema, saleQuerySchema } from "../validations/sale.validation";
 import { claimIdempotency, completeIdempotency } from "../../../core/services/idempotency.service";
+import { ExchangeRatesService } from "../../exchange-rates/services/exchange-rates.service";
 
 // Sale amounts are whole so'm: the POS takes cash in whole so'm, so a fractional
 // total would leave an unpayable remainder as customer debt.
@@ -19,19 +20,13 @@ function roundUzs(amount: number): number {
     return Math.round(amount);
 }
 
-function resolveUnitPriceUzs(priceUzs: unknown, priceUsd: unknown, usdToUzsRate?: number): number {
-    const uzs = Number(priceUzs ?? 0);
-    const usd = priceUsd == null ? null : Number(priceUsd);
+function isUsdPriced(priceUzs: unknown, priceUsd: unknown): boolean {
+    return !(Number(priceUzs ?? 0) > 0) && Number(priceUsd ?? 0) > 0;
+}
 
-    if (uzs > 0 || !usd) {
-        return uzs;
-    }
-
-    if (!usdToUzsRate) {
-        throw new AppError(400, "usdToUzsRate is required when selling USD-priced products");
-    }
-
-    return roundUzs(usd * usdToUzsRate);
+function resolveUnitPriceUzs(priceUzs: unknown, priceUsd: unknown, usdToUzsRate: number | null): number {
+    if (!isUsdPriced(priceUzs, priceUsd)) return Number(priceUzs ?? 0);
+    return roundUzs(Number(priceUsd) * usdToUzsRate!);
 }
 
 export const SalesService = {
@@ -97,13 +92,29 @@ export const SalesService = {
             }
 
             // ── Build line items with price snapshots ────────────────────────────
+            const priceOf = (p: (typeof products)[number]) => dto.saleType === "RETAIL"
+                ? { uzs: p.retailPriceUzs, usd: p.retailPriceUsd }
+                : { uzs: p.wholesalePriceUzs, usd: p.wholesalePriceUsd };
+
+            // USD prices convert at the store's rate, never one supplied by the client. The client
+            // still sends the rate it showed, so a rate change since then fails instead of
+            // silently charging a different total.
+            let usdToUzsRate: number | null = null;
+            if (products.some((p) => isUsdPriced(priceOf(p).uzs, priceOf(p).usd))) {
+                if (dto.usdToUzsRate === undefined) {
+                    throw new AppError(400, "usdToUzsRate is required when selling USD-priced products");
+                }
+                usdToUzsRate = await ExchangeRatesService.resolveUsdToUzsRate(storeId, tx);
+                if (Math.abs(usdToUzsRate - dto.usdToUzsRate) >= 0.005) {
+                    throw new AppError(409, "Exchange rate has changed. Reload the rate and confirm the sale again.");
+                }
+            }
+
             const productMap = new Map(products.map((p) => [p.id, p]));
             const saleItems = dto.items.map((item) => {
                 const product = productMap.get(item.productId)!;
-                const unitPrice =
-                    dto.saleType === "RETAIL"
-                        ? resolveUnitPriceUzs(product.retailPriceUzs, product.retailPriceUsd, dto.usdToUzsRate)
-                        : resolveUnitPriceUzs(product.wholesalePriceUzs, product.wholesalePriceUsd, dto.usdToUzsRate);
+                const price = priceOf(product);
+                const unitPrice = resolveUnitPriceUzs(price.uzs, price.usd, usdToUzsRate);
                 return {
                     productId: item.productId,
                     quantity: item.quantity,

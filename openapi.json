@@ -2742,6 +2742,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "Google sign-in is in development (GOOGLE_SIGN_IN_ENABLED is not 1)"
           }
         }
       }
@@ -2804,7 +2807,7 @@
             "description": "Sign-in rate limit exceeded"
           },
           "503": {
-            "description": "Google sign-in is unavailable"
+            "description": "Google sign-in is unavailable or in development (GOOGLE_SIGN_IN_ENABLED is not 1)"
           }
         }
       }

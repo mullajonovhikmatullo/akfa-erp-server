@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const AppError_1 = require("../../core/errors/AppError");
 const auth_controller_1 = require("./controllers/auth.controller");
 const auth_middleware_1 = require("./middleware/auth.middleware");
 const profile_photo_upload_middleware_1 = require("./middleware/profile-photo-upload.middleware");
@@ -8,6 +9,13 @@ const validate_1 = require("../../core/middleware/validate");
 const rateLimit_1 = require("../../core/middleware/rateLimit");
 const auth_validation_1 = require("./validations/auth.validation");
 const router = (0, express_1.Router)();
+// Google sign-in is paused while it is being finished; set GOOGLE_SIGN_IN_ENABLED=1 to turn it back on.
+function requireGoogleSignIn(_req, _res, next) {
+    if (process.env.GOOGLE_SIGN_IN_ENABLED !== "1") {
+        return next(new AppError_1.AppError(503, "Google sign-in is in development"));
+    }
+    next();
+}
 /**
  * @openapi
  * components:
@@ -97,8 +105,8 @@ const router = (0, express_1.Router)();
  *         description: Invalid credentials
  */
 router.post("/login", rateLimit_1.loginRateLimit, (0, validate_1.validate)(auth_validation_1.loginSchema), auth_controller_1.AuthController.login);
-router.get("/google/config", auth_controller_1.AuthController.googleConfig);
-router.post("/google", rateLimit_1.loginRateLimit, (0, validate_1.validate)(auth_validation_1.googleLoginSchema), auth_controller_1.AuthController.loginWithGoogle);
+router.get("/google/config", requireGoogleSignIn, auth_controller_1.AuthController.googleConfig);
+router.post("/google", requireGoogleSignIn, rateLimit_1.loginRateLimit, (0, validate_1.validate)(auth_validation_1.googleLoginSchema), auth_controller_1.AuthController.loginWithGoogle);
 router.post("/handoff/exchange", rateLimit_1.handoffRateLimit, (0, validate_1.validate)(auth_validation_1.exchangeHandoffSchema), auth_controller_1.AuthController.exchangeHandoff);
 router.post("/setup/complete", rateLimit_1.handoffRateLimit, (0, validate_1.validate)(auth_validation_1.completeAccountSetupSchema), auth_controller_1.AuthController.completeAccountSetup);
 /**

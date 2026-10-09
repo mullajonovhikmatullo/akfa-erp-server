@@ -25,6 +25,7 @@ const onboarding_routes_1 = __importDefault(require("./modules/onboarding/onboar
 const platform_routes_1 = __importDefault(require("./modules/platform/platform.routes"));
 const users_routes_1 = __importDefault(require("./modules/users/users.routes"));
 const branches_routes_1 = __importDefault(require("./modules/branches/branches.routes"));
+const exchange_rates_routes_1 = __importDefault(require("./modules/exchange-rates/exchange-rates.routes"));
 const admins_routes_1 = __importDefault(require("./modules/admins/admins.routes"));
 const products_routes_1 = __importDefault(require("./modules/products/products.routes"));
 const inventory_routes_1 = __importDefault(require("./modules/inventory/inventory.routes"));
@@ -109,6 +110,7 @@ apiRouter.use("/auth", auth_routes_1.default);
 apiRouter.use("/platform", platform_routes_1.default);
 apiRouter.use("/users", users_routes_1.default);
 apiRouter.use("/branches", branches_routes_1.default);
+apiRouter.use("/exchange-rate", exchange_rates_routes_1.default);
 apiRouter.use("/admins", admins_routes_1.default);
 apiRouter.use("/products", products_routes_1.default);
 apiRouter.use("/inventory", inventory_routes_1.default);

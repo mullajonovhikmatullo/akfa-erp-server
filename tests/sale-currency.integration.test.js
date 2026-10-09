@@ -42,6 +42,7 @@ test("Mixed UZS/USD cart settles in whole so'm", { skip: !databaseUrl, timeout: 
         }
 
         const rate = 12685.5;
+        await prisma.store.update({ where: { id: storeId }, data: { usdRateMode: "MANUAL", manualUsdToUzsRate: rate } });
         const uzs = await product({ retailPriceUzs: 1225000 });
         const usd = await product({ retailPriceUzs: 0, retailPriceUsd: 215.37 });
         const usdKg = await product({ retailPriceUzs: 0, retailPriceUsd: 3.33 }, "KG");
@@ -62,6 +63,17 @@ test("Mixed UZS/USD cart settles in whole so'm", { skip: !databaseUrl, timeout: 
             for (const item of sale.items) {
                 assert.equal(Number(item.totalPrice), Math.round(Number(item.totalPrice)));
             }
+        });
+
+        await t.test("a sale priced at a stale client rate is rejected", async () => {
+            await assert.rejects(
+                SalesService.create({ ...base, usdToUzsRate: 12000, paidAmountUzs: expectedTotal, paidAmountUsd: 0 }, user),
+                (error) => error.statusCode === 409,
+            );
+            await assert.rejects(
+                SalesService.create({ ...base, usdToUzsRate: undefined, paidAmountUzs: expectedTotal, paidAmountUsd: 0 }, user),
+                (error) => error.statusCode === 400,
+            );
         });
 
         await t.test("partial payment debt is a whole so'm amount and can be paid off exactly", async () => {

@@ -1,4 +1,5 @@
-import { Router } from "express";
+import { NextFunction, Request, Response, Router } from "express";
+import { AppError } from "../../core/errors/AppError";
 import { AuthController } from "./controllers/auth.controller";
 import { authMiddleware } from "./middleware/auth.middleware";
 import { profilePhotoUpload } from "./middleware/profile-photo-upload.middleware";
@@ -12,6 +13,14 @@ import {
 } from "./validations/auth.validation";
 
 const router = Router();
+
+// Google sign-in is paused while it is being finished; set GOOGLE_SIGN_IN_ENABLED=1 to turn it back on.
+function requireGoogleSignIn(_req: Request, _res: Response, next: NextFunction) {
+    if (process.env.GOOGLE_SIGN_IN_ENABLED !== "1") {
+        return next(new AppError(503, "Google sign-in is in development"));
+    }
+    next();
+}
 
 /**
  * @openapi
@@ -103,8 +112,8 @@ const router = Router();
  *         description: Invalid credentials
  */
 router.post("/login", loginRateLimit, validate(loginSchema), AuthController.login);
-router.get("/google/config", AuthController.googleConfig);
-router.post("/google", loginRateLimit, validate(googleLoginSchema), AuthController.loginWithGoogle);
+router.get("/google/config", requireGoogleSignIn, AuthController.googleConfig);
+router.post("/google", requireGoogleSignIn, loginRateLimit, validate(googleLoginSchema), AuthController.loginWithGoogle);
 router.post(
     "/handoff/exchange",
     handoffRateLimit,

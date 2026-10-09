@@ -38,9 +38,18 @@ export const stockInSchema = z.object({
     wholesalePriceUzs: salePriceUzsField,
     retailPriceUsd: salePriceUsdField,
     wholesalePriceUsd: salePriceUsdField,
+    usdToUzsRate: z.number().positive("Exchange rate must be positive").optional(),
     supplierNote: z.string().max(500).optional(),
 }).superRefine((d, ctx) => {
     const usd = d.costPriceUsd !== undefined;
+    if (usd && d.usdToUzsRate === undefined) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "usdToUzsRate is required for USD cost prices",
+            path: ["usdToUzsRate"],
+        });
+        return;
+    }
     const [cost, wholesale, retail] = usd
         ? [d.costPriceUsd!, d.wholesalePriceUsd, d.retailPriceUsd]
         : [d.costPriceUzs, d.wholesalePriceUzs, d.retailPriceUzs];

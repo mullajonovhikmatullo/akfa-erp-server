@@ -121,6 +121,19 @@ export const ExchangeRatesService = {
         return Number(cbu.rate);
     },
 
+    // Every USD amount converts at the store rate. The client sends the rate it showed, so
+    // a rate change since then fails instead of silently saving a different so'm amount.
+    async assertClientRate(storeId: string, clientRate: number | undefined, db: Db = prisma): Promise<number> {
+        if (clientRate === undefined) {
+            throw new AppError(400, "usdToUzsRate is required for USD amounts");
+        }
+        const rate = await this.resolveUsdToUzsRate(storeId, db);
+        if (Math.abs(rate - clientRate) >= 0.005) {
+            throw new AppError(409, "Exchange rate has changed. Reload the rate and confirm again.");
+        }
+        return rate;
+    },
+
     async update(dto: UpdateExchangeRateDto, user: JwtPayload) {
         const storeId = requireStoreId(user);
         if (dto.mode === ExchangeRateMode.CBU) {

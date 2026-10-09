@@ -10,21 +10,19 @@ const inventory_service_1 = require("../../inventory/services/inventory.service"
 const customers_repository_1 = require("../../customers/repositories/customers.repository");
 const sales_repository_1 = require("../repositories/sales.repository");
 const idempotency_service_1 = require("../../../core/services/idempotency.service");
+const exchange_rates_service_1 = require("../../exchange-rates/services/exchange-rates.service");
 // Sale amounts are whole so'm: the POS takes cash in whole so'm, so a fractional
 // total would leave an unpayable remainder as customer debt.
 function roundUzs(amount) {
     return Math.round(amount);
 }
+function isUsdPriced(priceUzs, priceUsd) {
+    return !(Number(priceUzs ?? 0) > 0) && Number(priceUsd ?? 0) > 0;
+}
 function resolveUnitPriceUzs(priceUzs, priceUsd, usdToUzsRate) {
-    const uzs = Number(priceUzs ?? 0);
-    const usd = priceUsd == null ? null : Number(priceUsd);
-    if (uzs > 0 || !usd) {
-        return uzs;
-    }
-    if (!usdToUzsRate) {
-        throw new AppError_1.AppError(400, "usdToUzsRate is required when selling USD-priced products");
-    }
-    return roundUzs(usd * usdToUzsRate);
+    if (!isUsdPriced(priceUzs, priceUsd))
+        return Number(priceUzs ?? 0);
+    return roundUzs(Number(priceUsd) * usdToUzsRate);
 }
 exports.SalesService = {
     // ─── Create Sale ──────────────────────────────────────────────────────────
@@ -83,12 +81,27 @@ exports.SalesService = {
                 throw new AppError_1.AppError(409, `Inactive products cannot be sold: ${inactiveProducts.map((p) => p.name).join(", ")}`);
             }
             // ── Build line items with price snapshots ────────────────────────────
+            const priceOf = (p) => dto.saleType === "RETAIL"
+                ? { uzs: p.retailPriceUzs, usd: p.retailPriceUsd }
+                : { uzs: p.wholesalePriceUzs, usd: p.wholesalePriceUsd };
+            // USD prices convert at the store's rate, never one supplied by the client. The client
+            // still sends the rate it showed, so a rate change since then fails instead of
+            // silently charging a different total.
+            let usdToUzsRate = null;
+            if (products.some((p) => isUsdPriced(priceOf(p).uzs, priceOf(p).usd))) {
+                if (dto.usdToUzsRate === undefined) {
+                    throw new AppError_1.AppError(400, "usdToUzsRate is required when selling USD-priced products");
+                }
+                usdToUzsRate = await exchange_rates_service_1.ExchangeRatesService.resolveUsdToUzsRate(storeId, tx);
+                if (Math.abs(usdToUzsRate - dto.usdToUzsRate) >= 0.005) {
+                    throw new AppError_1.AppError(409, "Exchange rate has changed. Reload the rate and confirm the sale again.");
+                }
+            }
             const productMap = new Map(products.map((p) => [p.id, p]));
             const saleItems = dto.items.map((item) => {
                 const product = productMap.get(item.productId);
-                const unitPrice = dto.saleType === "RETAIL"
-                    ? resolveUnitPriceUzs(product.retailPriceUzs, product.retailPriceUsd, dto.usdToUzsRate)
-                    : resolveUnitPriceUzs(product.wholesalePriceUzs, product.wholesalePriceUsd, dto.usdToUzsRate);
+                const price = priceOf(product);
+                const unitPrice = resolveUnitPriceUzs(price.uzs, price.usd, usdToUzsRate);
                 return {
                     productId: item.productId,
                     quantity: item.quantity,

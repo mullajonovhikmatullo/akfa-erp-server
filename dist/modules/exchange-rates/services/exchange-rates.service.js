@@ -117,6 +117,18 @@ exports.ExchangeRatesService = {
             throw new AppError_1.AppError(503, "Exchange rate is not available yet");
         return Number(cbu.rate);
     },
+    // Every USD amount converts at the store rate. The client sends the rate it showed, so
+    // a rate change since then fails instead of silently saving a different so'm amount.
+    async assertClientRate(storeId, clientRate, db = prisma_1.prisma) {
+        if (clientRate === undefined) {
+            throw new AppError_1.AppError(400, "usdToUzsRate is required for USD amounts");
+        }
+        const rate = await this.resolveUsdToUzsRate(storeId, db);
+        if (Math.abs(rate - clientRate) >= 0.005) {
+            throw new AppError_1.AppError(409, "Exchange rate has changed. Reload the rate and confirm again.");
+        }
+        return rate;
+    },
     async update(dto, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
         if (dto.mode === client_1.ExchangeRateMode.CBU) {

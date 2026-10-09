@@ -6,17 +6,21 @@ const billing_state_service_1 = require("../../../core/services/billing-state.se
 const branch_access_1 = require("../../../core/utils/branch-access");
 const role_access_1 = require("../../../core/utils/role-access");
 const prisma_1 = require("../../../infrastructure/prisma/prisma");
+const exchange_rates_service_1 = require("../../exchange-rates/services/exchange-rates.service");
 const expenses_repository_1 = require("../repositories/expenses.repository");
 exports.ExpensesService = {
     async create(dto, user) {
         const storeId = (0, branch_access_1.requireStoreId)(user);
         const branchId = (0, branch_access_1.resolveBranchId)(dto.branchId, user);
-        const amount = dto.currency === "USD"
-            ? Number((dto.amountUsd * (dto.usdToUzsRate ?? 0)).toFixed(2))
-            : dto.amount;
         return prisma_1.prisma.$transaction(async (tx) => {
             await (0, billing_state_service_1.assertStoreWritableInTransaction)(tx, storeId);
             await (0, branch_access_1.assertBranchInStore)(branchId, storeId, tx);
+            const usdToUzsRate = dto.currency === "USD"
+                ? await exchange_rates_service_1.ExchangeRatesService.assertClientRate(storeId, dto.usdToUzsRate, tx)
+                : undefined;
+            const amount = usdToUzsRate !== undefined
+                ? Number((dto.amountUsd * usdToUzsRate).toFixed(2))
+                : dto.amount;
             const category = await tx.expenseCategory.findFirst({
                 where: { id: dto.categoryId, storeId },
             });
@@ -24,7 +28,7 @@ exports.ExpensesService = {
                 throw new AppError_1.AppError(404, "Expense category not found");
             if (!category.isActive)
                 throw new AppError_1.AppError(409, "Expense category is inactive");
-            return expenses_repository_1.ExpensesRepository.create({ ...dto, amount, storeId, branchId, createdById: user.id }, tx);
+            return expenses_repository_1.ExpensesRepository.create({ ...dto, usdToUzsRate, amount, storeId, branchId, createdById: user.id }, tx);
         }, prisma_1.transactionOptions);
     },
     async findAll(query, user) {

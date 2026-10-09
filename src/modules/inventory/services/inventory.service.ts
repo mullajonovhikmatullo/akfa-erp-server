@@ -7,6 +7,7 @@ import { assertBranchesInStore, assertProductsInStore, branchScope, requireStore
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { AdjustmentDto } from "../dto/adjustment.dto";
 import { StockInBatchDto, StockInDto } from "../dto/stock-in.dto";
+import { ExchangeRatesService } from "../../exchange-rates/services/exchange-rates.service";
 import { InventoryRepository } from "../repositories/inventory.repository";
 import {
     batchQuerySchema,
@@ -67,6 +68,19 @@ async function assertStockInTargets(items: ResolvedStockIn[], storeId: string, t
         if (!product.isActive) {
             throw new AppError(409, "Cannot stock an inactive product");
         }
+    }
+}
+
+// The so'm cost of a USD lot is always computed at the store rate; the client's rate must match it.
+async function applyStoreRate(items: ResolvedStockIn[], storeId: string, tx: Prisma.TransactionClient) {
+    let rate: number | null = null;
+    for (const item of items) {
+        if (item.dto.costPriceUsd === undefined) continue;
+        rate ??= await ExchangeRatesService.assertClientRate(storeId, item.dto.usdToUzsRate, tx);
+        if (Math.abs(rate - item.dto.usdToUzsRate!) >= 0.005) {
+            throw new AppError(409, "Exchange rate has changed. Reload the rate and confirm again.");
+        }
+        item.dto = { ...item.dto, costPriceUzs: Number((item.dto.costPriceUsd * rate).toFixed(2)) };
     }
 }
 
@@ -185,6 +199,7 @@ export const InventoryService = {
             }
             await assertActiveActor(user.id, storeId, tx);
             await assertStockInTargets([item], storeId, tx);
+            await applyStoreRate([item], storeId, tx);
             await InventoryRepository.lockStock(storeId, [{ branchId, productId: dto.productId }], tx);
             const batch = await createStockInEntry(item, user.id, tx);
             await applyProductPrices([item], storeId, tx);
@@ -215,6 +230,7 @@ export const InventoryService = {
             }
             await assertActiveActor(user.id, storeId, tx);
             await assertStockInTargets(items, storeId, tx);
+            await applyStoreRate(items, storeId, tx);
             await InventoryRepository.lockStock(storeId, items.map((item) => ({ branchId: item.branchId, productId: item.dto.productId })), tx);
             const receiptId = randomUUID();
             const batchIds = items.map(() => randomUUID());

@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TransfersService = void 0;
+const exchange_rates_service_1 = require("../../exchange-rates/services/exchange-rates.service");
 const client_1 = require("@prisma/client");
 const AppError_1 = require("../../../core/errors/AppError");
 const billing_state_service_1 = require("../../../core/services/billing-state.service");
@@ -67,15 +68,17 @@ exports.TransfersService = {
                 throw new AppError_1.AppError(404, `Products not found: ${missing.join(", ")}`);
             }
             const productMap = new Map(products.map((p) => [p.id, p]));
-            // Build items — default cost to wholesale price when not supplied
+            const isUsdPriced = (p) => !(Number(p.wholesalePriceUzs) > 0) && Number(p.wholesalePriceUsd ?? 0) > 0;
+            const usdToUzsRate = products.some(isUsdPriced)
+                ? await exchange_rates_service_1.ExchangeRatesService.assertClientRate(storeId, dto.usdToUzsRate, tx)
+                : null;
+            // Build items — default cost to the wholesale price (USD at the store rate) when not supplied
             const items = dto.items.map((item) => {
                 const product = productMap.get(item.productId);
-                const wholesalePriceUzs = Number(product.wholesalePriceUzs);
-                const wholesalePriceUsd = product.wholesalePriceUsd == null ? null : Number(product.wholesalePriceUsd);
-                if (item.unitCostUzs === undefined && wholesalePriceUzs <= 0 && wholesalePriceUsd) {
-                    throw new AppError_1.AppError(400, `unitCostUzs is required when transferring USD-priced product "${product.name}"`);
-                }
-                const unitCostUzs = item.unitCostUzs ?? wholesalePriceUzs;
+                const defaultUnitCostUzs = isUsdPriced(product)
+                    ? Number((Number(product.wholesalePriceUsd) * usdToUzsRate).toFixed(2))
+                    : Number(product.wholesalePriceUzs);
+                const unitCostUzs = item.unitCostUzs ?? defaultUnitCostUzs;
                 return {
                     productId: item.productId,
                     quantity: item.quantity,

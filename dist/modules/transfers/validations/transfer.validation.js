@@ -23,6 +23,7 @@ exports.createTransferSchema = zod_1.z
         .array(transferItemSchema)
         .min(1, "Transfer must include at least one item").max(200),
     note: zod_1.z.string().max(500).optional(),
+    usdToUzsRate: zod_1.z.number().positive("Exchange rate must be positive").optional(),
 })
     .refine((d) => {
     const unique = new Set(d.items.map((i) => i.productId));

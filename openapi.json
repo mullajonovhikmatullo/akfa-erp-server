@@ -1986,6 +1986,11 @@
             "type": "number",
             "example": 19
           },
+          "usdToUzsRate": {
+            "type": "number",
+            "example": 12000,
+            "description": "Required with costPriceUsd. Must equal the store rate; costPriceUzs is then computed at that rate."
+          },
           "supplierNote": {
             "type": "string",
             "example": "Delivery #2341 from Tashkent warehouse"
@@ -2685,6 +2690,10 @@
           "note": {
             "type": "string",
             "maxLength": 500
+          },
+          "usdToUzsRate": {
+            "type": "number",
+            "description": "Required when a product is USD-priced. Must equal the store rate."
           }
         }
       }

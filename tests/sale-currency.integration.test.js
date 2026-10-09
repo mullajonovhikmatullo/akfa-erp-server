@@ -11,6 +11,8 @@ test("Mixed UZS/USD cart settles in whole so'm", { skip: !databaseUrl, timeout: 
     const { prisma } = require("../dist/infrastructure/prisma/prisma");
     const { InventoryService } = require("../dist/modules/inventory/services/inventory.service");
     const { SalesService } = require("../dist/modules/sales/services/sales.service");
+    const { TransfersService } = require("../dist/modules/transfers/services/transfers.service");
+    const { ExpensesService } = require("../dist/modules/expenses/services/expenses.service");
     const planId = randomUUID();
     let storeId;
 
@@ -76,6 +78,24 @@ test("Mixed UZS/USD cart settles in whole so'm", { skip: !databaseUrl, timeout: 
             );
         });
 
+        await t.test("transfers convert USD wholesale prices at the store rate", async () => {
+            const usdWholesale = await product({ retailPriceUzs: 0, wholesalePriceUzs: 0, wholesalePriceUsd: 200.5 });
+            const destination = await prisma.branch.create({ data: { storeId, name: "Second" } });
+            const transfer = { fromBranchId: branch.id, toBranchId: destination.id, items: [{ productId: usdWholesale.id, quantity: 1 }] };
+            await assert.rejects(TransfersService.create({ ...transfer, usdToUzsRate: 12000 }, user), (error) => error.statusCode === 409);
+            await assert.rejects(TransfersService.create(transfer, user), (error) => error.statusCode === 400);
+            const created = await TransfersService.create({ ...transfer, usdToUzsRate: rate }, user);
+            assert.equal(Number(created.items[0].unitCostUzs), Number((200.5 * rate).toFixed(2)));
+        });
+
+        await t.test("USD expenses convert at the store rate", async () => {
+            const category = await prisma.expenseCategory.create({ data: { storeId, name: `Rent ${randomUUID()}` } });
+            const expense = { branchId: branch.id, categoryId: category.id, currency: "USD", amount: 1, amountUsd: 50, expenseDate: new Date().toISOString() };
+            await assert.rejects(ExpensesService.create({ ...expense, usdToUzsRate: 12000 }, user), (error) => error.statusCode === 409);
+            const created = await ExpensesService.create({ ...expense, usdToUzsRate: rate }, user);
+            assert.equal(Number(created.amount), Number((50 * rate).toFixed(2)));
+        });
+
         await t.test("partial payment debt is a whole so'm amount and can be paid off exactly", async () => {
             const sale = await SalesService.create({ ...base, customerId: customer.id, paidAmountUzs: 1000000, paidAmountUsd: 0 }, user);
             const debt = Number(sale.debtAmountUzs);
@@ -87,7 +107,7 @@ test("Mixed UZS/USD cart settles in whole so'm", { skip: !databaseUrl, timeout: 
         });
     } finally {
         if (storeId) {
-            for (const table of ["SalePayment", "SaleItem", "StockMovement", "Sale", "StockBatch", "Inventory", "IdempotencyRecord", "CustomerBranch", "Customer", "Product", "User", "Branch", "Subscription"]) {
+            for (const table of ["Expense", "ExpenseCategory", "TransferAllocation", "TransferItem", "Transfer", "SalePayment", "SaleItem", "StockMovement", "Sale", "StockBatch", "Inventory", "IdempotencyRecord", "CustomerBranch", "Customer", "Product", "User", "Branch", "Subscription"]) {
                 await prisma.$executeRawUnsafe(`DELETE FROM "${table}" WHERE "storeId" = $1`, storeId).catch(() => {});
             }
             await prisma.store.delete({ where: { id: storeId } }).catch(() => {});

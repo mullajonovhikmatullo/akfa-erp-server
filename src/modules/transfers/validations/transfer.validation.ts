@@ -22,6 +22,7 @@ export const createTransferSchema = z
             .array(transferItemSchema)
             .min(1, "Transfer must include at least one item").max(200),
         note: z.string().max(500).optional(),
+        usdToUzsRate: z.number().positive("Exchange rate must be positive").optional(),
     })
     .refine(
         (d) => {

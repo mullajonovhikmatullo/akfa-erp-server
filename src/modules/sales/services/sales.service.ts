@@ -96,19 +96,9 @@ export const SalesService = {
                 ? { uzs: p.retailPriceUzs, usd: p.retailPriceUsd }
                 : { uzs: p.wholesalePriceUzs, usd: p.wholesalePriceUsd };
 
-            // USD prices convert at the store's rate, never one supplied by the client. The client
-            // still sends the rate it showed, so a rate change since then fails instead of
-            // silently charging a different total.
-            let usdToUzsRate: number | null = null;
-            if (products.some((p) => isUsdPriced(priceOf(p).uzs, priceOf(p).usd))) {
-                if (dto.usdToUzsRate === undefined) {
-                    throw new AppError(400, "usdToUzsRate is required when selling USD-priced products");
-                }
-                usdToUzsRate = await ExchangeRatesService.resolveUsdToUzsRate(storeId, tx);
-                if (Math.abs(usdToUzsRate - dto.usdToUzsRate) >= 0.005) {
-                    throw new AppError(409, "Exchange rate has changed. Reload the rate and confirm the sale again.");
-                }
-            }
+            const usdToUzsRate = products.some((p) => isUsdPriced(priceOf(p).uzs, priceOf(p).usd))
+                ? await ExchangeRatesService.assertClientRate(storeId, dto.usdToUzsRate, tx)
+                : null;
 
             const productMap = new Map(products.map((p) => [p.id, p]));
             const saleItems = dto.items.map((item) => {

@@ -6,6 +6,7 @@ import { assertBranchInStore, branchScope, requireStoreId, resolveBranchId } fro
 import { isBranchScopedRole } from "../../../core/utils/role-access";
 import { prisma, transactionOptions } from "../../../infrastructure/prisma/prisma";
 import { CreateExpenseDto } from "../dto/create-expense.dto";
+import { ExchangeRatesService } from "../../exchange-rates/services/exchange-rates.service";
 import { ExpensesRepository } from "../repositories/expenses.repository";
 import {
     expenseCategorySummaryQuerySchema,
@@ -17,14 +18,15 @@ export const ExpensesService = {
         const storeId = requireStoreId(user);
         const branchId = resolveBranchId(dto.branchId, user);
 
-        const amount =
-            dto.currency === "USD"
-                ? Number((dto.amountUsd * (dto.usdToUzsRate ?? 0)).toFixed(2))
-                : dto.amount;
-
         return prisma.$transaction(async (tx) => {
             await assertStoreWritableInTransaction(tx, storeId);
             await assertBranchInStore(branchId, storeId, tx);
+            const usdToUzsRate = dto.currency === "USD"
+                ? await ExchangeRatesService.assertClientRate(storeId, dto.usdToUzsRate, tx)
+                : undefined;
+            const amount = usdToUzsRate !== undefined
+                ? Number((dto.amountUsd * usdToUzsRate).toFixed(2))
+                : dto.amount;
 
             const category = await tx.expenseCategory.findFirst({
                 where: { id: dto.categoryId, storeId },
@@ -33,7 +35,7 @@ export const ExpensesService = {
             if (!category.isActive) throw new AppError(409, "Expense category is inactive");
 
             return ExpensesRepository.create(
-                { ...dto, amount, storeId, branchId, createdById: user.id },
+                { ...dto, usdToUzsRate, amount, storeId, branchId, createdById: user.id },
                 tx
             );
         }, transactionOptions);

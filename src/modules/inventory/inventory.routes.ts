@@ -50,6 +50,10 @@ router.use(authMiddleware);
  *         retailPriceUsd:
  *           type: number
  *           example: 19.00
+ *         usdToUzsRate:
+ *           type: number
+ *           example: 12000
+ *           description: Required with costPriceUsd. Must equal the store rate; costPriceUzs is then computed at that rate.
  *         supplierNote:
  *           type: string
  *           example: "Delivery #2341 from Tashkent warehouse"

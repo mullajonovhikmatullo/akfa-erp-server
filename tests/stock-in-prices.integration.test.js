@@ -60,6 +60,7 @@ test("stock-in carries lot prices onto the product", { skip: !databaseUrl, timeo
         const owner = await register("Price owner");
         const O = owner.token;
         const B = owner.mainBranchId;
+        await prisma.store.update({ where: { id: storeIds[0] }, data: { usdRateMode: "MANUAL", manualUsdToUzsRate: 12000 } });
         const product = (extra = {}) => request(O, "/api/products", "POST", {
             name: `Item ${randomBytes(3).toString("hex")}`, unit: "PIECE", costPriceUzs: 1000, retailPriceUzs: 1500, wholesalePriceUzs: 1200, ...extra,
         }, 201);
@@ -90,10 +91,21 @@ test("stock-in carries lot prices onto the product", { skip: !databaseUrl, timeo
 
         await t.test("a USD-priced product is updated in USD", async () => {
             const p = await product({ costPriceUzs: 0, retailPriceUzs: 0, wholesalePriceUzs: 0, costPriceUsd: 10, wholesalePriceUsd: 12, retailPriceUsd: 15 });
-            await request(O, "/api/inventory/stock-in", "POST", {
-                branchId: B, productId: p.id, quantity: 2, costPriceUzs: 132000, costPriceUsd: 11, wholesalePriceUsd: 13, retailPriceUsd: 16,
+            const batch = await request(O, "/api/inventory/stock-in", "POST", {
+                branchId: B, productId: p.id, quantity: 2, costPriceUzs: 1, costPriceUsd: 11, wholesalePriceUsd: 13, retailPriceUsd: 16, usdToUzsRate: 12000,
             }, 201);
             assert.deepEqual(await prices(p.id), [0, 0, 0, 11, 13, 16]);
+            const saved = await prisma.stockBatch.findUnique({ where: { id: batch.id }, select: { costPriceUzs: true } });
+            assert.equal(Number(saved.costPriceUzs), 132000);
+        });
+
+        await t.test("a USD stock-in needs the current store rate", async () => {
+            const p = await product({ costPriceUzs: 0, retailPriceUzs: 0, wholesalePriceUzs: 0, costPriceUsd: 10, wholesalePriceUsd: 12, retailPriceUsd: 15 });
+            const body = { branchId: B, productId: p.id, quantity: 1, costPriceUzs: 120000, costPriceUsd: 10 };
+            await request(O, "/api/inventory/stock-in", "POST", { ...body, usdToUzsRate: 12650 }, 409);
+            await request(O, "/api/inventory/stock-in", "POST", body, 422);
+            await request(O, "/api/inventory/stock-in/batch", "POST", [{ ...body, usdToUzsRate: 12650 }], 409);
+            await request(O, "/api/inventory/stock-in/batch", "POST", [{ ...body, usdToUzsRate: 12000 }], 201);
         });
 
         await t.test("a stock-in without sale prices leaves the product untouched", async () => {

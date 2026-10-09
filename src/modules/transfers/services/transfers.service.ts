@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ExchangeRatesService } from "../../exchange-rates/services/exchange-rates.service";
 import { Prisma, StockMovementType } from "@prisma/client";
 import { AppError } from "../../../core/errors/AppError";
 import { assertStoreWritableInTransaction } from "../../../core/services/billing-state.service";
@@ -76,16 +77,19 @@ export const TransfersService = {
             }
 
             const productMap = new Map(products.map((p) => [p.id, p]));
+            const isUsdPriced = (p: (typeof products)[number]) =>
+                !(Number(p.wholesalePriceUzs) > 0) && Number(p.wholesalePriceUsd ?? 0) > 0;
+            const usdToUzsRate = products.some(isUsdPriced)
+                ? await ExchangeRatesService.assertClientRate(storeId, dto.usdToUzsRate, tx)
+                : null;
 
-            // Build items — default cost to wholesale price when not supplied
+            // Build items — default cost to the wholesale price (USD at the store rate) when not supplied
             const items = dto.items.map((item) => {
                 const product = productMap.get(item.productId)!;
-                const wholesalePriceUzs = Number(product.wholesalePriceUzs);
-                const wholesalePriceUsd = product.wholesalePriceUsd == null ? null : Number(product.wholesalePriceUsd);
-                if (item.unitCostUzs === undefined && wholesalePriceUzs <= 0 && wholesalePriceUsd) {
-                    throw new AppError(400, `unitCostUzs is required when transferring USD-priced product "${product.name}"`);
-                }
-                const unitCostUzs = item.unitCostUzs ?? wholesalePriceUzs;
+                const defaultUnitCostUzs = isUsdPriced(product)
+                    ? Number((Number(product.wholesalePriceUsd) * usdToUzsRate!).toFixed(2))
+                    : Number(product.wholesalePriceUzs);
+                const unitCostUzs = item.unitCostUzs ?? defaultUnitCostUzs;
                 return {
                     productId: item.productId,
                     quantity: item.quantity,

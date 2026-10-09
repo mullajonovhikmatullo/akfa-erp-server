@@ -49,6 +49,9 @@ router.use(authMiddleware);
  *         note:
  *           type: string
  *           maxLength: 500
+ *         usdToUzsRate:
+ *           type: number
+ *           description: Required when a product is USD-priced. Must equal the store rate.
  */
 
 /**

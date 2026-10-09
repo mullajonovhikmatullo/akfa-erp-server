@@ -53,29 +53,30 @@ router.use(authMiddleware);
  *           example: 200000
  *         paidAmountUsd:
  *           type: number
+ *           enum: [0]
  *           default: 0
- *           example: 0
+ *           description: Deprecated. Sales are paid in UZS only; any other value is rejected.
  *         usdToUzsRate:
  *           type: number
- *           description: Required when paidAmountUsd > 0
+ *           description: Required when the cart has USD-priced products; converts them to whole so'm.
  *           example: 12700
  *         paymentMethod:
  *           $ref: '#/components/schemas/PaymentMethod'
+ *           description: CASH_USD is rejected; sales are paid in UZS only.
  *         note:
  *           type: string
  *     AddPaymentRequest:
  *       type: object
- *       required: [paymentMethod]
+ *       required: [amountUzs, paymentMethod]
  *       properties:
  *         amountUzs:
  *           type: number
- *           default: 0
  *           example: 100000
  *         amountUsd:
  *           type: number
+ *           enum: [0]
  *           default: 0
- *         usdToUzsRate:
- *           type: number
+ *           description: Deprecated. Debt payments are accepted in UZS only.
  *         paymentMethod:
  *           $ref: '#/components/schemas/PaymentMethod'
  *         note:
